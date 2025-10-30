@@ -1,0 +1,147 @@
+
+
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+      <!--[if gte mso 9]>
+      <xml>
+        <x:ExcelWorkbook>
+          <x:ExcelWorksheets>
+            <x:ExcelWorksheet>
+              <x:Name>Users Data</x:Name>
+              <x:WorksheetOptions>
+                <x:DisplayGridlines/>
+              </x:WorksheetOptions>
+            </x:ExcelWorksheet>
+          </x:ExcelWorksheets>
+        </x:ExcelWorkbook>
+      </xml>
+      <![endif]-->
+  
+      </head>
+      <body><table><tr>
+        <th>Code</th>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Unit</th>
+        <th>Quantity</th>
+        <th>Selling Price</th>
+        <th>Purchase Price</th>
+        <th>Status</th>
+      </tr><tr>
+            <td>001</td>
+            <td>Website Development</td>
+            <td>UI/UX DESIGNING</td>
+            <td>Year</td>
+            <td>8</td>
+            <td>50000.00</td>
+            <td>45000.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>002</td>
+            <td>Digital Marketing / SMO</td>
+            <td>SMO MANAGEMENT</td>
+            <td>Year</td>
+            <td>5</td>
+            <td>25000.00</td>
+            <td>20000.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>003</td>
+            <td>On-Page SEO Optimization</td>
+            <td>SEO MANAGEMENT</td>
+            <td>Month</td>
+            <td>1</td>
+            <td>10000.00</td>
+            <td>8000.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>006</td>
+            <td>User Authentication Core</td>
+            <td>CRM Firmware</td>
+            <td>Project</td>
+            <td>15</td>
+            <td>10000.00</td>
+            <td>90000.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>998313</td>
+            <td>IT consulting and support services</td>
+            <td>IT Services</td>
+            <td></td>
+            <td>0</td>
+            <td>50000.00</td>
+            <td>50000.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>998314</td>
+            <td>IT system design and formulation (IT solutions)</td>
+            <td>IT Services</td>
+            <td></td>
+            <td>0</td>
+            <td>2500.00</td>
+            <td>2500.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>998316</td>
+            <td>IT infrastructure/network management services</td>
+            <td>IT Services</td>
+            <td></td>
+            <td>0</td>
+            <td>10000.00</td>
+            <td>10000.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>452789</td>
+            <td>Custome CRM Development</td>
+            <td> CRM Development </td>
+            <td></td>
+            <td>0</td>
+            <td>25000.00</td>
+            <td>0.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>10115</td>
+            <td>billing service</td>
+            <td>IT Services</td>
+            <td></td>
+            <td>0</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>447694</td>
+            <td>mouse</td>
+            <td>Custom CRM</td>
+            <td>Pieces</td>
+            <td>1</td>
+            <td>100.00</td>
+            <td>100.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>111</td>
+            <td>keyboard</td>
+            <td>Custom CRM</td>
+            <td>Pieces</td>
+            <td>1</td>
+            <td>200.00</td>
+            <td>200.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>33</td>
+            <td>headphone</td>
+            <td>Custom CRM</td>
+            <td>Device</td>
+            <td>1</td>
+            <td>100.00</td>
+            <td>100.00</td>
+            <td>Active</td>
+          </tr><tr>
+            <td>45</td>
+            <td>watch</td>
+            <td>CRM Firmware</td>
+            <td>Pieces</td>
+            <td>1</td>
+            <td>100.00</td>
+            <td>100.00</td>
+            <td>Active</td>
+          </tr></table>

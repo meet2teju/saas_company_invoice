@@ -1,0 +1,958 @@
+using System;
+using System.Data;
+using System.Configuration;
+using System.Collections;
+using System.Web;
+using System.Web.Security;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using System.Web.UI.WebControls.WebParts;
+using System.Web.UI.HtmlControls;
+using System.Xml;
+using System.IO;
+using elinkadmin.net.BaseClasses;
+using Flashecom.Commerce;
+using Flashecom.DataAccess;
+
+
+namespace elinkadmin.net
+{
+    /// <summary>
+    /// Created by DY on 20061206
+    /// 
+    /// 
+    ///
+    /// </summary>
+    public class LoginCheckList
+    {
+        public string ErrorMsg = "";
+        public bool IsError = false;
+        public int IPSecurityMode = 0;
+        public bool RegisteredStation = false;
+        public bool SkipSecurityTicket = false;
+        public bool ShowFESecureX = false;
+        public RSStoreStatus StoreStatus = RSStoreStatus.Active;
+    }
+
+    public partial class login : PageBase
+    {
+        private string _LoginUser
+        {
+            get { return GetViewState("LOGIN_USER"); }
+            set { SetViewState("LOGIN_USER", value); }
+        }
+
+        protected void Page_Load(object sender, EventArgs e)
+        {
+            if (!IsPostBack)
+            {
+                if (Request.ServerVariables["HTTPS"].ToString().ToLower() != "on" &&
+                  HttpHost.IndexOf("/elinkadmin.net") <= 0)
+                {
+                    Response.Redirect("https://" + HttpHost);
+                }
+                else
+                {
+                    _Init();
+                    if (!string.IsNullOrEmpty(Request.QueryString["storeid"]) && !string.IsNullOrEmpty(Request.QueryString["username"]))
+                    {
+                        txtStoreID.Text = Request.QueryString["storeid"];
+                        txtLoginID.Text = Request.QueryString["username"];
+                        string szPwd = Request.QueryString["password"];
+                        txtLoginPwd.Attributes.Add("value", szPwd);
+                    }
+                    if (Request.Cookies["SAVELOGIN"] != null && Request.Cookies["SAVELOGIN"].Value == "1")
+                        cbSaveLogin.Checked = true;
+                    #region Comment
+                    if (!String.IsNullOrEmpty(GetQueryString("ticket")))
+                    {
+                        // From reseller site
+                        string szTicket = GetQueryString("ticket");
+                        szTicket = LFNetLibrary.LFSecurityManager.Decrypt(LFNetLibrary.LFSecurityManager.EncryptAlgorithm.AES, szTicket, "FromReseller");
+                        if (!String.IsNullOrEmpty(szTicket) && szTicket.Length >= 10)
+                        {
+                            szTicket = szTicket.Substring(0, 10);
+                            RSAccessTicketDetail dtRSATD = RSAccessTicketSystem.GetTicket(Utility.getApplicationValue("MasterDBConn"),
+                              ResellerID, szTicket);
+                            if (dtRSATD != null)
+                            {
+                                logout.Logout();
+                                string szAdminID = (dtRSATD.ResellerID == "flashecom") ? "MA" : "RA";
+                                int nLogFlag = (dtRSATD.ResellerID == "flashecom") ? 1 : 11;
+                                LoginReseller(dtRSATD.StoreID, szAdminID, dtRSATD.AdminID);
+                                _SaveLoginLog(szAdminID, "", nLogFlag);
+                                Response.Redirect("~/dashboard_new.aspx?ticket=" + szTicket);
+                                return;
+                            }
+                        }
+                    }
+                    #endregion
+                    else if (GetSession("FromMgr").Length > 0)
+                    {
+                        // From Store Manager
+                        txtStoreID.Text = GetSession("FromMgr");
+                        SetSession("FromMgr", "");
+                        txtLoginID.Focus();
+                    }
+                    else if (Request.Cookies["STOREID"] != null && Request.Cookies["STOREID"].Value.Length > 0)
+                    {
+                        txtStoreID.Text = Convert.ToString(Request.Cookies["STOREID"].Value);
+                        if (Request.Cookies["UserID"] != null && Request.Cookies["UserID"].Value.Length > 0)
+                        {
+                            txtLoginID.Text = Convert.ToString(Request.Cookies["UserID"].Value);
+                        }
+                        txtLoginID.Focus();
+                    }
+                    else
+                    {
+                        txtStoreID.Focus();
+                    }
+                    lbDate.Text = DateTime.Now.ToString("dddd, ") + "<span class=\"blue\">" + DateTime.Now.ToString("MMMM dd") + "</span>" + DateTime.Now.ToString(", yyyy");
+                }
+            }
+        }
+
+        protected override void OnSaveStateComplete(EventArgs e)
+        {
+            if (!string.IsNullOrEmpty(Request.QueryString["storeid"]) && !string.IsNullOrEmpty(Request.QueryString["username"]))
+            {
+                StoreID = "";
+                SetSession("AdminID", Request.QueryString["username"]);
+                StoreID = Request.QueryString["storeid"];
+                StorePath = Path.Combine(@"c:\stores\", StoreID);
+
+                #region Get store config data
+                // Get store url
+                StoreUrl = "";
+                XmlDocument objXml = new XmlDocument();
+                objXml.Load(Path.Combine(StorePath, "Store.config"));
+                XmlNodeList objNodeList = objXml.GetElementsByTagName("FEData");
+                for (int nIndex = 0; nIndex < objNodeList.Item(0).ChildNodes.Count; nIndex++)
+                {
+                    string szKey = objNodeList.Item(0).ChildNodes.Item(nIndex).Attributes.GetNamedItem("key").Value;
+                    if (szKey.ToUpper() == "URL_BASE")
+                    {
+                        StoreUrl = objNodeList[0].ChildNodes[nIndex].Attributes.GetNamedItem("value").Value;
+                        break;
+                    }
+                }
+
+                // Get store db connection string
+                objXml = new XmlDocument();
+                objXml.Load(Path.Combine(StorePath, "Store.config"));
+                string szDBConfig = String.Empty;
+                objNodeList = objXml.GetElementsByTagName("FEData");
+                for (int nIndex = 0; nIndex < objNodeList.Item(0).ChildNodes.Count; nIndex++)
+                {
+                    string szKey = objNodeList.Item(0).ChildNodes.Item(nIndex).Attributes.GetNamedItem("key").Value;
+                    if (szKey.ToUpper() == "CONNECTIONSTRING")
+                    {
+                        szDBConfig = objNodeList.Item(0).ChildNodes.Item(nIndex).Attributes.GetNamedItem("value").Value;
+                        break;
+                    }
+                }
+
+                objXml.Load(szDBConfig);
+                objNodeList = objXml.GetElementsByTagName("StoreDB");
+                StoreDB = objNodeList.Item(0).FirstChild.Value;
+
+                // Get traffic db string
+                objXml.Load(Path.Combine(HttpContext.Current.Server.MapPath("~/"), "StoreConnection.config"));
+                objNodeList = objXml.GetElementsByTagName("TrafficDB");
+                TrafficDB = objNodeList.Item(0).FirstChild.Value;
+                #endregion
+
+
+                btSubmit_Click(btSubmit, null);
+            }
+        }
+
+        private void _Init()
+        {
+            // Use default
+
+            if (ResellerID.ToLower() == "Flashecom".ToLower())
+            {
+                lkShortcut.Visible = true;
+                return;
+            }
+
+            // /* hts
+
+            if (App_Data.Constants.IsOldResellers(ResellerID.ToLower()))
+            {
+                ResellerDetail dtSD = ResellersSystem.GetDetail(Utility.getApplicationValue("MasterDBConn"), ResellerID);
+                if (String.IsNullOrEmpty(dtSD.LogoMUrl))
+                    imgLogo.Visible = false;
+                else
+                    imgLogo.ImageUrl = dtSD.LogoMUrl;
+                lblBottomText.Text = StringUtility.IsHTML(dtSD.LoginBottomText) ? dtSD.LoginBottomText :
+                  dtSD.LoginBottomText.Replace("\r\n", "<br />");
+
+                ResellerName = dtSD.ResellerName;
+                ResellerLogoUrl = dtSD.LogoSUrl;
+            }
+            else
+            {
+                RSResellerDetail dtSD = RSResellerSystem.GetDetail(Utility.getApplicationValue("MasterDBConn"), ResellerID);
+                if (String.IsNullOrEmpty(dtSD.LogoLarge))
+                    imgLogo.Visible = false;
+                else
+                    imgLogo.ImageUrl = dtSD.LogoLarge;
+                lblBottomText.Text = StringUtility.IsHTML(dtSD.Copyrights) ? dtSD.Copyrights :
+                  dtSD.Copyrights.Replace("\r\n", "<br />");
+
+                ResellerName = dtSD.CompanyName;
+                ResellerLogoUrl = dtSD.LogoSmall;
+                ResellerAnnouncement = dtSD.Announcement;
+            }
+
+            this.Title = ResellerName + " Store Management";
+            //     */
+        }
+
+        private void _SaveLoginLog(string szID, string szPwd, int nStatus)
+        {
+            string szIPAddr = Request.ServerVariables["REMOTE_ADDR"].ToString();
+            string szMsg = "";
+
+            switch (nStatus)
+            {
+                case 0:
+                    szMsg = "Administrator Log in Successful";
+                    break;
+                case 1:
+                    szMsg = "Master Administrator Log in Successful";
+                    break;
+                case 11:
+                    szMsg = "Reseller Administrator Log in Successful";
+                    break;
+                case 2:
+                    szMsg = "User Log in Successful";
+                    break;
+                case 3:
+                    szMsg = "Log in Fail";
+                    break;
+                case 4:
+                    szMsg = "error";
+                    break;
+            }
+
+            ManagerLogSystem.InsertLog(StoreID, szID, szPwd, szIPAddr, szMsg);
+        }
+
+        protected void vcLoginID_ServerValidate(object source, ServerValidateEventArgs args)
+        {
+            args.IsValid = true;
+
+            SetSession("PwdExpired", 0);
+            DateTime dateMD5 = new DateTime(2009, 11, 1);  // For the first time, force to change password (Target date : 20091101)
+
+            string szStoreID = txtStoreID.Text.Trim();
+            string szID = txtLoginID.Text.Trim();
+            string szPwd = txtLoginPwd.Text;
+            bool bMaster = false;
+
+            //RSUserDetail dtMID = RSUserSystem.GetDetail(Utility.getApplicationValue("MasterDBConn"), "FlashecomMA", szID);  comment by hitesh 03-12-2021
+            string szEncryptPwd = LFNetLibrary.LFSecurityManager.Encrypt(LFNetLibrary.LFSecurityManager.EncryptAlgorithm.AES, szPwd, "dyu1132");
+
+            //hts test
+            //szEncryptPwd = "005988E992240F8F5ED689401C8410B2";   
+
+            //bMaster = (dtMID != null && szEncryptPwd == dtMID.UserPwd);   Comment by hitesh 03-12-2021
+
+            LoginCheckList dtLCL = _CheckLoginInfo(szStoreID, szID, true, !bMaster);
+            if (dtLCL.IsError)
+            {
+                args.IsValid = false;
+                vcLoginID.ErrorMessage = dtLCL.ErrorMsg;
+                return;
+            }
+            else if (dtLCL.StoreStatus == RSStoreStatus.Inactive)
+            {
+                SetSession("PwdExpired", 2);
+            }
+            else if (dtLCL.ShowFESecureX)
+            {
+                args.IsValid = false;
+                pnlFESecureX.Visible = true;
+                pnlMain.Visible = false;
+                SetStartupScript("checkSecureX();");
+                return;
+            }
+
+            //if (!bMaster)
+            //{
+            //    AdminInfo dtAI = ProfileSystem.GetAdminInfo();
+            //    if (dtAI.AdminID.ToLower() == szID.ToLower())
+            //    {
+            //        string szAdminPwd = szPwd;
+            //        DateTime dateAdminUpdated = dtAI.PwdUpdatedDate;
+            //        if (dateAdminUpdated.CompareTo(DateTime.MinValue) > 0)
+            //            szAdminPwd = LFNetLibrary.LFSecurityManager.Encrypt(LFNetLibrary.LFSecurityManager.EncryptAlgorithm.MD5, szPwd, "FEAdmin");
+            //        else
+            //            dateAdminUpdated = dateMD5; // MD5 password released date
+
+            //        if (szAdminPwd == dtAI.AdminPwd)
+            //        {
+            //            DateTime dateNextUpdate = dateAdminUpdated.AddMonths(1);
+            //            if (DateTime.Now.CompareTo(dateNextUpdate) >= 0 && GetSession("PwdExpired", 0) == 0)
+            //                SetSession("PwdExpired", 1);
+
+            //            _SaveLoginLog(szID, szPwd, 0);
+            //            SetSession("AdminID", "SA");
+            //            return;
+            //        }
+            //    }
+            //}
+            //else
+            //{
+            //    _SaveLoginLog(szID, szPwd, 1);
+            //    SetSession("AdminID", "MA");
+            //    return;
+            //}
+
+
+            // If Status is Inacitve
+            if (GetSession("PwdExpired", 0) == 2)
+            {
+                // Allow only administrator account to change billing information
+                args.IsValid = false;
+                vcLoginID.ErrorMessage = "Please login as administrator!";
+                return;
+            }
+
+            AdminInfo dtAI = ProfileSystem.GetAdminInfo();
+            if (dtAI.AdminID.ToLower() == szID.ToLower())
+            {
+                string szAdminPwd = szPwd;
+                DateTime dateAdminUpdated = dtAI.PwdUpdatedDate;
+                if (dateAdminUpdated.CompareTo(DateTime.MinValue) > 0)
+                    szAdminPwd = LFNetLibrary.LFSecurityManager.Encrypt(LFNetLibrary.LFSecurityManager.EncryptAlgorithm.MD5, szPwd, "FEAdmin");
+                else
+                    dateAdminUpdated = dateMD5; // MD5 password released date
+
+                if (szAdminPwd == dtAI.AdminPwd)
+                {
+                    DateTime dateNextUpdate = dateAdminUpdated.AddMonths(1);
+                    if (DateTime.Now.CompareTo(dateNextUpdate) >= 0 && GetSession("PwdExpired", 0) == 0)
+                        SetSession("PwdExpired", 1);
+
+                    _SaveLoginLog(szID, szPwd, 0);
+                    SetSession("AdminID", "SA");
+                    return;
+                }
+            }
+            else
+            {
+                _SaveLoginLog(szID, szPwd, 1);
+                SetSession("AdminID", "MA");
+                return;
+            }
+
+            UsersDetail dtUD = UsersSystem.GetUsersDetail(szID);
+            if (dtUD != null)
+            {
+                string szUserPwd = szPwd;
+                DateTime dateUserUpdated = dtUD.PwdUpdatedDate;
+                if (dateUserUpdated.CompareTo(DateTime.MinValue) > 0)
+                    szUserPwd = LFNetLibrary.LFSecurityManager.Encrypt(LFNetLibrary.LFSecurityManager.EncryptAlgorithm.MD5, szPwd, "FEAdmin");
+                else
+                    dateUserUpdated = dateMD5; // MD5 password released date
+
+                if (!dtUD.user_disable &&
+                  dtUD.AcctExpDate.CompareTo(DateTime.MinValue) > 0 && dtUD.AcctExpDate.CompareTo(DateTime.Now) <= 0)
+                {
+                    args.IsValid = false;
+                    vcLoginID.ErrorMessage = "Your account has expired.<br /> Please contact System Administrator.";
+                    return;
+                }
+
+                if (!dtUD.user_disable && szUserPwd == dtUD.pwd)
+                {
+                    if (!dtLCL.SkipSecurityTicket && (dtLCL.IPSecurityMode == 1 || dtLCL.IPSecurityMode == 2))
+                    {
+                        if (dtLCL.RegisteredStation)
+                        {
+                            DateTime dateNextUpdate = dateUserUpdated.AddMonths(1);
+                            if (DateTime.Now.CompareTo(dateNextUpdate) >= 0 && GetSession("PwdExpired", 0) == 0)
+                                SetSession("PwdExpired", 1);
+
+                            _SaveLoginLog(szID, szPwd, 2);
+                            SetSession("AdminID", szID);
+                            return;
+                        }
+                        else
+                        {
+                            args.IsValid = false;
+                            vcLoginID.ErrorMessage = "This stations is not registered.<br /> Please contact System Administrator.";
+                        }
+                    }
+                    else
+                    {
+                        DateTime dateNextUpdate = dateUserUpdated.AddMonths(1);
+                        if (DateTime.Now.CompareTo(dateNextUpdate) >= 0 && GetSession("PwdExpired", 0) == 0)
+                            SetSession("PwdExpired", 1);
+
+                        _SaveLoginLog(szID, szPwd, 2);
+                        SetSession("AdminID", szID);
+                        return;
+                    }
+                }
+            }
+
+            _SaveLoginLog(szID, szPwd, 3);
+            args.IsValid = false;
+            vcLoginID.ErrorMessage = "Please verify your user id and password.";
+        }
+
+        protected void btSubmit_Click(object sender, ImageClickEventArgs e)
+        {
+            if (!string.IsNullOrEmpty(Request.QueryString["storeid"]) && !string.IsNullOrEmpty(Request.QueryString["username"]))
+            {
+                string szStoreID = Request.QueryString["storeid"].Trim();
+                string szAdminID = GetSession("AdminID");
+                _SetLoginInfo(szStoreID, szAdminID);
+                if (cbSaveLogin.Checked)
+                {
+                    HttpCookie objCookie = new HttpCookie("ADMINLOGIN", StoreID + "|" + szAdminID);
+                    objCookie.Expires = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, 23, 59, 59);
+                    Response.Cookies.Add(objCookie);
+                    objCookie = new HttpCookie("SAVELOGIN", "1");
+                    objCookie.Expires = DateTime.Now.AddMonths(1);
+                    Response.Cookies.Add(objCookie);
+                }
+                else
+                {
+                    HttpCookie objCookie = new HttpCookie("ADMINLOGIN", StoreID);
+                    DateTime MaxDate = DateTime.MaxValue;
+                    objCookie.Expires = MaxDate;
+                    //objCookie.Expires = DateTime.Now.AddDays(1);
+                    Response.Cookies.Add(objCookie);
+                    objCookie = new HttpCookie("SAVELOGIN", "0");
+                    objCookie.Expires = DateTime.Now.AddMonths(1);
+                    Response.Cookies.Add(objCookie);
+                }
+                // Just check here for a while - 20070501
+                CategorySystem.CheckGhostCategory();
+                //hts StoreID = szStoreID;
+                //OrderSystem.RemoveCCInfo(14);
+                switch (GetSession("PwdExpired", 0))
+                {
+                    case 1:
+                        FormsAuthentication.SetAuthCookie(szStoreID + "|" + szAdminID, true);
+                        Response.Redirect("~/PwdExpired.aspx");
+                        break;
+                    case 2:
+                        FormsAuthentication.SetAuthCookie(szStoreID + "|" + szAdminID, true);
+                        Response.Redirect("~/BillingExpired.aspx");
+                        break;
+                    default:
+                        FormsAuthentication.RedirectFromLoginPage(szStoreID + "|" + szAdminID, true);
+                        break;
+                }
+            }
+            else
+            {
+                if (!IsValid)
+                    return;
+                string szStoreID = txtStoreID.Text.Trim();
+                string szAdminID = GetSession("AdminID");   // vcLoginID_ServerValidate._CheckLoginInfo sets Session["AdminID"]
+                _SetLoginInfo(szStoreID, szAdminID);
+                if (cbSaveLogin.Checked)
+                {
+                    HttpCookie objCookie = new HttpCookie("ADMINLOGIN", StoreID + "|" + szAdminID);
+                    objCookie.Expires = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, 23, 59, 59);
+                    Response.Cookies.Add(objCookie);
+                    objCookie = new HttpCookie("SAVELOGIN", "1");
+                    objCookie.Expires = DateTime.Now.AddMonths(1);
+                    Response.Cookies.Add(objCookie);
+                    HttpCookie objCookieUsername = new HttpCookie("UserID", txtLoginID.Text.Trim());
+                    objCookieUsername.Expires = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, 23, 59, 59);
+                    HttpContext.Current.Response.Cookies.Add(objCookieUsername);
+                }
+                else
+                {
+                    HttpCookie objCookie = new HttpCookie("ADMINLOGIN", "");
+                    objCookie.Expires = DateTime.Now.AddDays(1);
+                    Response.Cookies.Add(objCookie);
+                    objCookie = new HttpCookie("SAVELOGIN", "0");
+                    objCookie.Expires = DateTime.Now.AddMonths(1);
+                    Response.Cookies.Add(objCookie);
+                }
+                // Just check here for a while - 20070501
+                CategorySystem.CheckGhostCategory();
+                //hts StoreID = szStoreID;
+                //OrderSystem.RemoveCCInfo(14);
+                switch (GetSession("PwdExpired", 0))
+                {
+                    case 1:
+                        FormsAuthentication.SetAuthCookie(szStoreID + "|" + szAdminID, true);
+                        Response.Redirect("~/PwdExpired.aspx");
+                        break;
+                    case 2:
+                        FormsAuthentication.SetAuthCookie(szStoreID + "|" + szAdminID, true);
+                        Response.Redirect("~/BillingExpired.aspx");
+                        break;
+                    default:
+                        FormsAuthentication.RedirectFromLoginPage(szStoreID + "|" + szAdminID, true);
+                        break;
+                }
+            }
+        }
+
+        private static LoginCheckList _CheckLoginInfo(string szStoreID, string szAdminID)
+        {
+            return _CheckLoginInfo(szStoreID, szAdminID, true, false);
+        }
+
+        private static LoginCheckList _CheckLoginInfo(string szStoreID, string szAdminID, bool bCheckSecurity, bool bCheckStatus)
+        {
+            LoginCheckList dtLCL = new LoginCheckList();
+            #region Set StoreID to Session to use Flashecom.DataAccess library
+            if (App_Data.Constants.IsOldResellers(ResellerID.ToLower()))
+            {
+                StoresDetail objSD = StoresSystem.GetStoresDetailForLogin(Utility.getApplicationValue("ConnectionString"), ResellerID, szStoreID, FEStoreType.ElinkNet);
+                if (objSD == null)
+                {
+                    dtLCL.IsError = true;
+                    dtLCL.ErrorMsg = "Store ID you entered doesn't exist.";
+                    return dtLCL;
+                }
+                else if (objSD.web_server.ToLower() != ServerName.ToLower())
+                {
+                    dtLCL.IsError = true;
+                    dtLCL.ErrorMsg = "Wrong access!";
+                    return dtLCL;
+                }
+                else if (objSD.status == 5)
+                {
+                    dtLCL.IsError = true;
+                    dtLCL.ErrorMsg = "Store ID you entered doesn't exist! - D";
+                    return dtLCL;
+                }
+                else if (bCheckStatus && objSD.status != 1 && objSD.status != 2 && objSD.status != 3 &&
+                  objSD.status != 6 && objSD.status != 7 && objSD.status != 8)
+                {
+                    dtLCL.IsError = true;
+                    dtLCL.ErrorMsg = "Store ID you entered doesn't exist!";
+                    return dtLCL;
+                }
+
+                dtLCL.StoreStatus = (RSStoreStatus)objSD.status;
+
+                StoreID = objSD.store_id;
+                StoreLoginID = objSD.store_login_id;
+                StorePath = Path.Combine(objSD.folder, objSD.store_id);
+            }
+            else
+            {
+                RSStoreDetail objSD = RSStoreSystem.GetDetailForLogin(Utility.getApplicationValue("MasterDBConn"), ResellerID, szStoreID);
+                if (objSD == null)
+                {
+                    dtLCL.IsError = true;
+                    dtLCL.ErrorMsg = "Store ID you entered doesn't exist.";
+                    return dtLCL;
+                }
+                else if (objSD.WebServerID.ToLower() != ServerName.ToLower())
+                {
+                    dtLCL.IsError = true;
+                    dtLCL.ErrorMsg = "Wrong access!";
+                    return dtLCL;
+                }
+                else if (objSD.Status == RSStoreStatus.Deleted)
+                {
+                    dtLCL.IsError = true;
+                    dtLCL.ErrorMsg = "Store ID you entered doesn't exist! - D";
+                    return dtLCL;
+                }
+                else if (bCheckStatus && objSD.Status != RSStoreStatus.Active && objSD.Status != RSStoreStatus.Renew &&
+                  objSD.Status != RSStoreStatus.Inactive && objSD.Status != RSStoreStatus.Demo &&
+                  objSD.Status != RSStoreStatus.Free && objSD.Status != RSStoreStatus.Temp)
+                {
+                    dtLCL.IsError = true;
+                    dtLCL.ErrorMsg = "Store ID you entered doesn't exist!";
+                    return dtLCL;
+                }
+
+                dtLCL.StoreStatus = objSD.Status;
+
+                StoreID = objSD.StoreID;
+                StoreLoginID = objSD.StoreLoginID;
+                if (objSD.StoreDir[objSD.StoreDir.Length - 1] == '\\')
+                    StorePath = objSD.StoreDir.Substring(0, objSD.StoreDir.Length - 1);
+                else
+                    StorePath = objSD.StoreDir;
+            }
+            #endregion
+
+            #region Get store config data
+            // Get store url
+            StoreUrl = "";
+            XmlDocument objXml = new XmlDocument();
+            objXml.Load(Path.Combine(StorePath, "Store.config"));
+            XmlNodeList objNodeList = objXml.GetElementsByTagName("FEData");
+            for (int nIndex = 0; nIndex < objNodeList.Item(0).ChildNodes.Count; nIndex++)
+            {
+                string szKey = objNodeList.Item(0).ChildNodes.Item(nIndex).Attributes.GetNamedItem("key").Value;
+                if (szKey.ToUpper() == "URL_BASE")
+                {
+                    StoreUrl = objNodeList[0].ChildNodes[nIndex].Attributes.GetNamedItem("value").Value;
+                    break;
+                }
+            }
+
+            // Get store db connection string
+            objXml = new XmlDocument();
+            objXml.Load(Path.Combine(StorePath, "Store.config"));
+            string szDBConfig = String.Empty;
+            objNodeList = objXml.GetElementsByTagName("FEData");
+            for (int nIndex = 0; nIndex < objNodeList.Item(0).ChildNodes.Count; nIndex++)
+            {
+                string szKey = objNodeList.Item(0).ChildNodes.Item(nIndex).Attributes.GetNamedItem("key").Value;
+                if (szKey.ToUpper() == "CONNECTIONSTRING")
+                {
+                    szDBConfig = objNodeList.Item(0).ChildNodes.Item(nIndex).Attributes.GetNamedItem("value").Value;
+                    break;
+                }
+            }
+
+            objXml.Load(szDBConfig);
+            objNodeList = objXml.GetElementsByTagName("StoreDB");
+            StoreDB = objNodeList.Item(0).FirstChild.Value;
+
+            // Get traffic db string
+            objXml.Load(Path.Combine(HttpContext.Current.Server.MapPath("~/"), "StoreConnection.config"));
+            objNodeList = objXml.GetElementsByTagName("TrafficDB");
+            TrafficDB = objNodeList.Item(0).FirstChild.Value;
+            #endregion
+            if (bCheckSecurity)
+                _CheckAccess(szAdminID, ref dtLCL);
+            return dtLCL;
+        }
+
+        private static void _CheckAccess(string szAdminID, ref LoginCheckList dtLCL)
+        {
+            string szIPAddr = HttpContext.Current.Request.ServerVariables["REMOTE_ADDR"].ToString();
+            if (szIPAddr == "::1")
+                szIPAddr = "127.0.0.1";
+            // DEL - for debug on my station
+            if (szIPAddr != "127.0.0.1")
+            {
+                if (!_IsAccessibleCountry(szIPAddr))
+                    HttpContext.Current.Response.Redirect("~/access_denied.aspx?code=1");
+            }
+            int nSecureLevel = 0;
+            bool bCheckSecureCode = false;
+            object objRet = Profile2System.GetValue("enable_fesc");
+            if (objRet != null && objRet != DBNull.Value)
+                nSecureLevel = (int)objRet;
+            if (nSecureLevel > 0)
+                bCheckSecureCode = true;
+            objRet = ProfileSystem.GetValue("use_ip_security");
+            if (objRet != null && objRet != DBNull.Value)
+                dtLCL.IPSecurityMode = Convert.ToInt32(objRet);
+            string szSysAdminID = ProfileSystem.GetValue("UserID").ToString();
+            if (dtLCL.IPSecurityMode == 2 || (dtLCL.IPSecurityMode == 1 && szSysAdminID != szAdminID))
+            {
+                if (szIPAddr.IndexOf(FlashecomLocalIP) == 0)
+                {
+                    dtLCL.RegisteredStation = true;
+                }
+                else
+                {
+                    if (IPAddrSystem.IsRegisteredStation(szIPAddr))
+                        dtLCL.RegisteredStation = true;
+                }
+                if (!dtLCL.RegisteredStation)
+                {
+                    //if (nSecureLevel > 0)
+                    //{
+                    //  string szFESC = GetFormString("fesc").Trim();
+                    //  if (szFESC.Length == 0)
+                    //  {
+                    //    dtLCL.ShowFESecureX = true;
+                    //    return;
+                    //  }
+                    //  else if (szFESC.IndexOf("ERROR") >= 0)
+                    //  {
+                    //    HttpContext.Current.Response.Redirect("~/access_denied.aspx?code=2");
+                    //  }
+                    //}
+                    //else
+                    //{
+                    //  HttpContext.Current.Response.Redirect("~/access_denied.aspx?code=3");
+                    //}
+                }
+            }
+            else
+            {
+                dtLCL.RegisteredStation = true;
+            }
+            if (szIPAddr.IndexOf(FlashecomLocalIP) == 0 || szIPAddr == "127.0.0.1")
+            {
+                dtLCL.SkipSecurityTicket = true;
+            }
+            else
+            {
+                if (bCheckSecureCode)
+                {
+                    string szFESC = GetFormString("fesc");
+                    if (szFESC.Length == 0 || szFESC.IndexOf("ERROR") >= 0)
+                    {
+                        if (nSecureLevel == 1)
+                        {
+                            dtLCL.IsError = true;
+                            dtLCL.ErrorMsg = "Not Found - FlashEcom Secure Code!";
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        FESecureCodeDetail dtFCD = FESecureCodeSystem.GetFESecureCodeDetail(StoreID, szFESC);
+                        if (dtFCD == null)
+                        {
+                            if (nSecureLevel == 1)
+                            {
+                                dtLCL.IsError = true;
+                                dtLCL.ErrorMsg = "Not Found - FlashEcom Secure Code!";
+                                return;
+                            }
+                        }
+                        else
+                        {
+                            FESecurity objS = new FESecurity();
+                            string szDecodeFromPC = objS.Decode(szFESC, dtFCD.store_key);
+                            string szDecodeFromDB = objS.Decode(dtFCD.db_fesc, "Flashecom");
+                            if (szDecodeFromPC.Length == 0 || szDecodeFromPC != szDecodeFromDB)
+                            {
+                                if (nSecureLevel == 1)
+                                {
+                                    dtLCL.IsError = true;
+                                    dtLCL.ErrorMsg = "Not Matched - FlashEcom Secure Code!";
+                                    return;
+                                }
+                            }
+                            else
+                            {
+                                dtLCL.SkipSecurityTicket = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!dtLCL.RegisteredStation)
+            {
+                if (!dtLCL.SkipSecurityTicket)
+                    HttpContext.Current.Response.Redirect("~/access_denied.aspx?code=4");
+            }
+        }
+
+        private static bool _IsAccessibleCountry(string szIP)
+        {
+            string[] arrIP = szIP.Split(new char[] { '.' });
+            double dLongIP = (double)16777216 * Convert.ToInt32(arrIP[0]) + (double)65536 * Convert.ToInt32(arrIP[1]) +
+              (double)256 * Convert.ToInt32(arrIP[2]) + (double)Convert.ToInt32(arrIP[3]);
+            string szCountryCode = CountryIPSystem.GetCountryCode(dLongIP);
+            if (szCountryCode.Length == 0)
+                szCountryCode = "N/A";
+
+            object objRet = Profile2System.GetValue("manager_accessible_countries");
+            string szAccessibleCountries = (objRet == null || objRet == DBNull.Value || (Convert.ToString(objRet)).Length == 0) ?
+              "US,CA" : (string)objRet;
+            if (szAccessibleCountries.IndexOf(szCountryCode) >= 0)
+                return true;
+            else
+                return false;
+        }
+
+        private static void _SetLoginInfo(string szStoreID, string szAdminID)
+        {
+            _SetLoginInfo(szStoreID, szAdminID, String.Empty);
+        }
+
+        private static void _SetLoginInfo(string szStoreID, string szAdminID, string szAdminName)
+        {
+            if (szAdminID == "MA")
+            {
+                SetSession("AdminGroup", "5");
+                SetSession("SalesMode", "1");
+                SetSession("AdminName", "Master Admin");
+                SetSession("AdminFlag", elinkadmin.net.code.FEUserAccess.FullAccess);
+                SetSession("AdminID", "MA");
+                SetSession("QuickLink", "11,14,16,19");
+            }
+            else if (szAdminID == "RA")
+            {
+                SetSession("AdminGroup", "5");
+                SetSession("SalesMode", "1");
+                if (String.IsNullOrEmpty(szAdminName))
+                    SetSession("AdminName", "Reseller Admin");
+                else
+                    SetSession("AdminName", szAdminName);
+                SetSession("AdminFlag", elinkadmin.net.code.FEUserAccess.FullAccess);
+                SetSession("AdminID", "RA");
+                SetSession("QuickLink", "11,14,16,19");
+            }
+            else if (szAdminID == "SA")
+            {
+                SetSession("AdminGroup", "5");
+                SetSession("SalesMode", "1");
+                SetSession("AdminName", "System Admin");
+                SetSession("AdminFlag", elinkadmin.net.code.FEUserAccess.FullAccess);
+                SetSession("AdminID", "SA");
+                SetSession("QuickLink", BaseSystem.ToStr(ProfileSystem.GetValue("QuickLink")));
+            }
+            else
+            {
+                UsersDetail dtUD = UsersSystem.GetUsersDetail(szAdminID);
+                SetSession("AdminGroup", dtUD.user_flag.ToString());
+                SetSession("SalesMode", "1");
+                SetSession("AdminName", dtUD.FirstName + " " + dtUD.LastName);
+                SetSession("EmailId", dtUD.Email);
+                SetSession("AdminFlag", dtUD.uflag);
+                SetSession("AdminID", dtUD.user_id);
+                SetSession("QuickLink", dtUD.QuickLink);
+            }
+            // Always save store id to cookie
+            HttpCookie objCookie = new HttpCookie("STOREID", szStoreID);
+            objCookie.Expires = DateTime.Now.AddDays(30);
+            HttpContext.Current.Response.Cookies.Add(objCookie);
+            FormsAuthentication.SetAuthCookie(szStoreID + "|" + szAdminID, true);
+            PageBase.InitProperties(szAdminID);
+        }
+
+        private static void _SetLoginInfoForAutomation(string szStoreID, string szAdminID)
+        {
+            _SetLoginInfoForAutomation(szStoreID, szAdminID, String.Empty);
+        }
+
+        private static void _SetLoginInfoForAutomation(string szStoreID, string szAdminID, string szAdminName)
+        {
+            if (szAdminID == "MA")
+            {
+                SetSession("AdminGroup", "5");
+                SetSession("SalesMode", "1");
+                SetSession("AdminName", "Master Admin");
+                SetSession("AdminFlag", elinkadmin.net.code.FEUserAccess.FullAccess);
+                SetSession("AdminID", "MA");
+                SetSession("QuickLink", "11,14,16,19");
+            }
+            else if (szAdminID == "RA")
+            {
+                SetSession("AdminGroup", "5");
+                SetSession("SalesMode", "1");
+                if (String.IsNullOrEmpty(szAdminName))
+                    SetSession("AdminName", "Reseller Admin");
+                else
+                    SetSession("AdminName", szAdminName);
+                SetSession("AdminFlag", elinkadmin.net.code.FEUserAccess.FullAccess);
+                SetSession("AdminID", "RA");
+                SetSession("QuickLink", "11,14,16,19");
+            }
+            else if (szAdminID == "SA")
+            {
+                SetSession("AdminGroup", "5");
+                SetSession("SalesMode", "1");
+                SetSession("AdminName", "System Admin");
+                SetSession("AdminFlag", elinkadmin.net.code.FEUserAccess.FullAccess);
+                SetSession("AdminID", "SA");
+                SetSession("QuickLink", BaseSystem.ToStr(ProfileSystem.GetValue("QuickLink")));
+            }
+            else
+            {
+                UsersDetail dtUD = UsersSystem.GetUsersDetailForAutomation(szAdminID, szStoreID);
+                SetSession("AdminGroup", dtUD.user_flag.ToString());
+                SetSession("SalesMode", "1");
+                SetSession("AdminName", dtUD.FirstName + " " + dtUD.LastName);
+                SetSession("AdminFlag", dtUD.uflag);
+                SetSession("AdminID", dtUD.user_id);
+                SetSession("QuickLink", dtUD.QuickLink);
+            }
+            // Always save store id to cookie
+            HttpCookie objCookie = new HttpCookie("STOREID", szStoreID);
+            objCookie.Expires = DateTime.Now.AddDays(30);
+            HttpContext.Current.Response.Cookies.Add(objCookie);
+            FormsAuthentication.SetAuthCookie(szStoreID + "|" + szAdminID, true);
+            PageBase.InitProperties(szAdminID);
+        }
+
+        public static bool InitWithCookies()
+        {
+            if (HttpContext.Current.Request.Cookies["ADMINLOGIN"] == null)
+                return false;
+
+            string[] arrCookie = HttpContext.Current.Request.Cookies["ADMINLOGIN"].Value.Split(new char[] { '|' });
+            if (arrCookie.Length != 2)
+                return false;
+
+            string szStoreID = arrCookie[0];
+            string szAdminID = arrCookie[1];
+            LoginCheckList dtLCL = _CheckLoginInfo(szStoreID, szAdminID);
+            if (dtLCL.IsError)
+            {
+                return false;
+            }
+            _SetLoginInfo(szStoreID, szAdminID);
+            return true;
+        }
+
+        public static bool LoginMulti(string szStoreID, string szAdminID)
+        {
+            LoginCheckList dtLCL = _CheckLoginInfo(szStoreID, szAdminID);
+            if (dtLCL.IsError)
+            {
+                return false;
+            }
+            else if (dtLCL.ShowFESecureX)
+            {
+                return false;
+            }
+            _SetLoginInfo(szStoreID, szAdminID);
+            #region Cookie
+            if (HttpContext.Current.Request.Cookies["SAVELOGIN"] != null &&
+              HttpContext.Current.Request.Cookies["SAVELOGIN"].Value == "1")
+            {
+                HttpCookie objCookie = new HttpCookie("ADMINLOGIN", StoreID + "|" + szAdminID);
+                objCookie.Expires = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, 23, 59, 59);
+                HttpContext.Current.Response.Cookies.Add(objCookie);
+
+                objCookie = new HttpCookie("SAVELOGIN", "1");
+                objCookie.Expires = DateTime.Now.AddMonths(1);
+                HttpContext.Current.Response.Cookies.Add(objCookie);
+            }
+            else
+            {
+                HttpCookie objCookie = new HttpCookie("ADMINLOGIN", "");
+                objCookie.Expires = DateTime.Now.AddDays(1);
+                HttpContext.Current.Response.Cookies.Add(objCookie);
+
+                objCookie = new HttpCookie("SAVELOGIN", "0");
+                objCookie.Expires = DateTime.Now.AddMonths(1);
+                HttpContext.Current.Response.Cookies.Add(objCookie);
+            }
+            #endregion
+            return true;
+        }
+
+        public static bool LoginReseller(string szStoreID, string szAdminID, string szAdminName)
+        {
+            LoginCheckList dtLCL = _CheckLoginInfo(szStoreID, szAdminID, false, false);
+            if (dtLCL.IsError)
+                return false;
+
+            _SetLoginInfo(szStoreID, szAdminID, szAdminName);
+            #region Cookie
+            HttpCookie objCookie = new HttpCookie("ADMINLOGIN", "");
+            objCookie.Expires = DateTime.Now.AddDays(1);
+            HttpContext.Current.Response.Cookies.Add(objCookie);
+
+            objCookie = new HttpCookie("SAVELOGIN", "0");
+            objCookie.Expires = DateTime.Now.AddMonths(1);
+            HttpContext.Current.Response.Cookies.Add(objCookie);
+            #endregion
+            return true;
+        }
+    }
+}
