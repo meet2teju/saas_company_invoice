@@ -107,6 +107,7 @@ $recentInvoicesQuery = "
 ";
 
 $recentInvoicesResult = mysqli_query($conn, $recentInvoicesQuery);
+$recentInvoicesCount = mysqli_num_rows($recentInvoicesResult);
 
 // Since there's no payments table, we'll use invoice status for recent activities
 $recentActivitiesQuery = "
@@ -421,7 +422,7 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                                     <a href="invoices.php" class="btn btn-sm btn-dark mb-1">View all Invoices</a>
                                 </div>
                                 <div class="table-responsive border recent-invoice-table table-nowrap">
-                                    <table class="table table-nowrap datatable m-0">
+                                    <table class="table table-nowrap m-0" id="invoicesTable">
                                         <thead class="table-light">
                                             <tr>
                                                 <th>ID</th>
@@ -432,7 +433,7 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php if ($recentInvoicesResult && mysqli_num_rows($recentInvoicesResult) > 0): ?>
+                                            <?php if ($recentInvoicesCount > 0): ?>
                                                 <?php while ($invoice = mysqli_fetch_assoc($recentInvoicesResult)): ?>
                                                 <tr>
                                                     <td>
@@ -488,7 +489,7 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                             <div class="card-body">
                                 <div class="mb-0">
                                     <h6 class="mb-3">Recent Invoices Status</h6>
-                                    <?php if ($recentInvoicesResult && mysqli_num_rows($recentInvoicesResult) > 0): ?>
+                                    <?php if ($recentInvoicesCount > 0): ?>
                                         <?php 
                                         // Reset pointer and loop through invoices again
                                         mysqli_data_seek($recentInvoicesResult, 0);
@@ -576,25 +577,33 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
     var chart = new ApexCharts(document.querySelector("#radial-chart2"), options);
     chart.render();
 
-    // Initialize DataTables for better sorting functionality
+    // Initialize DataTables only if we have data
     $(document).ready(function() {
-        // Check if DataTable is already initialized
-        if (!$.fn.DataTable.isDataTable('.datatable')) {
-            $('.datatable').DataTable({
-                "paging": false,
-                "searching": false,
-                "info": false,
-                "ordering": true,
-                "autoWidth": false,
-                "order": [], // No initial sorting
-                "columnDefs": [{
-                    "targets": 'no-sort',
-                    "orderable": false,
-                }],
-                "language": {
-                    "emptyTable": "No invoices found"
-                }
-            });
+        var table = $('#invoicesTable');
+        var hasData = table.find('tbody tr').length > 0 && !table.find('tbody tr td[colspan]').length;
+        
+        if (hasData) {
+            // Only initialize DataTables if we have actual data rows (not the "no data" row)
+            if (!$.fn.DataTable.isDataTable('#invoicesTable')) {
+                table.DataTable({
+                    "paging": false,
+                    "searching": false,
+                    "info": false,
+                    "ordering": true,
+                    "autoWidth": false,
+                    "order": [], // No initial sorting
+                    "columnDefs": [{
+                        "targets": 'no-sort',
+                        "orderable": false,
+                    }],
+                    "language": {
+                        "emptyTable": "No invoices found"
+                    }
+                });
+            }
+        } else {
+            // If no data, add a simple message and ensure table styling is maintained
+            console.log('No invoice data found, skipping DataTables initialization');
         }
     });
     </script>

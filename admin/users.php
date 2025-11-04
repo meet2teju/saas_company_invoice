@@ -600,7 +600,7 @@ $users = mysqli_query($conn, $query);
                         </div>
                     </div>
 
-                        <div class="col-md-6">
+                        <!-- <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Role<span class="text-danger ms-1">*</span></label>
                                 <select class="form-select" name="role_id" >
@@ -609,6 +609,24 @@ $users = mysqli_query($conn, $query);
                                     mysqli_data_seek($roles, 0);
                                     while ($role = mysqli_fetch_assoc($roles)) {
                                         echo '<option value="' . htmlspecialchars($role['id']) . '">' . htmlspecialchars($role['name']) . '</option>';
+                                    }
+                                    ?>
+                                </select>
+                                <span class="text-danger error-msg" id="add_roleError"></span>
+                            </div>
+                        </div> -->
+                           <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Role<span class="text-danger ms-1">*</span></label>
+                                <select class="form-select" name="role_id" >
+                                    <option value="">Select Role</option>
+                                    <?php
+                                    mysqli_data_seek($roles, 0);
+                                    while ($role = mysqli_fetch_assoc($roles)) {
+                                        // Skip the 4th role ID
+                                        if ($role['id'] != 4) {
+                                            echo '<option value="' . htmlspecialchars($role['id']) . '">' . htmlspecialchars($role['name']) . '</option>';
+                                        }
                                     }
                                     ?>
                                 </select>
@@ -735,7 +753,7 @@ $users = mysqli_query($conn, $query);
                                         </div>
                                     </div>
 
-                                    <div class="col-md-6">
+                                    <!-- <div class="col-md-6">
                                         <div class="mb-3">
                                             <label class="form-label">Role<span class="text-danger ms-1">*</span></label>
                                             <select class="form-select" name="role_id" >
@@ -750,8 +768,26 @@ $users = mysqli_query($conn, $query);
                                             </select>
                                             <span class="text-danger error-msg" id="edit_roleError_<?php echo $row['id']; ?>"></span>
                                         </div>
-                                    </div>
-
+                                    </div> -->
+<div class="col-md-6">
+    <div class="mb-3">
+        <label class="form-label">Role<span class="text-danger ms-1">*</span></label>
+        <select class="form-select" name="role_id">
+            <option value="">Select</option>
+            <?php
+            mysqli_data_seek($roles, 0);
+            while ($role = mysqli_fetch_assoc($roles)): 
+                // Skip the 4th role ID
+                if ($role['id'] != 4): ?>
+                    <option value="<?= htmlspecialchars($role['id']) ?>" <?= ($row['role_id'] == $role['id']) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($role['name']) ?>
+                    </option>
+                <?php endif; ?>
+            <?php endwhile; ?>
+        </select>
+        <span class="text-danger error-msg" id="edit_roleError_<?php echo $row['id']; ?>"></span>
+    </div>
+</div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label class="form-label">Status</label>
