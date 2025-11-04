@@ -1295,6 +1295,7 @@ async function validateAddUserForm() {
     }
 
     // Password validation
+    
     if (password === '') {
         document.getElementById('add_passwordError').textContent = 'Password is Required';
         isValid = false;
