@@ -3,6 +3,67 @@
 include '../config/config.php';
 
 // Define timeAgo function first
+// function timeAgo($datetime) {
+//     if (empty($datetime)) {
+//         return 'Never';
+//     }
+    
+//     $timestamp = strtotime($datetime);
+//     $diff = time() - $timestamp;
+
+//     if ($diff < 60) return "Online";
+//     if ($diff < 3600) return floor($diff / 60) . " mins ago";
+//     if ($diff < 86400) return floor($diff / 3600) . " hours ago";
+//     return date('d M Y', $timestamp);
+// }
+
+// // Get filter parameters from request
+// $status_filter = isset($_GET['status']) ? (array)$_GET['status'] : [];
+// $user_filter = isset($_GET['users']) ? (array)$_GET['users'] : [];
+// $date_range = isset($_GET['date_range']) ? $_GET['date_range'] : '';
+
+// // Build the base query
+// $query = "SELECT login.*, user_role.name as role_name FROM login 
+//           LEFT JOIN user_role ON login.role_id = user_role.id 
+//           WHERE 1=1";
+
+// // Add status filter if provided
+// if (!empty($status_filter)) {
+//     $status_filter = array_map(function($status) use ($conn) {
+//         return mysqli_real_escape_string($conn, $status);
+//     }, $status_filter);
+    
+//     $status_list = implode("','", $status_filter);
+//     $query .= " AND login.status IN ('$status_list')";
+// }
+
+// // Add user filter if provided
+// if (!empty($user_filter)) {
+//     $user_filter = array_map(function($user) use ($conn) {
+//         return mysqli_real_escape_string($conn, $user);
+//     }, $user_filter);
+    
+//     $user_list = implode("','", $user_filter);
+//     $query .= " AND login.id IN ('$user_list')";
+// }
+
+// // Add date range filter if provided
+// if (!empty($date_range)) {
+//     $dates = explode(' - ', $date_range);
+//     $start_date = date('Y-m-d', strtotime(trim($dates[0])));
+//     $end_date = date('Y-m-d', strtotime(trim($dates[1])));
+//     $query .= " AND DATE(login.created_at) BETWEEN '$start_date' AND '$end_date'";
+// }
+
+// $query .= " ORDER BY login.id DESC";
+
+// $roles = mysqli_query($conn, "SELECT * FROM user_role");
+// $all_users = mysqli_query($conn, "SELECT id, name, profile_img FROM login");
+// $users = mysqli_query($conn, $query);
+
+
+
+// Define timeAgo function first
 function timeAgo($datetime) {
     if (empty($datetime)) {
         return 'Never';
@@ -22,10 +83,10 @@ $status_filter = isset($_GET['status']) ? (array)$_GET['status'] : [];
 $user_filter = isset($_GET['users']) ? (array)$_GET['users'] : [];
 $date_range = isset($_GET['date_range']) ? $_GET['date_range'] : '';
 
-// Build the base query
+// Build the base query 
 $query = "SELECT login.*, user_role.name as role_name FROM login 
           LEFT JOIN user_role ON login.role_id = user_role.id 
-          WHERE 1=1";
+          WHERE 1=1 AND login.role_id != 4";
 
 // Add status filter if provided
 if (!empty($status_filter)) {
@@ -58,8 +119,9 @@ if (!empty($date_range)) {
 $query .= " ORDER BY login.id DESC";
 
 $roles = mysqli_query($conn, "SELECT * FROM user_role");
-$all_users = mysqli_query($conn, "SELECT id, name, profile_img FROM login");
+$all_users = mysqli_query($conn, "SELECT id, name, profile_img FROM login WHERE role_id != 4");
 $users = mysqli_query($conn, $query);
+
 ?>
 
 <!DOCTYPE html>

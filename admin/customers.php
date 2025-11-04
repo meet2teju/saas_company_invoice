@@ -12,13 +12,19 @@ $selectedBalances  = $_POST['balance'] ?? [];
 $filters = [];
 $join = "LEFT JOIN client_address ca ON c.id = ca.client_id";
 
-// Get user role ID and user ID from session
+// Get user role ID, user ID, and organization ID from session
 $currentUserId = $_SESSION['crm_user_id'] ?? 0;
 $userRoleId = $_SESSION['role_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0; // Make sure this is set in session
 
-// Add user-specific filtering - ONLY ADDED THIS CONDITION
+// Add organization-based filtering for ALL users
+if ($currentOrgId > 0) {
+    $filters[] = "c.org_id = $currentOrgId";
+}
+
+// Add user-specific filtering for non-admin users
 if ($userRoleId != 1) {
-    // For non-admin users (role_id != 1), show only their own customers
+    // For non-admin users (role_id != 1), show only their own customers within the organization
     $filters[] = "c.user_id = $currentUserId";
 }
 
@@ -73,10 +79,25 @@ ORDER BY c.created_at DESC";
 
 $result = mysqli_query($conn, $sql);
 
-// Data for filter dropdowns
+// Data for filter dropdowns - UPDATED WITH ORGANIZATION FILTERING
 $countries = mysqli_query($conn, "SELECT * FROM countries ORDER BY name");
-$customers = mysqli_query($conn, "SELECT * FROM client WHERE is_deleted = 0");
-$balance_query = mysqli_query($conn, "SELECT DISTINCT current_amount FROM client_bank ORDER BY current_amount ASC");
+
+// Update customers query to only show customers from the same organization
+$customers_query = "SELECT * FROM client WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $customers_query .= " AND org_id = $currentOrgId";
+}
+$customers = mysqli_query($conn, $customers_query);
+
+// Update balance query with organization filtering
+$balance_query_sql = "SELECT DISTINCT current_amount FROM client_bank cb 
+                      INNER JOIN client c ON cb.client_id = c.id 
+                      WHERE c.is_deleted = 0";
+if ($currentOrgId > 0) {
+    $balance_query_sql .= " AND c.org_id = $currentOrgId";
+}
+$balance_query_sql .= " ORDER BY current_amount ASC";
+$balance_query = mysqli_query($conn, $balance_query_sql);
 ?>
 
 <!DOCTYPE html>
@@ -801,7 +822,7 @@ $(document).on("change", ".balance-list input[type=checkbox]", function () {
         var end = '<?= $end_date ?>' ? moment('<?= $end_date ?>') : moment();
 
         function booking_range(start, end) {
-            $('.bookingrange').val(start.format('MM/DD/YYYY') + ' - ' + end.format('MM/DD/YYYY'));
+            $('.bookingrange').val(start.format('MM/DD/YYYY') + ' - ' . end.format('MM/DD/YYYY'));
             $('#start_date').val(start.format('YYYY-MM-DD'));
             $('#end_date').val(end.format('YYYY-MM-DD'));
         }

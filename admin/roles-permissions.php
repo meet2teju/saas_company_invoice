@@ -82,7 +82,9 @@
                         <tbody>
                             <?php
                             include '../config/config.php';
-                            $query = "SELECT * FROM user_role WHERE is_deleted = 0 ORDER BY id asc";
+                            // $query = "SELECT * FROM user_role WHERE is_deleted = 0 ORDER BY id asc";
+                            $query = "SELECT * FROM user_role WHERE is_deleted = 0 AND id != 4 ORDER BY id asc";
+
                             $result = mysqli_query($conn, $query);
                             while ($row = mysqli_fetch_assoc($result)) {
                             ?>

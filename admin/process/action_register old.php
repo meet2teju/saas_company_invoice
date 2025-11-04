@@ -53,64 +53,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit;
     }
 
-    // Start transaction for data consistency
-    mysqli_begin_transaction($conn);
-
-    try {
-        // Generate organization name from user's name
-        $orgName = $name . "'s Organization";
-        
-        // Insert into organization table first
-        $orgInsertQuery = "INSERT INTO organizations (company_name, email, created_at, updated_at) VALUES (?, ?, NOW(), NOW())";
-        $stmtOrg = mysqli_prepare($conn, $orgInsertQuery);
-        mysqli_stmt_bind_param($stmtOrg, "ss", $orgName, $email);
-        
-        if (!mysqli_stmt_execute($stmtOrg)) {
-            throw new Exception("Failed to create organization");
-        }
-        
-        $org_id = mysqli_insert_id($conn);
-        mysqli_stmt_close($stmtOrg);
-
-        // Save user with organization ID
-        $hashedPassword = md5($password); // Keep md5 for now, but consider upgrading to password_hash()
-        $insertQuery = "INSERT INTO login (name, email, password, org_id, role_id, created_at) VALUES (?, ?, ?, ?, 1, NOW())";
-        $stmt = mysqli_prepare($conn, $insertQuery);
-        mysqli_stmt_bind_param($stmt, "sssi", $name, $email, $hashedPassword, $org_id);
-        
-        if (!mysqli_stmt_execute($stmt)) {
-            throw new Exception("Failed to create user");
-        }
-        
+    // Save user
+    $hashedPassword = md5($password); // Keep md5 for now, but consider upgrading to password_hash()
+    $insertQuery = "INSERT INTO login (name, email, password) VALUES (?, ?, ?)";
+    $stmt = mysqli_prepare($conn, $insertQuery);
+    mysqli_stmt_bind_param($stmt, "sss", $name, $email, $hashedPassword);
+    
+    if (mysqli_stmt_execute($stmt)) {
         $user_id = mysqli_insert_id($conn);
         
-        // Update organization with created_by
-        $updateOrgQuery = "UPDATE organizations SET created_by = ? WHERE id = ?";
-        $stmtUpdate = mysqli_prepare($conn, $updateOrgQuery);
-        mysqli_stmt_bind_param($stmtUpdate, "ii", $user_id, $org_id);
-        mysqli_stmt_execute($stmtUpdate);
-        mysqli_stmt_close($stmtUpdate);
-        
-        // Commit transaction
-        mysqli_commit($conn);
-        
-        // Close statements
-        mysqli_stmt_close($stmt);
-        
         // Send welcome email
-        if (sendWelcomeEmail($name, $email, $plainPassword)) {
+        if (sendWelcomeEmail($name, $email, $password)) {
             $_SESSION['success'] = "Registration successful. Welcome email sent. Please login.";
         } else {
             $_SESSION['success'] = "Registration successful, but email could not be sent. Please login.";
         }
         
+        mysqli_stmt_close($stmt);
         header("Location: ../login.php");
         exit;
-        
-    } catch (Exception $e) {
-        // Rollback transaction on error
-        mysqli_rollback($conn);
-        $_SESSION['errors']['general'] = "Something went wrong. Please try again. Error: " . $e->getMessage();
+    } else {
+        $_SESSION['errors']['general'] = "Something went wrong. Please try again.";
         header("Location: ../register.php");
         exit;
     }
@@ -151,6 +114,7 @@ function sendWelcomeEmail($name, $email, $plainPassword) {
 function generateEmailTemplate($name, $email, $plainPassword) {
     $loginUrl = "https://invoice.yuglogix.com/admin/login.php";
     
+    // Your existing HTML template here
     return '
     <!DOCTYPE html>
     <html lang="en">
@@ -168,7 +132,7 @@ function generateEmailTemplate($name, $email, $plainPassword) {
         <div class="container">
             <h2>Welcome to Invoice CRM!</h2>
             <p>Dear ' . htmlspecialchars($name) . ',</p>
-            <p>Your account and organization have been successfully created.</p>
+            <p>Your account has been successfully created.</p>
             <p><strong>Login Details:</strong></p>
             <ul>
                 <li><strong>Email:</strong> ' . htmlspecialchars($email) . '</li>
