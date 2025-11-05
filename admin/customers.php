@@ -2,7 +2,25 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
-// ✅ Set selected filter variables here
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
+// Set selected filter variables here
 $selectedClients   = $_POST['customer'] ?? [];
 $selectedCountries = $_POST['country'] ?? [];
 $dateRange         = $_POST['date_range'] ?? '';
@@ -12,11 +30,6 @@ $selectedBalances  = $_POST['balance'] ?? [];
 $filters = [];
 $join = "LEFT JOIN client_address ca ON c.id = ca.client_id";
 
-// Get user role ID, user ID, and organization ID from session
-$currentUserId = $_SESSION['crm_user_id'] ?? 0;
-$userRoleId = $_SESSION['role_id'] ?? 0;
-$currentOrgId = $_SESSION['org_id'] ?? 0; // Make sure this is set in session
-
 // Add organization-based filtering for ALL users
 if ($currentOrgId > 0) {
     $filters[] = "c.org_id = $currentOrgId";
@@ -24,7 +37,6 @@ if ($currentOrgId > 0) {
 
 // Add user-specific filtering for non-admin users
 if ($userRoleId != 1) {
-    // For non-admin users (role_id != 1), show only their own customers within the organization
     $filters[] = "c.user_id = $currentUserId";
 }
 
@@ -78,6 +90,11 @@ GROUP BY c.id
 ORDER BY c.created_at DESC";
 
 $result = mysqli_query($conn, $sql);
+
+// Check for SQL errors
+if (!$result) {
+    die("Database query failed");
+}
 
 // Data for filter dropdowns - UPDATED WITH ORGANIZATION FILTERING
 $countries = mysqli_query($conn, "SELECT * FROM countries ORDER BY name");
@@ -298,7 +315,9 @@ $balance_query = mysqli_query($conn, $balance_query_sql);
     </div>
 </div>
                 <!-- Table Search End -->
+                <!-- Page Header -->
 
+                <!-- END DEBUG DISPLAY -->
                 <!-- Table List -->
                 <div class="table-responsive">
                     <table class="table table-nowrap datatable">

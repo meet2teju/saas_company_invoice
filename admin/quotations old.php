@@ -10,8 +10,18 @@ $date_range = '';
 $start_date = '';
 $end_date = '';
 
+// Get user role ID and user ID from session
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
 // Build the filter SQL
 $filterSql = "WHERE q.is_deleted = 0";
+
+// Add user-specific filtering - ONLY ADDED THIS CONDITION
+if ($userRoleId != 1) {
+    // For non-admin users (role_id != 1), show only their own quotations
+    $filterSql .= " AND q.user_id = $currentUserId";
+}
 
 // Process form submission (using GET)
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
@@ -92,11 +102,19 @@ if (!$result) {
 			<div class="content content-two">
     
 				<!-- Page Header -->
-				<div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3 mb-3">
+				<div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3">
 					<div>
 						<h6 class="mb-0">Quotations</h6>
 					</div>
 					<div class="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+                        <div class="table-search d-flex align-items-center mb-0">
+                            <div class="search-input">
+                                <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
+                            </div>
+                        </div>
+                        <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
+                            <i class="isax isax-filter me-1"></i>Filter
+                        </a>
 						<div class="dropdown">
 							<a href="javascript:void(0);" class="btn btn-outline-white d-inline-flex align-items-center"  data-bs-toggle="dropdown">
 								<i class="isax isax-export-1 me-1"></i>Export
@@ -123,44 +141,86 @@ if (!$result) {
 				<!-- End Page Header -->
 				
 				<!-- Table Search -->
-                <div class="mb-3">
-                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                        <div class="d-flex align-items-center gap-2 flex-wrap flex-lg-nowrap flex-md-nowrap">
-                            <div class="table-search d-flex align-items-center mb-0">
-                                <div class="search-input">
-                                    <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
-                                </div>
-                            </div>
-							<!-- <div id="reportrange" class="reportrange-picker d-flex align-items-center">
-                                <i class="isax isax-calendar text-gray-5 fs-14 me-1"></i>
-                                <span class="reportrange-picker-field"><?= !empty($date_range) ? $date_range : date('d M Y') . ' - ' . date('d M Y') ?></span>
-                            </div> -->
-
-                            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                                <i class="isax isax-filter me-1"></i>Filter
-                            </a>
-                           <?php if (
-                                !empty($selected_customers) || 
-                                !empty($date_range) || 
-                                !empty($selected_amounts) || 
-                                !empty($selected_statuses)
-                            ): ?>
-                                <a href="quotations.php" class="btn btn-outline-secondary">
-                                    <i class="fa-solid fa-xmark me-1"></i> Clear Filters
-                                </a>
-                            <?php endif; ?>
-
-
-                         <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                            <i class="fa-regular fa-trash-can me-1"></i>Delete
-                        </a>
-                        </div>
-                      
-                    </div>
-
-                   
-
+               <!-- Search & Actions -->
+<div class="mb-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <!-- <div class="table-search d-flex align-items-center mb-0">
+                <div class="search-input">
+                    <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
                 </div>
+            </div>
+            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
+                <i class="isax isax-filter me-1"></i>Filter
+            </a> -->
+            
+            <!-- Display Active Filters -->
+            <?php 
+            $active_filters = [];
+            
+            // Customer filters
+            if (!empty($selected_customers)) {
+                $customer_names = [];
+                $ids = implode(",", array_map('intval', $selected_customers));
+                $res = mysqli_query($conn, "SELECT first_name FROM client WHERE id IN ($ids)");
+                while ($row = mysqli_fetch_assoc($res)) {
+                    $customer_names[] = htmlspecialchars($row['first_name']);
+                }
+                if (!empty($customer_names)) {
+                    $active_filters[] = "Client: " . (count($customer_names) > 2 ? 
+                        implode(", ", array_slice($customer_names, 0, 2)) . " +" . (count($customer_names) - 2) : 
+                        implode(", ", $customer_names));
+                }
+            }
+            
+            // Quotation ID filters
+            if (!empty($selected_quotation_ids)) {
+                $active_filters[] = "Quotation ID: " . (count($selected_quotation_ids) > 2 ? 
+                    implode(", ", array_slice($selected_quotation_ids, 0, 2)) . " +" . (count($selected_quotation_ids) - 2) : 
+                    implode(", ", $selected_quotation_ids));
+            }
+            
+            // Status filters
+            if (!empty($selected_statuses)) {
+                $status_names = array_map('ucfirst', $selected_statuses);
+                $active_filters[] = "Status: " . (count($status_names) > 2 ? 
+                    implode(", ", array_slice($status_names, 0, 2)) . " +" . (count($status_names) - 2) : 
+                    implode(", ", $status_names));
+            }
+            
+            // Date range filter
+            if (!empty($date_range)) {
+                $active_filters[] = "Date: " . htmlspecialchars($date_range);
+            }
+            ?>
+            
+            <!-- Display active filters and clear button -->
+            <?php if (!empty($active_filters)): ?>
+                <div class="d-flex align-items-center gap-2">
+                    <!-- Active Filters Display -->
+                    <div class="active-filters bg-light px-3 py-2 rounded d-flex align-items-center gap-2">
+                        <small class="text-muted fw-bold">Active Filters:</small>
+                        <?php foreach ($active_filters as $filter): ?>
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                <?= $filter ?>
+                            </span>
+                        <?php endforeach; ?>
+                    </div>
+                    
+                    <!-- Clear Filter Button -->
+                    <a href="quotations.php" class="btn btn-outline-secondary">
+                        <i class="fa-solid fa-xmark me-1"></i> Clear Filters
+                    </a>
+                </div>
+            <?php endif; ?>
+
+            <!-- Multiple Delete Button -->
+            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                <i class="fa-regular fa-trash-can me-1"></i>Delete
+            </a>
+        </div>
+    </div>
+</div>
                 <!-- /Table Search -->
 				
 				<!-- Table List -->

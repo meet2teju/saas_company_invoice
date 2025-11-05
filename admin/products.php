@@ -36,8 +36,6 @@
 			<!-- Start Container  -->
 			<div class="content content-two">
 
-
-
 				<!-- Page Header -->
 				<div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3">
 					<div>
@@ -79,14 +77,6 @@
 <div class="mb-3">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
         <div class="d-flex align-items-center flex-wrap gap-2">
-            <!-- <div class="table-search d-flex align-items-center mb-0">
-                <div class="search-input">
-                    <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
-                </div>
-            </div>
-            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                <i class="isax isax-filter me-1"></i>Filter
-            </a> -->
             
             <!-- Display Active Filters -->
             <?php 
@@ -199,10 +189,29 @@
                     </thead>
                     <tbody>
                     <?php
-                    // Get user role ID and user ID from session
+                    // Get user role ID, user ID, and organization ID from session
                     $currentUserId = $_SESSION['crm_user_id'] ?? 0;
                     $userRoleId = $_SESSION['role_id'] ?? 0;
-                    
+                    $currentOrgId = $_SESSION['org_id'] ?? 0;
+
+                    // Get the correct org_id from database if session org_id is 0
+                    if ($currentOrgId == 0 && $currentUserId > 0) {
+                        $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+                        $fixResult = mysqli_query($conn, $fixQuery);
+                        if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+                            $userData = mysqli_fetch_assoc($fixResult);
+                            $_SESSION['org_id'] = $userData['org_id'];
+                            $_SESSION['role_id'] = $userData['role_id'];
+                            $currentOrgId = $userData['org_id'];
+                            $userRoleId = $userData['role_id'];
+                        }
+                    }
+
+                    // If still 0, use default organization
+                    if ($currentOrgId == 0) {
+                        $currentOrgId = 1;
+                    }
+
                     $filterQuery = [];
                     if (!empty($_GET['product'])) {
                         $filterQuery[] = "p.id = " . intval($_GET['product']);
@@ -216,24 +225,28 @@
                     if (isset($_GET['status']) && $_GET['status'] !== '') {
                         $filterQuery[] = "p.status = " . intval($_GET['status']);
                     }
-                    
-                    // Add user-specific filtering - ONLY ADDED THIS CONDITION
+
+                    // Add organization-based filtering for ALL users
                     $whereClause = "WHERE p.is_deleted = 0";
+                    if ($currentOrgId > 0) {
+                        $whereClause .= " AND p.org_id = $currentOrgId";
+                    }
+
+                    // Add user-specific filtering for non-admin users
                     if ($userRoleId != 1) {
-                        // For non-admin users (role_id != 1), show only their own products
                         $whereClause .= " AND p.user_id = $currentUserId";
                     }
+
                     if (!empty($filterQuery)) {
                         $whereClause .= " AND " . implode(" AND ", $filterQuery);
                     }
-                    
+
                     $query = "SELECT p.*, c.name AS category_name, u.name AS unit_name 
                         FROM product p 
                         LEFT JOIN category c ON p.category_id = c.id 
                         LEFT JOIN units u ON p.unit_id = u.id 
                         $whereClause 
                         ORDER BY p.id DESC";
-
 
                     $result = mysqli_query($conn, $query);
                     while ($row = mysqli_fetch_assoc($result)) {
@@ -372,6 +385,16 @@
                     }
                 }
                 $productText = !empty($selectedProductNames) ? implode(", ", $selectedProductNames) : "Select";
+                
+                // Get products for dropdown with organization filtering
+                $products_query = "SELECT id, name FROM product WHERE is_deleted = 0";
+                if ($currentOrgId > 0) {
+                    $products_query .= " AND org_id = $currentOrgId";
+                }
+                if ($userRoleId != 1) {
+                    $products_query .= " AND user_id = $currentUserId";
+                }
+                $products = mysqli_query($conn, $products_query);
                 ?>
                 <div class="dropdown">
                     <a href="javascript:void(0);" class="dropdown-toggle btn btn-lg bg-light d-flex align-items-center justify-content-start fs-13 fw-normal border product-toggle"
@@ -394,7 +417,6 @@
                                 <a href="javascript:void(0);" class="link-danger fw-medium text-decoration-underline reset-product">Reset</a>
                             </li>
                             <?php
-                            $products = mysqli_query($conn, "SELECT id, name FROM product WHERE is_deleted = 0");
                             while ($p = mysqli_fetch_assoc($products)) {
                                 $isChecked = in_array($p['id'], $selectedProducts) ? 'checked' : '';
                                 echo '<li>
@@ -435,6 +457,13 @@
                     }
                 }
                 $categoryText = !empty($selectedCategoryNames) ? implode(", ", $selectedCategoryNames) : "Select";
+                
+                // Get categories for dropdown with organization filtering
+                $categories_query = "SELECT id, name FROM category WHERE 1=1";
+                if ($currentOrgId > 0) {
+                    $categories_query .= " AND org_id = $currentOrgId";
+                }
+                $categories = mysqli_query($conn, $categories_query);
                 ?>
                 <div class="dropdown">
                     <a href="javascript:void(0);" class="dropdown-toggle btn btn-lg bg-light d-flex align-items-center justify-content-start fs-13 fw-normal border category-toggle"
@@ -457,7 +486,6 @@
                                 <a href="javascript:void(0);" class="link-danger fw-medium text-decoration-underline reset-category">Reset</a>
                             </li>
                             <?php
-                            $categories = mysqli_query($conn, "SELECT id, name FROM category");
                             while ($c = mysqli_fetch_assoc($categories)) {
                                 $isChecked = in_array($c['id'], $selectedCategories) ? 'checked' : '';
                                 echo '<li>
@@ -498,6 +526,13 @@
                     }
                 }
                 $unitText = !empty($selectedUnitNames) ? implode(", ", $selectedUnitNames) : "Select";
+                
+                // Get units for dropdown with organization filtering
+                $units_query = "SELECT id, name FROM units WHERE 1=1";
+                if ($currentOrgId > 0) {
+                    $units_query .= " AND org_id = $currentOrgId";
+                }
+                $units = mysqli_query($conn, $units_query);
                 ?>
                 <div class="dropdown">
                     <a href="javascript:void(0);" class="dropdown-toggle btn btn-lg bg-light d-flex align-items-center justify-content-start fs-13 fw-normal border unit-toggle"
@@ -520,7 +555,6 @@
                                 <a href="javascript:void(0);" class="link-danger fw-medium text-decoration-underline reset-unit">Reset</a>
                             </li>
                             <?php
-                            $units = mysqli_query($conn, "SELECT id, name FROM units");
                             while ($u = mysqli_fetch_assoc($units)) {
                                 $isChecked = in_array($u['id'], $selectedUnits) ? 'checked' : '';
                                 echo '<li>

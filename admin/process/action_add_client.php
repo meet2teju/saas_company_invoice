@@ -58,6 +58,8 @@ if (isset($_POST['submit'])) {
 
         $currency = $_POST['currency'];
         $pan = $_POST['pan_number'];
+        $vat_gst = $_POST['vat_gst_number'] ?? ''; // Add this line
+
         $website_url = $_POST['website_url'];
         $department = $_POST['department'];
         $designation = $_POST['designation'];
@@ -68,12 +70,12 @@ if (isset($_POST['submit'])) {
         // FIXED: Corrected column order in INSERT query
         $query = "INSERT INTO client (
             customer_image, salutation, company_name, first_name, last_name, display_name, client_type,
-            phone_number, business_number, email, enable_portal, remark, pan_number,
+            phone_number, business_number, email, enable_portal, remark, pan_number, vat_gst_number,
             website_url, department, designation, twitter, skype_name_number, facebook,
             currency, status, org_id, user_id, is_deleted, created_by, updated_by
         ) VALUES (
             '$imageName', '$salutation', '$company_name', '$first_name', '$last_name', '$display_name', '$client_type',
-            '$phone_number', '$business_number', '$email', '$enable_portal', '$remark', '$pan',
+            '$phone_number', '$business_number', '$email', '$enable_portal', '$remark', '$pan', '$vat_gst',
             '$website_url', '$department', '$designation', '$twitter', '$skype_name_number', '$facebook',
             '$currency', 1, '$orgId', '$currentUserId', 0, '$currentUserId', '$currentUserId'
         )";

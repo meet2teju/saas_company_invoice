@@ -4,7 +4,7 @@ session_start();
 include '../../config/config.php';
 
 // Include Composer's autoloader
-require '../../vendor/autoload.php'; // Adjust path based on your file structure
+require '../../vendor/autoload.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         mysqli_stmt_close($stmtOrg);
 
         // Save user with organization ID
-        $hashedPassword = md5($password); // Keep md5 for now, but consider upgrading to password_hash()
+        $hashedPassword = md5($password);
         $insertQuery = "INSERT INTO login (name, email, password, org_id, role_id, created_at) VALUES (?, ?, ?, ?, 1, NOW())";
         $stmt = mysqli_prepare($conn, $insertQuery);
         mysqli_stmt_bind_param($stmt, "sssi", $name, $email, $hashedPassword, $org_id);
@@ -83,7 +83,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         $user_id = mysqli_insert_id($conn);
-        
+        mysqli_stmt_close($stmt);
+
         // Update organization with created_by
         $updateOrgQuery = "UPDATE organizations SET created_by = ? WHERE id = ?";
         $stmtUpdate = mysqli_prepare($conn, $updateOrgQuery);
@@ -94,11 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Commit transaction
         mysqli_commit($conn);
         
-        // Close statements
-        mysqli_stmt_close($stmt);
-        
         // Send welcome email
-        if (sendWelcomeEmail($name, $email, $plainPassword)) {
+        if (sendWelcomeEmail($name, $email, $password)) {
             $_SESSION['success'] = "Registration successful. Welcome email sent. Please login.";
         } else {
             $_SESSION['success'] = "Registration successful, but email could not be sent. Please login.";
@@ -110,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     } catch (Exception $e) {
         // Rollback transaction on error
         mysqli_rollback($conn);
-        $_SESSION['errors']['general'] = "Something went wrong. Please try again. Error: " . $e->getMessage();
+        $_SESSION['errors']['general'] = "Something went wrong. Please try again.";
         header("Location: ../register.php");
         exit;
     }
@@ -122,10 +120,10 @@ function sendWelcomeEmail($name, $email, $plainPassword) {
     try {
         // SMTP Configuration
         $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com'; // Your SMTP host
+        $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'daxachudasmaoe@gmail.com'; // Your email
-        $mail->Password = 'jhkg aneq xyhh emfm'; // Your app password
+        $mail->Username = 'daxachudasmaoe@gmail.com';
+        $mail->Password = 'jhkg aneq xyhh emfm';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
 
@@ -143,7 +141,6 @@ function sendWelcomeEmail($name, $email, $plainPassword) {
         return $mail->send();
         
     } catch (Exception $e) {
-        error_log("Email sending failed: {$mail->ErrorInfo}");
         return false;
     }
 }

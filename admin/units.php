@@ -15,13 +15,13 @@
 
         <div class="page-wrapper">
             <div class="content content-two">
-                   <?php if (isset($_SESSION['message'])): ?>
-    <div class="alert alert-<?= $_SESSION['message_type'] ?> alert-dismissible fade show" role="alert">
-        <?= $_SESSION['message']; ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
-<?php endif; ?>
+                <?php if (isset($_SESSION['message'])): ?>
+                    <div class="alert alert-<?= $_SESSION['message_type'] ?> alert-dismissible fade show" role="alert">
+                        <?= $_SESSION['message']; ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
+                <?php endif; ?>
 
                 <!-- Page Header -->
                 <div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3">
@@ -30,35 +30,72 @@
                     </div>
                     <div class="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
                         <div class="table-search d-flex align-items-center mb-0">
-                            <div class="search-input position-relative">
+                            <div class="search-input">
                                 <a href="javascript:void(0);" class="btn-searchset">
                                     <i class="isax isax-search-normal fs-12"></i>
                                 </a>
                             </div>
                         </div>
+                        
+                        <!-- Filter Button -->
+                        <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#filterCanvas">
+                            <i class="isax isax-filter me-1"></i>Filter
+                        </a>
+                        
+                        <!-- Export Dropdown -->
+                        <!-- <div class="dropdown">
+                            <a href="javascript:void(0);" class="btn btn-outline-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
+                                <i class="isax isax-export-1 me-1"></i>Export
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="process/export_pdf_units.php?<?php echo http_build_query($_GET); ?>">Download as PDF</a></li>
+                                <li><a class="dropdown-item" href="process/export_excle_units.php?<?php echo http_build_query($_GET); ?>">Download as Excel</a></li>
+                            </ul>
+                        </div> -->
+                        
                         <a href="#" class="btn btn-primary d-flex align-items-center" data-bs-toggle="modal" data-bs-target="#add_modal">
                             <i class="isax isax-add-circle5 me-1"></i>New Unit
                         </a>
                     </div>
                 </div>
 
-                <!-- Search -->
-             <div class="mb-3">
+                <!-- Active Filters Display -->
+                <div class="mb-3">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                         <div class="d-flex align-items-center flex-wrap gap-2">
-                            <!-- Search Input -->
-                            <!-- <div class="table-search d-flex align-items-center mb-0">
-                                <div class="search-input position-relative">
-                                    <a href="javascript:void(0);" class="btn-searchset">
-                                        <i class="isax isax-search-normal fs-12"></i>
+                            <?php 
+                            $active_filters = [];
+                            
+                            // Status filter
+                            if (isset($_GET['status']) && $_GET['status'] !== '') {
+                                $status_text = ($_GET['status'] == '1') ? 'Active' : 'Inactive';
+                                $active_filters[] = "Status: " . $status_text;
+                            }
+                            ?>
+                            
+                            <?php if (!empty($active_filters)): ?>
+                                <div class="d-flex align-items-center gap-2">
+                                    <!-- Active Filters Display -->
+                                    <div class="active-filters bg-light px-3 py-2 rounded d-flex align-items-center gap-2">
+                                        <small class="text-muted fw-bold">Active Filters:</small>
+                                        <?php foreach ($active_filters as $filter): ?>
+                                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                                <?= $filter ?>
+                                            </span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    
+                                    <!-- Clear Filter Button -->
+                                    <a href="units.php" class="btn btn-outline-secondary">
+                                        <i class="fa-solid fa-xmark me-1"></i> Clear Filters
                                     </a>
                                 </div>
-                            </div> -->
+                            <?php endif; ?>
 
-                            <!-- Delete Button -->
-                             <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                        <i class="fa-regular fa-trash-can me-1"></i>Delete
-                        </a>
+                            <!-- Multiple Delete Button -->
+                            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                                <i class="fa-regular fa-trash-can me-1"></i>Delete
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -69,54 +106,102 @@
                         <thead class="table-light">
                             <tr>
                                 <th class="no-sort">
-                            <div class="form-check form-check-md">
-                                <input class="form-check-input" type="checkbox" id="select-all">
-                            </div>
-                        </th>
+                                    <div class="form-check form-check-md">
+                                        <input class="form-check-input" type="checkbox" id="select-all">
+                                    </div>
+                                </th>
                                 <th>Unit Name</th>
-                                <th class>Short Name</th>
+                                <th>Short Name</th>
                                 <th class="no-sort">Status</th>
                                 <th class="no-sort">Action</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php
-                            $result = mysqli_query($conn, "SELECT * FROM units ORDER BY id DESC");
+                            // Get user role ID, user ID, and organization ID from session
+                            $currentUserId = $_SESSION['crm_user_id'] ?? 0;
+                            $userRoleId = $_SESSION['role_id'] ?? 0;
+                            $currentOrgId = $_SESSION['org_id'] ?? 0;
+
+                            // Get the correct org_id from database if session org_id is 0
+                            if ($currentOrgId == 0 && $currentUserId > 0) {
+                                $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+                                $fixResult = mysqli_query($conn, $fixQuery);
+                                if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+                                    $userData = mysqli_fetch_assoc($fixResult);
+                                    $_SESSION['org_id'] = $userData['org_id'];
+                                    $_SESSION['role_id'] = $userData['role_id'];
+                                    $currentOrgId = $userData['org_id'];
+                                    $userRoleId = $userData['role_id'];
+                                }
+                            }
+
+                            // If still 0, use default organization
+                            if ($currentOrgId == 0) {
+                                $currentOrgId = 1;
+                            }
+
+                            $filterQuery = [];
+                            if (isset($_GET['status']) && $_GET['status'] !== '') {
+                                $filterQuery[] = "u.status = " . intval($_GET['status']);
+                            }
+
+                            // Add organization-based filtering
+                            $whereClause = "WHERE u.is_deleted = 0";
+                            if ($currentOrgId > 0) {
+                                $whereClause .= " AND u.org_id = $currentOrgId";
+                            }
+
+                            // Add user-specific filtering for non-admin users
+                            if ($userRoleId != 1) {
+                                $whereClause .= " AND u.user_id = $currentUserId";
+                            }
+
+                            if (!empty($filterQuery)) {
+                                $whereClause .= " AND " . implode(" AND ", $filterQuery);
+                            }
+
+                            $query = "SELECT u.* FROM units u $whereClause ORDER BY u.id DESC";
+                            $result = mysqli_query($conn, $query);
+                            
                             while ($row = mysqli_fetch_assoc($result)) {
                                 $status = $row['status'] ? 'checked' : '';
                             ?>
                                 <tr>
-                                      <td>
-                                <div class="form-check form-check-md">
-                            <input type="checkbox" class="form-check-input units-checkbox" name="units_ids[]" value="<?= htmlspecialchars($row['id']) ?>">
-                                </div>
-                            </td>
+                                    <td>
+                                        <div class="form-check form-check-md">
+                                            <input type="checkbox" class="form-check-input units-checkbox" name="units_ids[]" value="<?= htmlspecialchars($row['id']) ?>">
+                                        </div>
+                                    </td>
                                     <td><h6 class="fs-14 fw-medium mb-0"><?= htmlspecialchars($row['name']) ?></h6></td>
                                     <td><?= htmlspecialchars($row['short_name']) ?></td>
                                     <td>
-                                      <div class="form-check form-switch">
-                                    <input class="form-check-input status-toggle" type="checkbox" role="switch" <?= $status ? 'checked' : '' ?> data-id="<?= $row['id'] ?>">
-                                </div>
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input status-toggle" type="checkbox" role="switch" <?= $status ? 'checked' : '' ?> data-id="<?= $row['id'] ?>">
+                                        </div>
+                                    </td>
                                     <td class="action-item">
-                                        <a href="javascript:void(0);" data-bs-toggle="dropdown">
-                                            <i class="isax isax-more"></i>
-                                        </a>
-                                        <ul class="dropdown-menu">
-                                            <li>
-                                                <a href="#" class="dropdown-item edit-btn" 
-                                                   data-id="<?= $row['id'] ?>"
-                                                   data-name="<?= htmlspecialchars($row['name']) ?>"
-                                                   data-short="<?= htmlspecialchars($row['short_name']) ?>">
-                                                   <i class="isax isax-edit me-2"></i>Edit
-                                                </a>
-                                            </li>
-                                            <li>
-                                                <a href="#" class="dropdown-item delete-btn" 
-                                                   data-id="<?= $row['id'] ?>">
-                                                   <i class="isax isax-trash me-2"></i>Delete
-                                                </a>
-                                            </li>
-                                        </ul>
+                                        <div class="dropdown">
+                                            <a href="javascript:void(0);" class="dropdown-toggle" data-bs-toggle="dropdown">
+                                                <i class="isax isax-more"></i>
+                                            </a>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li>
+                                                    <a href="#" class="dropdown-item edit-btn" 
+                                                       data-id="<?= $row['id'] ?>"
+                                                       data-name="<?= htmlspecialchars($row['name']) ?>"
+                                                       data-short="<?= htmlspecialchars($row['short_name']) ?>">
+                                                       <i class="isax isax-edit me-2"></i>Edit
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#" class="dropdown-item delete-btn" 
+                                                       data-id="<?= $row['id'] ?>">
+                                                       <i class="isax isax-trash me-2"></i>Delete
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php } ?>
@@ -127,6 +212,64 @@
             </div>
 
             <?php include 'layouts/footer.php'; ?>
+        </div>
+
+        <!-- Filter Offcanvas -->
+        <div class="offcanvas offcanvas-offset offcanvas-end" tabindex="-1" id="filterCanvas">
+            <div class="offcanvas-header d-block pb-0">
+                <div class="border-bottom d-flex align-items-center justify-content-between pb-3">
+                    <h6 class="offcanvas-title">Filter</h6>
+                    <button type="button" class="btn-close btn-close-modal custom-btn-close" data-bs-dismiss="offcanvas" aria-label="Close">
+                        <i class="fa-solid fa-x"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="offcanvas-body pt-3">
+                <form action="units.php" method="GET">
+                    <!-- Status -->
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <?php
+                        $selectedStatus = $_GET['status'] ?? '';
+                        $statusText = $selectedStatus === "1" ? "Active" : ($selectedStatus === "0" ? "Inactive" : "Select");
+                        ?>
+                        <div class="dropdown">
+                            <a href="javascript:void(0);" class="dropdown-toggle btn btn-lg bg-light d-flex align-items-center justify-content-start fs-13 fw-normal border status-toggle"
+                               data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                                <?= $statusText ?>
+                            </a>
+                            <div class="dropdown-menu shadow-lg w-100 dropdown-info p-3">
+                                <ul class="mb-3 list-unstyled status-list">
+                                    <li>
+                                        <label class="dropdown-item px-2 d-flex align-items-center text-dark">
+                                            <input class="form-check-input m-0 me-2" type="radio" name="status" value="1" <?= $selectedStatus === "1" ? 'checked' : '' ?>>
+                                            Active
+                                        </label>
+                                    </li>
+                                    <li>
+                                        <label class="dropdown-item px-2 d-flex align-items-center text-dark">
+                                            <input class="form-check-input m-0 me-2" type="radio" name="status" value="0" <?= $selectedStatus === "0" ? 'checked' : '' ?>>
+                                            Inactive
+                                        </label>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="offcanvas-footer">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <a href="units.php" class="btn btn-outline-white w-100">Reset</a>
+                            </div>
+                            <div class="col-6">
+                                <button type="submit" class="btn btn-primary w-100" id="filter-submit">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
         </div>
 
         <!-- Add Modal -->
@@ -212,8 +355,8 @@
             </div>
         </div>
 
-
-          <div class="modal fade" id="multideleteModal" tabindex="-1" aria-hidden="true">
+        <!-- Multi Delete Modal -->
+        <div class="modal fade" id="multideleteModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered modal-m">
                 <div class="modal-content">
                     <form method="POST" id="multiDeleteForm" action="process/action_multi_delete_units.php">
@@ -237,13 +380,40 @@
     <?php include 'layouts/vendor-scripts.php'; ?>
 
     <script>
+    // Filter functionality
+    function updateFilterLabels() {
+        // Status
+        let statusLabels = [];
+        $('input[name="status"]:checked').each(function() {
+            statusLabels.push($(this).closest('label').text().trim());
+        });
+        const statusSummary = summarizeLabels(statusLabels, 1);
+        $('.status-toggle').text(statusSummary);
+    }
+
+    function summarizeLabels(labels, limit = 3) {
+        if (!labels || labels.length === 0) return 'Select';
+        if (labels.length <= limit) return labels.join(', ');
+        return labels.slice(0, limit).join(', ') + '+' + (labels.length - limit);
+    }
+
+    // Initialize labels on page load
+    updateFilterLabels();
+
+    // Update labels when filters change
+    $(document).on('change', 'input[name="status"]', function() {
+        updateFilterLabels();
+    });
+
     $(document).ready(function() {
-            $('#add_name,#add_short_name').on('input', function () {
-        this.value = this.value.replace(/[0-9]/g, '');
-            });
-         $('#edit_name,#edit_short_name').on('input', function () {
-        this.value = this.value.replace(/[0-9]/g, '');
-            });
+        $('#add_name,#add_short_name').on('input', function () {
+            this.value = this.value.replace(/[0-9]/g, '');
+        });
+        
+        $('#edit_name,#edit_short_name').on('input', function () {
+            this.value = this.value.replace(/[0-9]/g, '');
+        });
+        
         // Add form validation
         $('#addForm').on('submit', function(e) {
             let valid = true;
@@ -326,94 +496,85 @@
             $('#edit_name_error, #edit_short_name_error').text('');
         });
 
-        // Search filter for units
-        $('#unitSearch').on('keyup', function () {
-            const searchText = $(this).val().toLowerCase();
+        // Multi-delete functionality
+        const multiDeleteModal = new bootstrap.Modal(document.getElementById('multideleteModal'));
 
-            $('#unitTable tbody tr').each(function () {
-                const rowText = $(this).text().toLowerCase();
-                $(this).toggle(rowText.indexOf(searchText) > -1);
+        // Toggle delete button visibility
+        function toggleDeleteBtn() {
+            if ($('.units-checkbox:checked').length > 0) {
+                $('.delete-multiple').removeClass('d-none'); // show
+            } else {
+                $('.delete-multiple').addClass('d-none'); // hide
+            }
+        }
+
+        // Delete button click
+        $('.delete-multiple').on('click', function(e) {
+            e.preventDefault();
+            const checkboxes = $('.units-checkbox:checked');
+            const form = $('#multiDeleteForm');
+
+            // Clear old hidden inputs
+            form.find('input[name="units_ids[]"]').remove();
+
+            // Add selected ids
+            checkboxes.each(function() {
+                form.append(`<input type="hidden" name="units_ids[]" value="${$(this).val()}">`);
+            });
+
+            // Update modal text
+            const modalTitle = $('#multideleteModal h6');
+            const modalMessage = $('#multideleteModal p');
+
+            if (checkboxes.length === 1) {
+                modalTitle.text('Delete Unit');
+                modalMessage.text('Are you sure you want to delete the selected unit?');
+            } else {
+                modalTitle.text('Delete Units');
+                modalMessage.text(`Are you sure you want to delete the ${checkboxes.length} selected units?`);
+            }
+
+            multiDeleteModal.show();
+        });
+
+        // Select All functionality
+        $('#select-all').on('change', function() {
+            $('.units-checkbox').prop('checked', $(this).prop('checked'));
+            toggleDeleteBtn();
+        });
+
+        // Individual checkbox change
+        $(document).on('change', '.units-checkbox', function() {
+            toggleDeleteBtn();
+        });
+
+        // Run once on page load (in case some boxes are pre-checked)
+        toggleDeleteBtn();
+    });
+    </script>
+    
+    <script>
+    $(document).ready(function() {
+        $('.status-toggle').on('change', function() {
+            var id = $(this).data('id');
+            var status = $(this).is(':checked') ? 1 : 0;
+
+            $.ajax({
+                url: 'process/action_toggle_units_status.php',
+                type: 'POST',
+                data: {
+                    id: id,
+                    status: status
+                },
+                success: function(response) {
+                    console.log('Status updated');
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error:', error);
+                }
             });
         });
-   const multiDeleteModal = new bootstrap.Modal(document.getElementById('multideleteModal'));
-
-// Toggle delete button visibility
-function toggleDeleteBtn() {
-    if ($('.units-checkbox:checked').length > 0) {
-        $('.delete-multiple').removeClass('d-none'); // show
-    } else {
-        $('.delete-multiple').addClass('d-none'); // hide
-    }
-}
-
-// Delete button click
-$('.delete-multiple').on('click', function(e) {
-    e.preventDefault();
-    const checkboxes = $('.units-checkbox:checked');
-    const form = $('#multiDeleteForm');
-
-    // Clear old hidden inputs
-    form.find('input[name="units_ids[]"]').remove();
-
-    // Add selected ids
-    checkboxes.each(function() {
-        form.append(`<input type="hidden" name="units_ids[]" value="${$(this).val()}">`);
     });
-
-    // Update modal text
-    const modalTitle = $('#multideleteModal h6');
-    const modalMessage = $('#multideleteModal p');
-
-    if (checkboxes.length === 1) {
-        modalTitle.text('Delete Unit');
-        modalMessage.text('Are you sure you want to delete the selected unit?');
-    } else {
-        modalTitle.text('Delete Units');
-        modalMessage.text(`Are you sure you want to delete the ${checkboxes.length} selected units?`);
-    }
-
-    multiDeleteModal.show();
-});
-
-// Select All functionality
-$('#select-all').on('change', function() {
-    $('.units-checkbox').prop('checked', $(this).prop('checked'));
-    toggleDeleteBtn();
-});
-
-// Individual checkbox change
-$(document).on('change', '.units-checkbox', function() {
-    toggleDeleteBtn();
-});
-
-// Run once on page load (in case some boxes are pre-checked)
-toggleDeleteBtn();
-
-    });
-    
     </script>
-               <script>
-$(document).ready(function() {
-    $('.status-toggle').on('change', function() {
-        var id = $(this).data('id');
-        var status = $(this).is(':checked') ? 1 : 0;
-
-        $.ajax({
-            url: 'process/action_toggle_units_status.php',
-            type: 'POST',
-            data: {
-                id: id,
-                status: status
-            },
-            success: function(response) {
-                console.log('Status updated');
-            },
-            error: function(xhr, status, error) {
-                console.error('Error:', error);
-            }
-        });
-    });
-});
-</script>
 </body>
 </html>

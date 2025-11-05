@@ -32,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['crm_is_login'] = 1;
                 $_SESSION['crm_user_id'] = $user['id'];
                 $_SESSION['role_id'] = $user['role_id'];
+                $_SESSION['org_id'] = $user['org_id'];
                 $_SESSION['crm_user_role'] = $user['role_name']; 
                 $_SESSION['crm_user_name'] = $user['name'];
                 $_SESSION['crm_user_email'] = $user['email'];

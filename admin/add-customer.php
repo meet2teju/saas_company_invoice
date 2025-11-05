@@ -279,8 +279,8 @@ $country_codes = [
 
                                                     <div class="col-md-6 mb-3">
                                                         <label class="form-label">VAT/GST Number</label>
-                                                        <input type="text" class="form-control" name="pan_number" id="pan_number">
-                                                        <span id="pan_number_error" class="text-danger error-text"></span>
+                                                        <input type="text" class="form-control" name="gst_number" id="gst_number">
+                                                        <span id="gst_number_error" class="text-danger error-text"></span>
                                                     </div>
 
                                                     
