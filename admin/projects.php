@@ -2,6 +2,24 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
 $login_id = $_SESSION['crm_user_id']; // login.id
 $role_id  = $_SESSION['role_id'];     // login.role_id
 
@@ -15,6 +33,12 @@ $filters = [];
 $selected_customers = $_POST['customer'] ?? [];
 $selected_projects  = $_POST['project'] ?? [];
 $date_range         = $_POST['date_range'] ?? '';
+
+// Build base WHERE conditions for organization filtering
+$org_where = "";
+if ($currentOrgId > 0) {
+    $org_where = " AND p.org_id = $currentOrgId";
+}
 
 // Customer Filter
 if (!empty($selected_customers)) {
@@ -40,7 +64,7 @@ if (!empty($date_range)) {
 }
 
 // Base WHERE
-$where = "WHERE p.is_deleted = 0";
+$where = "WHERE p.is_deleted = 0 $org_where";
 
 // Add other filters
 if (!empty($filters)) {
@@ -66,9 +90,30 @@ ORDER BY p.created_at DESC
 
 $result = mysqli_query($conn, $sql);
 
-// Fetch clients and projects for filter
-$customers = mysqli_query($conn, "SELECT id, first_name, customer_image FROM client WHERE is_deleted = 0");
-$projectList = mysqli_query($conn, "SELECT id, project_name FROM project WHERE is_deleted = 0");
+// Update customers query to only show customers from the same organization AND user if non-admin
+$customers_query = "SELECT id, first_name, customer_image FROM client WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $customers_query .= " AND org_id = $currentOrgId";
+}
+// For non-admin users, also filter by user_id
+if ($userRoleId != 1) {
+    $customers_query .= " AND user_id = $currentUserId";
+}
+$customers = mysqli_query($conn, $customers_query);
+
+// Update project list query with organization filtering
+$projectList_query = "SELECT id, project_name FROM project WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $projectList_query .= " AND org_id = $currentOrgId";
+}
+// For non-admin users, show only projects they're assigned to
+if ($role_name !== 'admin') {
+    $projectList_query .= " AND EXISTS (
+        SELECT 1 FROM project_users pu
+        WHERE pu.project_id = project.id AND pu.user_id = $login_id
+    )";
+}
+$projectList = mysqli_query($conn, $projectList_query);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -156,30 +201,6 @@ $projectList = mysqli_query($conn, "SELECT id, project_name FROM project WHERE i
             </div>
 
             <!-- Search & Actions -->
-            <!-- <div class="mb-3">
-                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                    <div class="d-flex align-items-center flex-wrap gap-2">
-                        <div class="table-search d-flex align-items-center mb-0">
-                            <div class="search-input">
-                                <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
-                            </div>
-                        </div>
-                            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                                <i class="isax isax-filter me-1"></i>Filter
-                            </a>
-                            <?php if (!empty($selected_customers) || !empty($selected_projects) || !empty($date_range)): ?>
-                                <a href="projects.php" class="btn btn-outline-secondary">
-                                    <i class="fa-solid fa-xmark me-1"></i> Clear Filters
-                                </a>
-                            <?php endif; ?>
-
-                       <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                        <i class="fa-regular fa-trash-can me-1"></i>Delete
-                        </a>
-
-                    </div>
-                </div>
-            </div> -->
 <!-- Search & Actions -->
 <div class="mb-3">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -450,10 +471,11 @@ while ($row = mysqli_fetch_assoc($result)):
                                 <a href="javascript:void(0);" class="link-danger fw-medium text-decoration-underline reset-customer">Reset</a>
                             </li>
                             <?php
-                            mysqli_data_seek($customers, 0);
-                            while ($row = mysqli_fetch_assoc($customers)) {
-                                $isChecked = in_array($row['id'], $selected_customers) ? 'checked' : '';
-                                $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
+                            if (mysqli_num_rows($customers) > 0) {
+                                mysqli_data_seek($customers, 0);
+                                while ($row = mysqli_fetch_assoc($customers)) {
+                                    $isChecked = in_array($row['id'], $selected_customers) ? 'checked' : '';
+                                    $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
                             ?>
                             <li>
                                 <label class="dropdown-item px-2 d-flex align-items-center text-dark">
@@ -464,7 +486,11 @@ while ($row = mysqli_fetch_assoc($result)):
                                     <?= htmlspecialchars($row['first_name']) ?>
                                 </label>
                             </li>
-                            <?php } ?>
+                            <?php } 
+                            } else {
+                                echo '<li><div class="dropdown-item text-muted text-center">No clients found</div></li>';
+                            }
+                            ?>
                         </ul>
                     </div>
                 </div>
@@ -514,9 +540,10 @@ while ($row = mysqli_fetch_assoc($result)):
                                 <a href="javascript:void(0);" class="link-danger fw-medium text-decoration-underline reset-project">Reset</a>
                             </li>
                             <?php
-                            mysqli_data_seek($projectList, 0);
-                            while ($row = mysqli_fetch_assoc($projectList)) {
-                                $isChecked = in_array($row['id'], $selected_projects) ? 'checked' : '';
+                            if (mysqli_num_rows($projectList) > 0) {
+                                mysqli_data_seek($projectList, 0);
+                                while ($row = mysqli_fetch_assoc($projectList)) {
+                                    $isChecked = in_array($row['id'], $selected_projects) ? 'checked' : '';
                             ?>
                             <li>
                                 <label class="dropdown-item px-2 d-flex align-items-center text-dark">
@@ -524,7 +551,11 @@ while ($row = mysqli_fetch_assoc($result)):
                                     <?= htmlspecialchars($row['project_name']) ?>
                                 </label>
                             </li>
-                            <?php } ?>
+                            <?php } 
+                            } else {
+                                echo '<li><div class="dropdown-item text-muted text-center">No projects found</div></li>';
+                            }
+                            ?>
                         </ul>
                     </div>
                 </div>

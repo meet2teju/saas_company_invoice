@@ -3,9 +3,23 @@
 
 include '../config/config.php'; // Adjust the path if needed
 
-// Get user role ID and user ID from session
+// Get current user info
 $currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
 $userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
 
 // Initialize filter variables
 $selected_customers = [];
@@ -15,14 +29,22 @@ $date_range = '';
 $start_date = '';
 $end_date = '';
 
-// Build the filter SQL - MODIFIED THIS PART FOR ROLE-BASED FILTERING
-$filterSql = "WHERE i.is_deleted = 0";
+// Build base WHERE conditions for organization and user filtering
+$org_where = "";
+$user_where = "";
 
-// Add user-specific filtering
-if ($userRoleId != 1) {
-    // For non-admin users (role_id != 1), show only their own invoices
-    $filterSql .= " AND i.user_id = $currentUserId";
+// Add organization-based filtering for ALL users
+if ($currentOrgId > 0) {
+    $org_where = " AND i.org_id = $currentOrgId";
 }
+
+// Add user-specific filtering for non-admin users
+if ($userRoleId != 1) {
+    $user_where = " AND i.user_id = $currentUserId";
+}
+
+// Build the filter SQL - MODIFIED THIS PART FOR ROLE-BASED AND ORGANIZATION FILTERING
+$filterSql = "WHERE i.is_deleted = 0 $org_where $user_where";
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -77,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get invoice data with filters applied - MODIFIED QUERY TO INCLUDE ROLE-BASED FILTERING
+// Get invoice data with filters applied - MODIFIED QUERY TO INCLUDE ROLE-BASED AND ORGANIZATION FILTERING
 $sql = "SELECT i.id, i.invoice_id, i.total_amount,i.invoice_date, i.due_date, i.invoice_date, i.status, c.first_name, c.customer_image 
         FROM invoice i
         LEFT JOIN client c ON i.client_id = c.id
@@ -86,8 +108,11 @@ $sql = "SELECT i.id, i.invoice_id, i.total_amount,i.invoice_date, i.due_date, i.
 
 $result = mysqli_query($conn, $sql);
 
-// MODIFIED TOTAL INVOICE QUERIES WITH ROLE-BASED FILTERING
+// MODIFIED TOTAL INVOICE QUERIES WITH ROLE-BASED AND ORGANIZATION FILTERING
 $totalinvoiceWhere = "WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $totalinvoiceWhere .= " AND org_id = $currentOrgId";
+}
 if ($userRoleId != 1) {
     $totalinvoiceWhere .= " AND user_id = $currentUserId";
 }
@@ -101,8 +126,11 @@ if ($totalinvoicerow = mysqli_fetch_assoc($totalinvoiceresult)) {
     $total_invoices = $totalinvoicerow['total_invoices'];
 }
 
-// Query to get the total sum of all paid invoices - MODIFIED WITH ROLE-BASED FILTERING
+// Query to get the total sum of all paid invoices - MODIFIED WITH ROLE-BASED AND ORGANIZATION FILTERING
 $sql_paid_where = "WHERE status = 'Paid' AND is_deleted = 0";
+if ($currentOrgId > 0) {
+    $sql_paid_where .= " AND org_id = $currentOrgId";
+}
 if ($userRoleId != 1) {
     $sql_paid_where .= " AND user_id = $currentUserId";
 }
@@ -114,8 +142,11 @@ if ($row = mysqli_fetch_assoc($result_paid)) {
     $total_paid_invoices = $row['total_paid_invoices'];
 }
 
-// Query to get the total sum of all pending invoices - MODIFIED WITH ROLE-BASED FILTERING
+// Query to get the total sum of all pending invoices - MODIFIED WITH ROLE-BASED AND ORGANIZATION FILTERING
 $sql_pending_where = "WHERE status = 'unpaid' AND is_deleted = 0";
+if ($currentOrgId > 0) {
+    $sql_pending_where .= " AND org_id = $currentOrgId";
+}
 if ($userRoleId != 1) {
     $sql_pending_where .= " AND user_id = $currentUserId";
 }
@@ -127,8 +158,11 @@ if ($row = mysqli_fetch_assoc($result_pending)) {
     $total_pending_invoices = $row['total_pending_invoices'];
 }
 
-// Query to get the total sum of all overdue invoices - MODIFIED WITH ROLE-BASED FILTERING
+// Query to get the total sum of all overdue invoices - MODIFIED WITH ROLE-BASED AND ORGANIZATION FILTERING
 $sql_overdue_where = "WHERE status = 'Overdue' AND is_deleted = 0";
+if ($currentOrgId > 0) {
+    $sql_overdue_where .= " AND org_id = $currentOrgId";
+}
 if ($userRoleId != 1) {
     $sql_overdue_where .= " AND user_id = $currentUserId";
 }
@@ -142,9 +176,14 @@ if ($row = mysqli_fetch_assoc($result_overdue)) {
 
 function getInvoiceTotal($conn, $status = null, $month = null, $year = null)
 {
-    global $userRoleId, $currentUserId;
+    global $userRoleId, $currentUserId, $currentOrgId;
     
     $query = "SELECT SUM(total_amount) AS total FROM invoice WHERE is_deleted = 0";
+    
+    // Add organization-based filtering
+    if ($currentOrgId > 0) {
+        $query .= " AND org_id = $currentOrgId";
+    }
     
     // Add role-based filtering
     if ($userRoleId != 1) {
@@ -194,6 +233,17 @@ $growth_total = growthPercent($total_invoices, $last_total_invoices);
 $growth_paid = growthPercent($total_paid_invoices, $last_paid_invoices);
 $growth_pending = growthPercent($total_pending_invoices, $last_pending_invoices);
 $growth_overdue = growthPercent($total_overdue_invoices, $last_overdue_invoices);
+
+// Update customers query to only show customers from the same organization AND user if non-admin
+$customers_query = "SELECT * FROM client WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $customers_query .= " AND org_id = $currentOrgId";
+}
+// For non-admin users, also filter by user_id
+if ($userRoleId != 1) {
+    $customers_query .= " AND user_id = $currentUserId";
+}
+$customers = mysqli_query($conn, $customers_query);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -686,11 +736,8 @@ $growth_overdue = growthPercent($total_overdue_invoices, $last_overdue_invoices)
                                 </thead>
                                 <tbody>
                                     <?php
-                                    // MODIFIED QUERY FOR PAID TAB WITH ROLE-BASED FILTERING
-                                    $paidFilterSql = "WHERE i.status = 'Paid' AND i.is_deleted = 0";
-                                    if ($userRoleId != 1) {
-                                        $paidFilterSql .= " AND i.user_id = $currentUserId";
-                                    }
+                                    // MODIFIED QUERY FOR PAID TAB WITH ROLE-BASED AND ORGANIZATION FILTERING
+                                    $paidFilterSql = "WHERE i.status = 'Paid' AND i.is_deleted = 0 AND i.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND i.user_id = $currentUserId" : "");
                                     
                                     $sql = "SELECT i.*, c.first_name, c.last_name, c.customer_image 
                                     FROM invoice i 
@@ -862,11 +909,8 @@ $growth_overdue = growthPercent($total_overdue_invoices, $last_overdue_invoices)
                                 </thead>
                                 <tbody>
                                     <?php
-                                    // MODIFIED QUERY FOR CANCELLED TAB WITH ROLE-BASED FILTERING
-                                    $cancelledFilterSql = "WHERE i.status = 'cancelled' AND i.is_deleted = 0";
-                                    if ($userRoleId != 1) {
-                                        $cancelledFilterSql .= " AND i.user_id = $currentUserId";
-                                    }
+                                    // MODIFIED QUERY FOR CANCELLED TAB WITH ROLE-BASED AND ORGANIZATION FILTERING
+                                    $cancelledFilterSql = "WHERE i.status = 'cancelled' AND i.is_deleted = 0 AND i.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND i.user_id = $currentUserId" : "");
                                     
                                     $sql = "SELECT i.*, c.first_name, c.last_name, c.customer_image 
                                     FROM invoice i 
@@ -1037,11 +1081,8 @@ $growth_overdue = growthPercent($total_overdue_invoices, $last_overdue_invoices)
                                 </thead>
                                 <tbody>
                                     <?php
-                                    // MODIFIED QUERY FOR UNPAID TAB WITH ROLE-BASED FILTERING
-                                    $unpaidFilterSql = "WHERE i.status = 'unpaid' AND i.is_deleted = 0";
-                                    if ($userRoleId != 1) {
-                                        $unpaidFilterSql .= " AND i.user_id = $currentUserId";
-                                    }
+                                    // MODIFIED QUERY FOR UNPAID TAB WITH ROLE-BASED AND ORGANIZATION FILTERING
+                                    $unpaidFilterSql = "WHERE i.status = 'unpaid' AND i.is_deleted = 0 AND i.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND i.user_id = $currentUserId" : "");
                                     
                                     $sql = "SELECT i.*, c.first_name, c.last_name, c.customer_image 
                                     FROM invoice i 
@@ -1214,11 +1255,8 @@ $growth_overdue = growthPercent($total_overdue_invoices, $last_overdue_invoices)
                                 </thead>
                                 <tbody>
                                     <?php
-                                    // MODIFIED QUERY FOR DRAFT TAB WITH ROLE-BASED FILTERING
-                                    $draftFilterSql = "WHERE i.status = 'draft' AND i.is_deleted = 0";
-                                    if ($userRoleId != 1) {
-                                        $draftFilterSql .= " AND i.user_id = $currentUserId";
-                                    }
+                                    // MODIFIED QUERY FOR DRAFT TAB WITH ROLE-BASED AND ORGANIZATION FILTERING
+                                    $draftFilterSql = "WHERE i.status = 'draft' AND i.is_deleted = 0 AND i.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND i.user_id = $currentUserId" : "");
                                     
                                     $sql = "SELECT i.*, c.first_name, c.last_name, c.customer_image 
                                     FROM invoice i 
@@ -1431,10 +1469,11 @@ $growth_overdue = growthPercent($total_overdue_invoices, $last_overdue_invoices)
                                             class="link-danger fw-medium text-decoration-underline reset-customer">Reset</a>
                                     </li>
                                     <?php
-                                    $clients = mysqli_query($conn, "SELECT * FROM client WHERE is_deleted = 0");
-                                    while ($client = mysqli_fetch_assoc($clients)) {
-                                        $checked = in_array($client['id'], $selected_customers) ? 'checked' : '';
-                                        echo '<li>
+                                    if (mysqli_num_rows($customers) > 0) {
+                                        mysqli_data_seek($customers, 0);
+                                        while ($client = mysqli_fetch_assoc($customers)) {
+                                            $checked = in_array($client['id'], $selected_customers) ? 'checked' : '';
+                                            echo '<li>
                                     <label class="dropdown-item px-2 d-flex align-items-center text-dark">
                                         <input class="form-check-input m-0 me-2" type="checkbox" name="customer[]" value="' . $client['id'] . '" ' . $checked . '>
                                         <span class="avatar avatar-sm rounded-circle me-2">
@@ -1443,6 +1482,9 @@ $growth_overdue = growthPercent($total_overdue_invoices, $last_overdue_invoices)
                                         ' . htmlspecialchars($client['first_name']) . '
                                     </label>
                                 </li>';
+                                        }
+                                    } else {
+                                        echo '<li><div class="dropdown-item text-muted text-center">No clients found</div></li>';
                                     }
                                     ?>
                                 </ul>

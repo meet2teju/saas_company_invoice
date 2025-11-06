@@ -2,6 +2,24 @@
 <?php
 include '../config/config.php';
 
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
 // Initialize filter variables
 $selected_customers = [];
 $selected_quotation_ids = [];
@@ -10,14 +28,15 @@ $date_range = '';
 $start_date = '';
 $end_date = '';
 
-// Get user role ID and user ID from session
-$currentUserId = $_SESSION['crm_user_id'] ?? 0;
-$userRoleId = $_SESSION['role_id'] ?? 0;
-
 // Build the filter SQL
 $filterSql = "WHERE q.is_deleted = 0";
 
-// Add user-specific filtering - ONLY ADDED THIS CONDITION
+// Add organization-based filtering for ALL users
+if ($currentOrgId > 0) {
+    $filterSql .= " AND q.org_id = $currentOrgId";
+}
+
+// Add user-specific filtering for non-admin users
 if ($userRoleId != 1) {
     // For non-admin users (role_id != 1), show only their own quotations
     $filterSql .= " AND q.user_id = $currentUserId";
@@ -73,6 +92,27 @@ $result = mysqli_query($conn, $sql);
 if (!$result) {
     die("Query failed: " . mysqli_error($conn));
 }
+
+// Update customers query to only show customers from the same organization AND user if non-admin
+$customers_query = "SELECT * FROM client WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $customers_query .= " AND org_id = $currentOrgId";
+}
+// For non-admin users, also filter by user_id
+if ($userRoleId != 1) {
+    $customers_query .= " AND user_id = $currentUserId";
+}
+$customers = mysqli_query($conn, $customers_query);
+
+// Update quotation IDs query with organization AND user filtering
+$quotation_ids_query = "SELECT quotation_id FROM quotation WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $quotation_ids_query .= " AND org_id = $currentOrgId";
+}
+if ($userRoleId != 1) {
+    $quotation_ids_query .= " AND user_id = $currentUserId";
+}
+$quotation_ids_result = mysqli_query($conn, $quotation_ids_query);
 ?>
 
 <!DOCTYPE html>
@@ -115,7 +155,7 @@ if (!$result) {
                         <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
                             <i class="isax isax-filter me-1"></i>Filter
                         </a>
-						<div class="dropdown">
+						<!-- <div class="dropdown">
 							<a href="javascript:void(0);" class="btn btn-outline-white d-inline-flex align-items-center"  data-bs-toggle="dropdown">
 								<i class="isax isax-export-1 me-1"></i>Export
 							</a>
@@ -127,7 +167,7 @@ if (!$result) {
 									<a class="dropdown-item" href="#">Download as Excel</a>
 								</li>
 							</ul>
-						</div>
+						</div> -->
 
                         <div>
                              <?php if (check_is_access_new("add_quotation") == 1) { ?>
@@ -145,14 +185,6 @@ if (!$result) {
 <div class="mb-3">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
         <div class="d-flex align-items-center flex-wrap gap-2">
-            <!-- <div class="table-search d-flex align-items-center mb-0">
-                <div class="search-input">
-                    <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
-                </div>
-            </div>
-            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                <i class="isax isax-filter me-1"></i>Filter
-            </a> -->
             
             <!-- Display Active Filters -->
             <?php 
@@ -242,9 +274,10 @@ if (!$result) {
 						</thead>
 						<tbody>
                             <?php
-                            while ($row = mysqli_fetch_assoc($result)) {
-                                $quotationId = $row['id'];
-                                $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
+                            if (mysqli_num_rows($result) > 0) {
+                                while ($row = mysqli_fetch_assoc($result)) {
+                                    $quotationId = $row['id'];
+                                    $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
                             ?>
 							<tr>
 								<td>
@@ -317,7 +350,18 @@ if (!$result) {
                             </div>
                         </div>
                     </div>
-							   <?php } ?>
+							   <?php } 
+                            } else { ?>
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="d-flex flex-column align-items-center">
+                                            <img src="assets/img/icons/empty.svg" alt="Empty" class="mb-3" width="80">
+                                            <h6 class="text-muted">No quotations found</h6>
+                                            <p class="text-muted mb-0">No quotations match your current filters.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php } ?>
 						</tbody>
 					</table>
 				</div>
@@ -379,18 +423,22 @@ if (!$result) {
                                         <a href="javascript:void(0);" class="link-danger fw-medium text-decoration-underline reset-customer">Reset</a>
                                     </li>
                                     <?php 
-                                    $clients = mysqli_query($conn, "SELECT * FROM client WHERE is_deleted = 0");
-                                    while ($client = mysqli_fetch_assoc($clients)) {
-                                        $checked = in_array($client['id'], $selected_customers) ? 'checked' : '';
-                                        echo '<li>
-                                            <label class="dropdown-item px-2 d-flex align-items-center text-dark">
-                                                <input class="form-check-input m-0 me-2 customer-checkbox" type="checkbox" name="customer[]" value="'.$client['id'].'" '.$checked.'>
-                                                <span class="avatar avatar-sm rounded-circle me-2">
-                                                    <img src="'.(!empty($client['customer_image']) ? '../uploads/' . $client['customer_image'] : 'assets/img/users/user-16.jpg').'" class="flex-shrink-0 rounded-circle" width="24" height="24" alt="'.htmlspecialchars($client['first_name']).'">
-                                                </span>
-                                                '.htmlspecialchars($client['first_name']).'
-                                            </label>
-                                        </li>';
+                                    if (mysqli_num_rows($customers) > 0) {
+                                        mysqli_data_seek($customers, 0);
+                                        while ($client = mysqli_fetch_assoc($customers)) {
+                                            $checked = in_array($client['id'], $selected_customers) ? 'checked' : '';
+                                            echo '<li>
+                                                <label class="dropdown-item px-2 d-flex align-items-center text-dark">
+                                                    <input class="form-check-input m-0 me-2 customer-checkbox" type="checkbox" name="customer[]" value="'.$client['id'].'" '.$checked.'>
+                                                    <span class="avatar avatar-sm rounded-circle me-2">
+                                                        <img src="'.(!empty($client['customer_image']) ? '../uploads/' . $client['customer_image'] : 'assets/img/users/user-16.jpg').'" class="flex-shrink-0 rounded-circle" width="24" height="24" alt="'.htmlspecialchars($client['first_name']).'">
+                                                    </span>
+                                                    '.htmlspecialchars($client['first_name']).'
+                                                </label>
+                                            </li>';
+                                        }
+                                    } else {
+                                        echo '<li><div class="dropdown-item text-muted text-center">No clients found</div></li>';
                                     }
                                     ?>
                                 </ul>
@@ -446,15 +494,19 @@ if (!$result) {
                                         <a href="javascript:void(0);" class="link-danger fw-medium text-decoration-underline reset-quotation_id">Reset</a>
                                     </li>
                                     <?php 
-                                    $quotations = mysqli_query($conn, "SELECT quotation_id FROM quotation WHERE is_deleted = 0");
-                                    while ($q = mysqli_fetch_assoc($quotations)) {
-                                        $checked = in_array($q['quotation_id'], $selected_quotation_ids) ? 'checked' : '';
-                                        echo '<li>
-                                            <label class="dropdown-item px-2 d-flex align-items-center text-dark">
-                                                <input class="form-check-input m-0 me-2 quotation_id-checkbox" type="checkbox" name="quotation_id[]" value="'.htmlspecialchars($q['quotation_id']).'" '.$checked.'>
-                                                '.htmlspecialchars($q['quotation_id']).'
-                                            </label>
-                                        </li>';
+                                    if (mysqli_num_rows($quotation_ids_result) > 0) {
+                                        mysqli_data_seek($quotation_ids_result, 0);
+                                        while ($q = mysqli_fetch_assoc($quotation_ids_result)) {
+                                            $checked = in_array($q['quotation_id'], $selected_quotation_ids) ? 'checked' : '';
+                                            echo '<li>
+                                                <label class="dropdown-item px-2 d-flex align-items-center text-dark">
+                                                    <input class="form-check-input m-0 me-2 quotation_id-checkbox" type="checkbox" name="quotation_id[]" value="'.htmlspecialchars($q['quotation_id']).'" '.$checked.'>
+                                                    '.htmlspecialchars($q['quotation_id']).'
+                                                </label>
+                                            </li>';
+                                        }
+                                    } else {
+                                        echo '<li><div class="dropdown-item text-muted text-center">No quotation IDs found</div></li>';
                                     }
                                     ?>
                                 </ul>

@@ -3,6 +3,23 @@
 <?php 
 include '../config/config.php'; // DB connection
 
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
 
 $time_filter = isset($_GET['time_filter']) ? $_GET['time_filter'] : 'yearly';
 
@@ -29,20 +46,34 @@ if (isset($_GET['start_date']) && isset($_GET['end_date'])) {
 $start_date_full = $start_date . " 00:00:00";
 $end_date_full = $end_date . " 23:59:59";
 
+// Build base WHERE conditions for organization and user filtering
+$org_where = "";
+$user_where = "";
+
+// Add organization-based filtering for ALL users
+if ($currentOrgId > 0) {
+    $org_where = " AND i.org_id = $currentOrgId";
+}
+
+// Add user-specific filtering for non-admin users
+if ($userRoleId != 1) {
+    $user_where = " AND i.user_id = $currentUserId";
+}
+
 // ------------------- Totals for Invoice Analytics -------------------
-$query_invoiced = "SELECT SUM(total_amount) AS total_invoiced FROM invoice WHERE created_at BETWEEN '$start_date_full' AND '$end_date_full' AND is_deleted = 0";
+$query_invoiced = "SELECT SUM(total_amount) AS total_invoiced FROM invoice i WHERE i.created_at BETWEEN '$start_date_full' AND '$end_date_full' AND i.is_deleted = 0 $org_where $user_where";
 $result_invoiced = mysqli_query($conn, $query_invoiced);
 $total_invoiced = ($result_invoiced ? (mysqli_fetch_assoc($result_invoiced)['total_invoiced'] ?? 0) : 0);
 
-$query_received = "SELECT SUM(total_amount) AS total_received FROM invoice WHERE status='paid' AND created_at BETWEEN '$start_date_full' AND '$end_date_full' AND is_deleted = 0";
+$query_received = "SELECT SUM(total_amount) AS total_received FROM invoice i WHERE i.status='paid' AND i.created_at BETWEEN '$start_date_full' AND '$end_date_full' AND i.is_deleted = 0 $org_where $user_where";
 $result_received = mysqli_query($conn, $query_received);
 $total_received = ($result_received ? (mysqli_fetch_assoc($result_received)['total_received'] ?? 0) : 0);
 
 $query_pending = "SELECT SUM(total_amount) AS total_pending 
-                  FROM invoice 
-                  WHERE status IN ('unpaid','draft') 
-                  AND created_at BETWEEN '$start_date_full' AND '$end_date_full' 
-                  AND is_deleted = 0";
+                  FROM invoice i
+                  WHERE i.status IN ('unpaid','draft') 
+                  AND i.created_at BETWEEN '$start_date_full' AND '$end_date_full' 
+                  AND i.is_deleted = 0 $org_where $user_where";
 $result_pending = mysqli_query($conn, $query_pending);
 $total_pending = ($result_pending ? (mysqli_fetch_assoc($result_pending)['total_pending'] ?? 0) : 0);
 
@@ -60,12 +91,12 @@ $unpaidAmounts = array_fill(1, 12, 0);
 if ($time_filter === 'monthly') {
     $chartYear = date('Y');
     $query = "
-        SELECT MONTH(DATE(invoice_date)) AS month, status, SUM(total_amount) AS total
-        FROM invoice
-        WHERE YEAR(DATE(invoice_date)) = '$chartYear' 
-        AND MONTH(DATE(invoice_date)) = MONTH(CURDATE())
-        AND is_deleted = 0
-        GROUP BY MONTH(DATE(invoice_date)), status
+        SELECT MONTH(DATE(i.invoice_date)) AS month, i.status, SUM(i.total_amount) AS total
+        FROM invoice i
+        WHERE YEAR(DATE(i.invoice_date)) = '$chartYear' 
+        AND MONTH(DATE(i.invoice_date)) = MONTH(CURDATE())
+        AND i.is_deleted = 0 $org_where $user_where
+        GROUP BY MONTH(DATE(i.invoice_date)), i.status
     ";
 } elseif ($time_filter === 'weekly') {
     // For weekly view, show days of the week
@@ -73,20 +104,20 @@ if ($time_filter === 'monthly') {
     $sunday = date('Y-m-d', strtotime('sunday this week'));
     
     $query = "
-        SELECT DAYOFWEEK(DATE(invoice_date)) AS day, status, SUM(total_amount) AS total
-        FROM invoice
-        WHERE DATE(invoice_date) BETWEEN '$monday' AND '$sunday'
-        AND is_deleted = 0
-        GROUP BY DAYOFWEEK(DATE(invoice_date)), status
+        SELECT DAYOFWEEK(DATE(i.invoice_date)) AS day, i.status, SUM(i.total_amount) AS total
+        FROM invoice i
+        WHERE DATE(i.invoice_date) BETWEEN '$monday' AND '$sunday'
+        AND i.is_deleted = 0 $org_where $user_where
+        GROUP BY DAYOFWEEK(DATE(i.invoice_date)), i.status
     ";
 } else { // yearly (default)
     $chartYear = date('Y');
     $query = "
-        SELECT MONTH(DATE(invoice_date)) AS month, status, SUM(total_amount) AS total
-        FROM invoice
-        WHERE YEAR(DATE(invoice_date)) = '$chartYear'
-        AND is_deleted = 0
-        GROUP BY MONTH(DATE(invoice_date)), status
+        SELECT MONTH(DATE(i.invoice_date)) AS month, i.status, SUM(i.total_amount) AS total
+        FROM invoice i
+        WHERE YEAR(DATE(i.invoice_date)) = '$chartYear'
+        AND i.is_deleted = 0 $org_where $user_where
+        GROUP BY MONTH(DATE(i.invoice_date)), i.status
     ";
 }
 
@@ -121,15 +152,15 @@ if ($time_filter === 'weekly') {
 }
 
 // ------------------- Totals & Recent Invoices -------------------
-$total_clients_query = "SELECT COUNT(*) AS total_clients FROM client WHERE created_at BETWEEN '$start_date_full' AND '$end_date_full' AND is_deleted = 0";
+$total_clients_query = "SELECT COUNT(*) AS total_clients FROM client c WHERE c.created_at BETWEEN '$start_date_full' AND '$end_date_full' AND c.is_deleted = 0 AND c.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND c.user_id = $currentUserId" : "");
 $total_clients_result = mysqli_query($conn, $total_clients_query);
 $total_clients = ($total_clients_result ? (mysqli_fetch_assoc($total_clients_result)['total_clients'] ?? 0) : 0);
 
-$total_invoices_query = "SELECT COUNT(*) AS total_invoices FROM invoice WHERE created_at BETWEEN '$start_date_full' AND '$end_date_full' AND is_deleted = 0";
+$total_invoices_query = "SELECT COUNT(*) AS total_invoices FROM invoice i WHERE i.created_at BETWEEN '$start_date_full' AND '$end_date_full' AND i.is_deleted = 0 $org_where $user_where";
 $total_invoices_result = mysqli_query($conn, $total_invoices_query);
 $total_invoices = ($total_invoices_result ? (mysqli_fetch_assoc($total_invoices_result)['total_invoices'] ?? 0) : 0);
 
-$total_due_query = "SELECT SUM(total_amount) AS total_amount FROM invoice WHERE status IN ('unpaid','draft') AND created_at BETWEEN '$start_date_full' AND '$end_date_full' AND is_deleted = 0";
+$total_due_query = "SELECT SUM(i.total_amount) AS total_amount FROM invoice i WHERE i.status IN ('unpaid','draft') AND i.created_at BETWEEN '$start_date_full' AND '$end_date_full' AND i.is_deleted = 0 $org_where $user_where";
 $total_due_result = mysqli_query($conn, $total_due_query);
 $total_due_amount = ($total_due_result ? (mysqli_fetch_assoc($total_due_result)['total_amount'] ?? 0) : 0);
 $totalAmount = number_format($total_due_amount, 2);
@@ -139,16 +170,16 @@ $invoiceresult = mysqli_query($conn, "
     FROM invoice i
     LEFT JOIN client c ON i.client_id = c.id
     WHERE i.created_at BETWEEN '$start_date_full' AND '$end_date_full'
-    AND i.is_deleted = 0
+    AND i.is_deleted = 0 $org_where $user_where
     ORDER BY i.id DESC LIMIT 10
 ");
 
 // ------------------- Sales, Expenses, Earnings -------------------
-$sales_query = "SELECT SUM(total_amount) AS total_sales FROM invoice WHERE status='paid' AND created_at BETWEEN '$start_date_full' AND '$end_date_full' AND is_deleted = 0";
+$sales_query = "SELECT SUM(i.total_amount) AS total_sales FROM invoice i WHERE i.status='paid' AND i.created_at BETWEEN '$start_date_full' AND '$end_date_full' AND i.is_deleted = 0 $org_where $user_where";
 $sales_result = mysqli_query($conn, $sales_query);
 $salesValue = ($sales_result ? (mysqli_fetch_assoc($sales_result)['total_sales'] ?? 0) : 0);
 
-$expense_query = "SELECT SUM(amount) AS total_expense FROM expenses WHERE date BETWEEN '$start_date_full' AND '$end_date_full' AND is_deleted = 0";
+$expense_query = "SELECT SUM(e.amount) AS total_expense FROM expenses e WHERE e.date BETWEEN '$start_date_full' AND '$end_date_full' AND e.is_deleted = 0 AND e.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND e.user_id = $currentUserId" : "");
 $expense_result = mysqli_query($conn, $expense_query);
 $expenseValue = ($expense_result ? (mysqli_fetch_assoc($expense_result)['total_expense'] ?? 0) : 0);
 
@@ -159,8 +190,8 @@ $totalExpense = number_format($expenseValue, 2);
 $totalEarnings = number_format($earnings, 2);
 
 // ------------------- Helper Functions -------------------
-function getTotal($conn, $table, $month = null, $year = null) {
-    $query = "SELECT COUNT(*) AS total FROM $table WHERE is_deleted = 0";
+function getTotal($conn, $table, $month = null, $year = null, $org_where = "", $user_where = "") {
+    $query = "SELECT COUNT(*) AS total FROM $table WHERE is_deleted = 0 $org_where $user_where";
     if ($month !== null && $year !== null) {
         $query .= " AND MONTH(DATE(created_at)) = $month AND YEAR(DATE(created_at)) = $year";
     }
@@ -183,17 +214,18 @@ $currentYear = date('Y');
 $lastMonth = date('m', strtotime('-1 month'));
 $lastYear = date('Y', strtotime('-1 month'));
 
-$current_invoices = getTotal($conn, 'invoice', $currentMonth, $currentYear);
-$last_invoices = getTotal($conn, 'invoice', $lastMonth, $lastYear);
+// Update helper function calls with proper table-specific conditions
+$current_invoices = getTotal($conn, 'invoice', $currentMonth, $currentYear, "AND org_id = $currentOrgId", $userRoleId != 1 ? " AND user_id = $currentUserId" : "");
+$last_invoices = getTotal($conn, 'invoice', $lastMonth, $lastYear, "AND org_id = $currentOrgId", $userRoleId != 1 ? " AND user_id = $currentUserId" : "");
 $growth_invoices = growthPercent($current_invoices, $last_invoices);
 
-$current_clients = getTotal($conn, 'client', $currentMonth, $currentYear);
-$last_clients = getTotal($conn, 'client', $lastMonth, $lastYear);
+$current_clients = getTotal($conn, 'client', $currentMonth, $currentYear, "AND org_id = $currentOrgId", $userRoleId != 1 ? " AND user_id = $currentUserId" : "");
+$last_clients = getTotal($conn, 'client', $lastMonth, $lastYear, "AND org_id = $currentOrgId", $userRoleId != 1 ? " AND user_id = $currentUserId" : "");
 $growth_clients = growthPercent($current_clients, $last_clients);
 
 // For amount growth, we need to calculate total amounts instead of counts
-function getTotalAmount($conn, $month = null, $year = null) {
-    $query = "SELECT SUM(total_amount) AS total_amount FROM invoice WHERE is_deleted = 0";
+function getTotalAmount($conn, $month = null, $year = null, $org_where = "", $user_where = "") {
+    $query = "SELECT SUM(total_amount) AS total_amount FROM invoice WHERE is_deleted = 0 $org_where $user_where";
     if ($month !== null && $year !== null) {
         $query .= " AND MONTH(DATE(created_at)) = $month AND YEAR(DATE(created_at)) = $year";
     }
@@ -205,18 +237,18 @@ function getTotalAmount($conn, $month = null, $year = null) {
     return 0;
 }
 
-$current_amount = getTotalAmount($conn, $currentMonth, $currentYear);
-$last_amount = getTotalAmount($conn, $lastMonth, $lastYear);
+$current_amount = getTotalAmount($conn, $currentMonth, $currentYear, "AND org_id = $currentOrgId", $userRoleId != 1 ? " AND user_id = $currentUserId" : "");
+$last_amount = getTotalAmount($conn, $lastMonth, $lastYear, "AND org_id = $currentOrgId", $userRoleId != 1 ? " AND user_id = $currentUserId" : "");
 $growth_amount = growthPercent($current_amount, $last_amount);
 
 // ------------------- Total Projects Count -------------------
-$total_projects_query = "SELECT COUNT(*) AS total_projects FROM project WHERE created_at BETWEEN '$start_date_full' AND '$end_date_full' AND is_deleted = 0";
+$total_projects_query = "SELECT COUNT(*) AS total_projects FROM project p WHERE p.created_at BETWEEN '$start_date_full' AND '$end_date_full' AND p.is_deleted = 0 AND p.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND p.user_id = $currentUserId" : "");
 $total_projects_result = mysqli_query($conn, $total_projects_query);
 $total_projects = ($total_projects_result ? (mysqli_fetch_assoc($total_projects_result)['total_projects'] ?? 0) : 0);
 
 // ------------------- Monthly Growth for Projects -------------------
-function getTotalProjects($conn, $month = null, $year = null) {
-    $query = "SELECT COUNT(*) AS total FROM project WHERE is_deleted = 0";
+function getTotalProjects($conn, $month = null, $year = null, $org_where = "", $user_where = "") {
+    $query = "SELECT COUNT(*) AS total FROM project WHERE is_deleted = 0 $org_where $user_where";
     if ($month !== null && $year !== null) {
         $query .= " AND MONTH(DATE(created_at)) = $month AND YEAR(DATE(created_at)) = $year";
     }
@@ -228,16 +260,17 @@ function getTotalProjects($conn, $month = null, $year = null) {
     return 0;
 }
 
-$current_projects = getTotalProjects($conn, $currentMonth, $currentYear);
-$last_projects = getTotalProjects($conn, $lastMonth, $lastYear);
+$current_projects = getTotalProjects($conn, $currentMonth, $currentYear, "AND org_id = $currentOrgId", $userRoleId != 1 ? " AND user_id = $currentUserId" : "");
+$last_projects = getTotalProjects($conn, $lastMonth, $lastYear, "AND org_id = $currentOrgId", $userRoleId != 1 ? " AND user_id = $currentUserId" : "");
 $growth_projects = growthPercent($current_projects, $last_projects);
 
 // quotation ....
 
-// Main query
+// Main query for quotations with organization and user filtering
 $sql = "SELECT q.id, q.quotation_id, q.quotation_date, q.status, c.first_name, c.customer_image 
         FROM quotation q
         LEFT JOIN client c ON q.client_id = c.id
+        WHERE q.is_deleted = 0 AND q.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND q.user_id = $currentUserId" : "") . "
         ORDER BY q.id DESC LIMIT 10";
 
 $result = mysqli_query($conn, $sql);

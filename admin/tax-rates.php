@@ -1,6 +1,45 @@
 <?php include 'layouts/session.php'; ?>
 <?php include '../config/config.php'; ?>
 
+<?php
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
+$login_id = $_SESSION['crm_user_id']; // login.id
+$role_id  = $_SESSION['role_id'];     // login.role_id
+
+// Get role name from user_role
+$role_query = mysqli_query($conn, "SELECT name FROM user_role WHERE id = $role_id LIMIT 1");
+$role_row   = mysqli_fetch_assoc($role_query);
+$role_name  = strtolower(trim($role_row['name'] ?? ''));
+
+// Build the base query with organization filtering
+$query = "SELECT * FROM tax WHERE 1=1";
+
+// Add organization filter
+if ($currentOrgId > 0) {
+    $query .= " AND org_id = $currentOrgId";
+}
+
+$query .= " ORDER BY created_at DESC";
+$result = mysqli_query($conn, $query);
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -84,9 +123,6 @@
                         </thead>
                         <tbody>
                             <?php
-                            $query = "SELECT * FROM tax ORDER BY created_at DESC";
-                            $result = mysqli_query($conn, $query);
-                            
                             while ($row = mysqli_fetch_assoc($result)) {
                                 $status = $row['status'] ? 'checked' : '';
                                 $created_at = date('d M Y', strtotime($row['created_at']));
