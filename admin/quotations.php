@@ -575,8 +575,8 @@ $(document).ready(function() {
             savePreviousSelection(container);
         });
 
-        // Search functionality
-        $(`.search-${type}`).on("keyup", function() {
+        // Search functionality 
+        $(`.search-${type}`).on("keyup", function() { 
             const value = $(this).val().toLowerCase();
             $(container).find("li").each(function() {
                 if ($(this).find('.select-all').length > 0) return;
