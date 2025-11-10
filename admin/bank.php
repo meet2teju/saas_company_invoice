@@ -28,12 +28,28 @@ $role_query = mysqli_query($conn, "SELECT name FROM user_role WHERE id = $role_i
 $role_row   = mysqli_fetch_assoc($role_query);
 $role_name  = strtolower(trim($role_row['name'] ?? ''));
 
-// Build the base query with organization filtering
+// Build the base query with organization filtering (Organization Isolation)
 $query = "SELECT * FROM bank WHERE 1=1";
 
-// Add organization filter
+// Add organization filter - No one can see banks from other organizations
 if ($currentOrgId > 0) {
     $query .= " AND org_id = $currentOrgId";
+}
+
+// User-based filtering - IMPLEMENTING THE THREE CONDITIONS
+if ($userRoleId == 1) {
+    // Admin users (role_id = 1): Can see all banks from their organization
+    // No additional conditions needed as org filter already handles organization isolation
+} else {
+    // Non-admin users: Can see their own banks AND banks created by admin users
+    $query .= " AND (
+        created_by = $currentUserId 
+        OR 
+        created_by IN (
+            SELECT id FROM login 
+            WHERE org_id = $currentOrgId AND role_id = 1
+        )
+    )";
 }
 
 $query .= " ORDER BY created_at DESC";
