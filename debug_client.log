@@ -1,0 +1,477 @@
+[2025-11-07 07:54:51] === START CLIENT ADDITION ===
+[2025-11-07 07:54:51] POST Data: Array
+(
+    [user_id] => 33
+    [client_type] => 1
+    [salutation] => Mrs
+    [first_name] => lina
+    [last_name] => birla
+    [company_name] => linotech
+    [display_name] => Mrs
+    [email] => lina@gmail.com
+    [work_country_code] => +91
+    [phone_number] => 9574345676
+    [mobile_country_code] => +91
+    [business_number] => 9574345676
+    [pan_number] => AAAAA9999A
+    [currency] => INR
+    [gst_number] => 2232
+    [website_url] => 
+    [department] => 
+    [designation] => 
+    [twitter] => 
+    [skype_name_number] => 
+    [facebook] => 
+    [billing_name] => 
+    [billing_address1] => 
+    [billing_address2] => 
+    [billing_country] => 
+    [billing_state] => 
+    [billing_city] => 
+    [billing_pincode] => 
+    [shipping_name] => 
+    [shipping_address1] => 
+    [shipping_address2] => 
+    [shipping_country] => 
+    [shipping_state] => 
+    [shipping_city] => 
+    [shipping_pincode] => 
+    [contact_salutation] => Array
+        (
+            [0] => Mr
+        )
+
+    [contact_first_name] => Array
+        (
+            [0] => 
+        )
+
+    [contact_last_name] => Array
+        (
+            [0] => 
+        )
+
+    [contact_email] => Array
+        (
+            [0] => 
+        )
+
+    [contact_work_phone] => Array
+        (
+            [0] => 
+        )
+
+    [contact_mobile] => Array
+        (
+            [0] => 
+        )
+
+    [contact_skype] => Array
+        (
+            [0] => 
+        )
+
+    [contact_designation] => Array
+        (
+            [0] => 
+        )
+
+    [contact_department] => Array
+        (
+            [0] => 
+        )
+
+    [bank_name] => 
+    [bank_branch] => 
+    [account_holder] => 
+    [account_number] => 
+    [IFSC_code] => 
+    [remark] => 
+    [submit] => 
+)
+
+[2025-11-07 07:54:51] FILES Data: Array
+(
+    [customer_image] => Array
+        (
+            [name] => 1751968559_images.jpg
+            [full_path] => 1751968559_images.jpg
+            [type] => image/jpeg
+            [tmp_name] => D:\xampp8.2\tmp\php7D13.tmp
+            [error] => 0
+            [size] => 5947
+        )
+
+    [documents] => Array
+        (
+            [name] => Array
+                (
+                    [0] => 
+                )
+
+            [full_path] => Array
+                (
+                    [0] => 
+                )
+
+            [type] => Array
+                (
+                    [0] => 
+                )
+
+            [tmp_name] => Array
+                (
+                    [0] => 
+                )
+
+            [error] => Array
+                (
+                    [0] => 4
+                )
+
+            [size] => Array
+                (
+                    [0] => 0
+                )
+
+        )
+
+)
+
+[2025-11-07 07:54:51] User ID: 33, Org ID: 1
+[2025-11-07 07:54:51] Auto_increment before insert: 2
+[2025-11-07 07:54:51] Uploaded image: 1762498491_1751968559_images.jpg
+[2025-11-07 07:54:51] Processed data - First: lina, Last: birla, Email: lina@gmail.com
+[2025-11-07 07:54:51] About to execute INSERT query
+[2025-11-07 07:54:51] Query: INSERT INTO client (
+            customer_image, salutation, company_name, first_name, last_name, display_name, client_type,
+            phone_number, business_number, email, enable_portal, remark, pan_number, vat_gst_number,
+            website_url, department, designation, twitter, skype_name_number, facebook,
+            currency, status, org_id, user_id, is_deleted, created_by, updated_by
+        ) VALUES (
+            '1762498491_1751968559_images.jpg', 'Mrs', 'linotech', 'lina', 'birla', 'Mrs', '1',
+            '9574345676', '9574345676', 'lina@gmail.com', '0', '', 'AAAAA9999A', '',
+            '', '', '', '', '', '',
+            'INR', 1, '1', '33', 0, '33', '33'
+        )
+[2025-11-07 07:54:51] INSERT SUCCESS! New client ID: 2
+[2025-11-07 07:54:51] Inserting address data
+[2025-11-07 07:54:51] TRANSACTION ROLLED BACK: Duplicate entry '0' for key 'PRIMARY'
+[2025-11-07 07:56:05] === START CLIENT ADDITION ===
+[2025-11-07 07:56:05] POST Data: Array
+(
+    [user_id] => 33
+    [client_type] => 1
+    [salutation] => Mrs
+    [first_name] => cxc
+    [last_name] => birla
+    [company_name] => niya sharma
+    [display_name] => Mrs
+    [email] => user@user.com
+    [work_country_code] => +91
+    [phone_number] => 7865567890
+    [mobile_country_code] => +91
+    [business_number] => 7865567890
+    [pan_number] => AAAAA9999A
+    [currency] => INR
+    [gst_number] => 324
+    [website_url] => 
+    [department] => 
+    [designation] => 
+    [twitter] => 
+    [skype_name_number] => 
+    [facebook] => 
+    [billing_name] => 
+    [billing_address1] => 
+    [billing_address2] => 
+    [billing_country] => 
+    [billing_state] => 
+    [billing_city] => 
+    [billing_pincode] => 
+    [shipping_name] => 
+    [shipping_address1] => 
+    [shipping_address2] => 
+    [shipping_country] => 
+    [shipping_state] => 
+    [shipping_city] => 
+    [shipping_pincode] => 
+    [contact_salutation] => Array
+        (
+            [0] => Mr
+        )
+
+    [contact_first_name] => Array
+        (
+            [0] => 
+        )
+
+    [contact_last_name] => Array
+        (
+            [0] => 
+        )
+
+    [contact_email] => Array
+        (
+            [0] => 
+        )
+
+    [contact_work_phone] => Array
+        (
+            [0] => 
+        )
+
+    [contact_mobile] => Array
+        (
+            [0] => 
+        )
+
+    [contact_skype] => Array
+        (
+            [0] => 
+        )
+
+    [contact_designation] => Array
+        (
+            [0] => 
+        )
+
+    [contact_department] => Array
+        (
+            [0] => 
+        )
+
+    [bank_name] => 
+    [bank_branch] => 
+    [account_holder] => 
+    [account_number] => 
+    [IFSC_code] => 
+    [remark] => 
+    [submit] => 
+)
+
+[2025-11-07 07:56:05] FILES Data: Array
+(
+    [customer_image] => Array
+        (
+            [name] => 1751968559_images.jpg
+            [full_path] => 1751968559_images.jpg
+            [type] => image/jpeg
+            [tmp_name] => D:\xampp8.2\tmp\php9FBA.tmp
+            [error] => 0
+            [size] => 5947
+        )
+
+    [documents] => Array
+        (
+            [name] => Array
+                (
+                    [0] => 
+                )
+
+            [full_path] => Array
+                (
+                    [0] => 
+                )
+
+            [type] => Array
+                (
+                    [0] => 
+                )
+
+            [tmp_name] => Array
+                (
+                    [0] => 
+                )
+
+            [error] => Array
+                (
+                    [0] => 4
+                )
+
+            [size] => Array
+                (
+                    [0] => 0
+                )
+
+        )
+
+)
+
+[2025-11-07 07:56:05] User ID: 33, Org ID: 1
+[2025-11-07 07:56:05] Auto_increment before insert: 3
+[2025-11-07 07:56:05] Uploaded image: 1762498565_1751968559_images.jpg
+[2025-11-07 07:56:05] Processed data - First: cxc, Last: birla, Email: user@user.com
+[2025-11-07 07:56:05] About to execute INSERT query
+[2025-11-07 07:56:05] Query: INSERT INTO client (
+            customer_image, salutation, company_name, first_name, last_name, display_name, client_type,
+            phone_number, business_number, email, enable_portal, remark, pan_number, vat_gst_number,
+            website_url, department, designation, twitter, skype_name_number, facebook,
+            currency, status, org_id, user_id, is_deleted, created_by, updated_by
+        ) VALUES (
+            '1762498565_1751968559_images.jpg', 'Mrs', 'niya sharma', 'cxc', 'birla', 'Mrs', '1',
+            '7865567890', '7865567890', 'user@user.com', '0', '', 'AAAAA9999A', '',
+            '', '', '', '', '', '',
+            'INR', 1, '1', '33', 0, '33', '33'
+        )
+[2025-11-07 07:56:05] INSERT SUCCESS! New client ID: 3
+[2025-11-07 07:56:05] Inserting address data
+[2025-11-07 07:56:05] TRANSACTION ROLLED BACK: Duplicate entry '0' for key 'PRIMARY'
+[2025-11-07 07:57:47] === START CLIENT ADDITION ===
+[2025-11-07 07:57:47] POST Data: Array
+(
+    [user_id] => 33
+    [client_type] => 1
+    [salutation] => Mr
+    [first_name] => cxc
+    [last_name] => birla
+    [company_name] => niya sharma
+    [display_name] => Mr
+    [email] => user@user.com
+    [work_country_code] => +91
+    [phone_number] => 7865567890
+    [mobile_country_code] => +91
+    [business_number] => 7865567890
+    [pan_number] => AAAAA9999A
+    [currency] => INR
+    [gst_number] => 322
+    [website_url] => 
+    [department] => 
+    [designation] => 
+    [twitter] => 
+    [skype_name_number] => 
+    [facebook] => 
+    [billing_name] => sdf
+    [billing_address1] => sdf
+    [billing_address2] => sdf
+    [billing_country] => 4
+    [billing_state] => 1101
+    [billing_city] => 31252
+    [billing_pincode] => 23
+    [shipping_name] => dsf
+    [shipping_address1] => sdf
+    [shipping_address2] => sdf
+    [shipping_country] => 4
+    [shipping_state] => 1099
+    [shipping_city] => 31408
+    [shipping_pincode] => 2323
+    [contact_salutation] => Array
+        (
+            [0] => Mr
+        )
+
+    [contact_first_name] => Array
+        (
+            [0] => 
+        )
+
+    [contact_last_name] => Array
+        (
+            [0] => 
+        )
+
+    [contact_email] => Array
+        (
+            [0] => 
+        )
+
+    [contact_work_phone] => Array
+        (
+            [0] => 
+        )
+
+    [contact_mobile] => Array
+        (
+            [0] => 
+        )
+
+    [contact_skype] => Array
+        (
+            [0] => 
+        )
+
+    [contact_designation] => Array
+        (
+            [0] => 
+        )
+
+    [contact_department] => Array
+        (
+            [0] => 
+        )
+
+    [bank_name] => 
+    [bank_branch] => 
+    [account_holder] => 
+    [account_number] => 
+    [IFSC_code] => 
+    [remark] => 
+    [submit] => 
+)
+
+[2025-11-07 07:57:47] FILES Data: Array
+(
+    [customer_image] => Array
+        (
+            [name] => 1751968559_images.jpg
+            [full_path] => 1751968559_images.jpg
+            [type] => image/jpeg
+            [tmp_name] => D:\xampp8.2\tmp\php300F.tmp
+            [error] => 0
+            [size] => 5947
+        )
+
+    [documents] => Array
+        (
+            [name] => Array
+                (
+                    [0] => 
+                )
+
+            [full_path] => Array
+                (
+                    [0] => 
+                )
+
+            [type] => Array
+                (
+                    [0] => 
+                )
+
+            [tmp_name] => Array
+                (
+                    [0] => 
+                )
+
+            [error] => Array
+                (
+                    [0] => 4
+                )
+
+            [size] => Array
+                (
+                    [0] => 0
+                )
+
+        )
+
+)
+
+[2025-11-07 07:57:47] User ID: 33, Org ID: 1
+[2025-11-07 07:57:47] Auto_increment before insert: 4
+[2025-11-07 07:57:47] Uploaded image: 1762498667_1751968559_images.jpg
+[2025-11-07 07:57:47] Processed data - First: cxc, Last: birla, Email: user@user.com
+[2025-11-07 07:57:47] About to execute INSERT query
+[2025-11-07 07:57:47] Query: INSERT INTO client (
+            customer_image, salutation, company_name, first_name, last_name, display_name, client_type,
+            phone_number, business_number, email, enable_portal, remark, pan_number, vat_gst_number,
+            website_url, department, designation, twitter, skype_name_number, facebook,
+            currency, status, org_id, user_id, is_deleted, created_by, updated_by
+        ) VALUES (
+            '1762498667_1751968559_images.jpg', 'Mr', 'niya sharma', 'cxc', 'birla', 'Mr', '1',
+            '7865567890', '7865567890', 'user@user.com', '0', '', 'AAAAA9999A', '',
+            '', '', '', '', '', '',
+            'INR', 1, '1', '33', 0, '33', '33'
+        )
+[2025-11-07 07:57:47] INSERT SUCCESS! New client ID: 4
+[2025-11-07 07:57:47] Inserting address data
+[2025-11-07 07:57:47] TRANSACTION ROLLED BACK: Duplicate entry '0' for key 'PRIMARY'

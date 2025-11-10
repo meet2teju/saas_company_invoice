@@ -32,7 +32,7 @@ if (isset($_POST['submit'])) {
         $quotation_date  = mysqli_real_escape_string($conn, $_POST['quotation_date'] ?? '');
         $expiry_date     = mysqli_real_escape_string($conn, $_POST['expiry_date'] ?? '');
         $item_type       = (int)($_POST['item_type'] ?? 0);
-        $user_id         = (int)($_POST['user_id'] ?? 0);
+        $salesperson_id  = (int)($_POST['user_id'] ?? 0); // Renamed to salesperson_id for clarity
         $project_id      = (int)($_POST['project_id'] ?? 0);
         $client_note     = mysqli_real_escape_string($conn, $_POST['client_note'] ?? '');
         $description     = mysqli_real_escape_string($conn, $_POST['description'] ?? '');
@@ -42,13 +42,15 @@ if (isset($_POST['submit'])) {
         $total_amount    = unformat($_POST['total_amount'] ?? 0);
 
         // === Insert quotation master ===
+        // **FIXED: Store current logged-in user ID in user_id field, and salesperson ID in salesperson_id field**
         $query = "INSERT INTO quotation (
-            client_id, quotation_id, reference_name, quotation_date, expiry_date, item_type, user_id, project_id,
-            client_note, description, amount, tax_amount, shipping_charge, total_amount, org_id, is_deleted, created_by, updated_by
+            client_id, quotation_id, reference_name, quotation_date, expiry_date, item_type, 
+            salesperson_id, project_id, client_note, description, amount, tax_amount, 
+            shipping_charge, total_amount, org_id, user_id, is_deleted, created_by, updated_by
         ) VALUES (
-            '$client_id', '$quotation_id', '$reference_name', '$quotation_date', '$expiry_date', '$item_type', '$user_id', '$project_id',
-            '$client_note', '$description', '$amount', '$tax_amount', '$shipping_charge', '$total_amount',
-            '$orgId', 0, '$currentUserId', '$currentUserId'
+            '$client_id', '$quotation_id', '$reference_name', '$quotation_date', '$expiry_date', '$item_type', 
+            '$salesperson_id', '$project_id', '$client_note', '$description', '$amount', '$tax_amount', 
+            '$shipping_charge', '$total_amount', '$orgId', '$currentUserId', 0, '$currentUserId', '$currentUserId'
         )";
 
         if (!mysqli_query($conn, $query)) throw new Exception("Quotation insert failed: " . mysqli_error($conn));

@@ -7,8 +7,9 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 if (isset($_POST['product'])) {
-    // Get logged-in user ID from session
+    // Get logged-in user ID and organization ID from session
     $currentUserId = $_SESSION['crm_user_id'] ?? 1;
+    $orgId = $_SESSION['org_id'] ?? 1; // Add this line to get org_id
     
     $name = mysqli_real_escape_string($conn, $_POST['name']);
     $code = mysqli_real_escape_string($conn, $_POST['code']);
@@ -29,8 +30,8 @@ if (isset($_POST['product'])) {
     $alert_quantity  = !empty($_POST['alert_quantity']) ? (int)$_POST['alert_quantity'] : 0;
     $description     = mysqli_real_escape_string($conn, $_POST['description'] ?? '');
 
-    // Check duplicate code
-    $check = mysqli_query($conn, "SELECT id FROM product WHERE code = '$code' AND is_deleted = 0");
+    // Check duplicate code WITH org_id filter (similar to client reference)
+    $check = mysqli_query($conn, "SELECT id FROM product WHERE code = '$code' AND org_id = '$orgId' AND is_deleted = 0");
     if (mysqli_num_rows($check) > 0) {
         $_SESSION['message'] = 'Product Or Service code already exists.';
         $_SESSION['message_type'] = 'error';
@@ -51,14 +52,18 @@ if (isset($_POST['product'])) {
         }
     }
 
-    // **KEY CHANGE: Use logged-in user ID for user_id column**
+    // Use logged-in user ID for user_id column and org_id from session
     $user_id = $currentUserId;
 
-    // Build query - ADD user_id column
+    // **UPDATED QUERY: Added org_id, user_id, and other common fields from reference**
     $query = "INSERT INTO product 
-        (name, item_type, code, category_id, selling_price, purchase_price, quantity, unit_id, discount_type, tax_id, alert_quantity, description, product_img, user_id, created_by, created_at)
+        (name, item_type, code, category_id, selling_price, purchase_price, quantity, unit_id, 
+         discount_type, tax_id, alert_quantity, description, product_img, 
+         user_id, org_id, status, is_deleted, created_by, updated_by, created_at)
         VALUES 
-        ('$name', '$item_type', '$code', $category_id, '$selling_price', '$purchase_price', '$quantity', $unit_id, $discount_type, $tax_id, '$alert_quantity', '$description', '$image_name', '$user_id', '{$_SESSION['crm_user_id']}', NOW())";
+        ('$name', '$item_type', '$code', $category_id, '$selling_price', '$purchase_price', '$quantity', $unit_id, 
+         $discount_type, $tax_id, '$alert_quantity', '$description', '$image_name', 
+         '$user_id', '$orgId', 1, 0, '$currentUserId', '$currentUserId', NOW())";
 
     if (mysqli_query($conn, $query)) {
         $_SESSION['message'] = 'Product or Service added successfully';

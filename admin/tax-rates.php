@@ -31,9 +31,23 @@ $role_name  = strtolower(trim($role_row['name'] ?? ''));
 // Build the base query with organization filtering
 $query = "SELECT * FROM tax WHERE 1=1";
 
-// Add organization filter
+// Add organization filter - NO ONE can see tax rates from other organizations
 if ($currentOrgId > 0) {
     $query .= " AND org_id = $currentOrgId";
+}
+
+// Add role-based access control
+if ($userRoleId == 1) {
+    // Admin users: Can see all tax rates from their organization
+    // No additional filters needed as organization filter already applied
+} else {
+    // Non-admin users: Can see their own tax rates AND tax rates created by admin users
+    $query .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = tax.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 
 $query .= " ORDER BY created_at DESC";

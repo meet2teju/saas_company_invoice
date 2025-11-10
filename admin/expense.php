@@ -70,10 +70,18 @@ if (!empty($filters)) {
     $where .= " AND " . implode(" AND ", $filters);
 }
 
-// USER-BASED FILTERING - Show only expenses for current user if not admin
-if ($role_name !== 'admin') { 
-    // For non-admin users, show only their own expenses
-    $where .= " AND e.user_id = $login_id";
+// CORRECTED: Role-based access control using the same pattern as clients
+if ($userRoleId == 1) {
+    // Admin users: Can see all expenses from their organization
+    // No additional filters needed as organization filter already applied
+} else {
+    // Non-admin users: Can see their own expenses AND expenses created by admin users
+    $where .= " AND (e.user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = e.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 
 // Final Query
@@ -91,14 +99,19 @@ ORDER BY e.date DESC
 
 $result = mysqli_query($conn, $sql);
 
-// Fetch clients for filter - with user-based filtering
+// Fetch clients for filter - with organization and role-based filtering
 $clients_query = "SELECT id, first_name, customer_image FROM client WHERE is_deleted = 0";
 if ($currentOrgId > 0) {
     $clients_query .= " AND org_id = $currentOrgId";
 }
-// For non-admin users, also filter by user_id
+// Add role-based filtering for non-admin users (same pattern as main query)
 if ($userRoleId != 1) {
-    $clients_query .= " AND user_id = $currentUserId";
+    $clients_query .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = client.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 $clientsResult = mysqli_query($conn, $clients_query);
 

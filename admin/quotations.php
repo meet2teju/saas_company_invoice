@@ -36,10 +36,26 @@ if ($currentOrgId > 0) {
     $filterSql .= " AND q.org_id = $currentOrgId";
 }
 
-// Add user-specific filtering for non-admin users
-if ($userRoleId != 1) {
-    // For non-admin users (role_id != 1), show only their own quotations
-    $filterSql .= " AND q.user_id = $currentUserId";
+// **UPDATED: User-specific filtering based on role**
+if ($userRoleId == 1) {
+    // Admin users: Can see ALL quotations from their organization (no user_id restriction)
+    // No additional condition needed
+} else {
+    // Non-admin users: Can see their OWN quotations + quotations created by admin users
+    // Get admin user IDs in this organization
+    $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
+    $adminResult = mysqli_query($conn, $adminUsersQuery);
+    $adminUserIds = [$currentUserId]; // Start with current user's ID
+    
+    while ($adminRow = mysqli_fetch_assoc($adminResult)) {
+        $adminUserIds[] = $adminRow['id'];
+    }
+    
+    // Remove duplicates and create comma-separated list
+    $adminUserIds = array_unique($adminUserIds);
+    $adminUserIdsString = implode(',', $adminUserIds);
+    
+    $filterSql .= " AND q.user_id IN ($adminUserIdsString)";
 }
 
 // Process form submission (using GET)
@@ -93,14 +109,25 @@ if (!$result) {
     die("Query failed: " . mysqli_error($conn));
 }
 
-// Update customers query to only show customers from the same organization AND user if non-admin
+// Update customers query to only show customers from the same organization with proper user visibility
 $customers_query = "SELECT * FROM client WHERE is_deleted = 0";
 if ($currentOrgId > 0) {
     $customers_query .= " AND org_id = $currentOrgId";
 }
-// For non-admin users, also filter by user_id
+// **UPDATED: User-specific filtering for customers based on role**
 if ($userRoleId != 1) {
-    $customers_query .= " AND user_id = $currentUserId";
+    // Non-admin users: Can see their OWN clients + clients created by admin users
+    $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
+    $adminResult = mysqli_query($conn, $adminUsersQuery);
+    $adminUserIds = [$currentUserId];
+    
+    while ($adminRow = mysqli_fetch_assoc($adminResult)) {
+        $adminUserIds[] = $adminRow['id'];
+    }
+    
+    $adminUserIds = array_unique($adminUserIds);
+    $adminUserIdsString = implode(',', $adminUserIds);
+    $customers_query .= " AND user_id IN ($adminUserIdsString)";
 }
 $customers = mysqli_query($conn, $customers_query);
 
@@ -109,8 +136,19 @@ $quotation_ids_query = "SELECT quotation_id FROM quotation WHERE is_deleted = 0"
 if ($currentOrgId > 0) {
     $quotation_ids_query .= " AND org_id = $currentOrgId";
 }
+// **UPDATED: User-specific filtering for quotation IDs based on role**
 if ($userRoleId != 1) {
-    $quotation_ids_query .= " AND user_id = $currentUserId";
+    $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
+    $adminResult = mysqli_query($conn, $adminUsersQuery);
+    $adminUserIds = [$currentUserId];
+    
+    while ($adminRow = mysqli_fetch_assoc($adminResult)) {
+        $adminUserIds[] = $adminRow['id'];
+    }
+    
+    $adminUserIds = array_unique($adminUserIds);
+    $adminUserIdsString = implode(',', $adminUserIds);
+    $quotation_ids_query .= " AND user_id IN ($adminUserIdsString)";
 }
 $quotation_ids_result = mysqli_query($conn, $quotation_ids_query);
 ?>
@@ -269,7 +307,7 @@ $quotation_ids_result = mysqli_query($conn, $quotation_ids_query);
 								<th>Client</th>
 								<th>Quotation Date</th>
 								<th class="no-sort">Status</th>
-								<th class="no-sort"></th>
+								<th class="no-sort">Action</th>
 							</tr>
 						</thead>
 						<tbody>

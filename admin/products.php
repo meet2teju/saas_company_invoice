@@ -5,7 +5,6 @@
 
 <head>
 	<?php include 'layouts/title-meta.php'; ?> 
-
 	<?php include 'layouts/head-css.php'; ?>
 </head>
 
@@ -13,13 +12,11 @@
 
     <!-- Start Main Wrapper -->
     <div class="main-wrapper">
-
 		<?php include 'layouts/menu.php'; ?>
 
 		<!-- ========================
 			Start Page Content
 		========================= -->
-
 		<div class="page-wrapper">
          
 <?php if (isset($_SESSION['message'])): ?>
@@ -226,15 +223,32 @@
                         $filterQuery[] = "p.status = " . intval($_GET['status']);
                     }
 
-                    // Add organization-based filtering for ALL users
+                    // **UPDATED: Organization-based filtering for ALL users**
                     $whereClause = "WHERE p.is_deleted = 0";
                     if ($currentOrgId > 0) {
                         $whereClause .= " AND p.org_id = $currentOrgId";
                     }
 
-                    // Add user-specific filtering for non-admin users
-                    if ($userRoleId != 1) {
-                        $whereClause .= " AND p.user_id = $currentUserId";
+                    // **UPDATED: User-specific filtering based on role**
+                    if ($userRoleId == 1) {
+                        // Admin users: Can see ALL products from their organization (no user_id restriction)
+                        // No additional condition needed
+                    } else {
+                        // Non-admin users: Can see their OWN products + products created by admin users
+                        // Get admin user IDs in this organization
+                        $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
+                        $adminResult = mysqli_query($conn, $adminUsersQuery);
+                        $adminUserIds = [$currentUserId]; // Start with current user's ID
+                        
+                        while ($adminRow = mysqli_fetch_assoc($adminResult)) {
+                            $adminUserIds[] = $adminRow['id'];
+                        }
+                        
+                        // Remove duplicates and create comma-separated list
+                        $adminUserIds = array_unique($adminUserIds);
+                        $adminUserIdsString = implode(',', $adminUserIds);
+                        
+                        $whereClause .= " AND p.user_id IN ($adminUserIdsString)";
                     }
 
                     if (!empty($filterQuery)) {
@@ -391,8 +405,20 @@
                 if ($currentOrgId > 0) {
                     $products_query .= " AND org_id = $currentOrgId";
                 }
+                // Apply the same user visibility rules for filter dropdown
                 if ($userRoleId != 1) {
-                    $products_query .= " AND user_id = $currentUserId";
+                    // Non-admin users: Get admin user IDs in this organization
+                    $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
+                    $adminResult = mysqli_query($conn, $adminUsersQuery);
+                    $adminUserIds = [$currentUserId];
+                    
+                    while ($adminRow = mysqli_fetch_assoc($adminResult)) {
+                        $adminUserIds[] = $adminRow['id'];
+                    }
+                    
+                    $adminUserIds = array_unique($adminUserIds);
+                    $adminUserIdsString = implode(',', $adminUserIds);
+                    $products_query .= " AND user_id IN ($adminUserIdsString)";
                 }
                 $products = mysqli_query($conn, $products_query);
                 ?>
@@ -882,11 +908,6 @@ $('.unit-toggle').on('click', function() {
     previousUnits = $('.unit-checkbox:checked').map(function(){ return $(this).val(); }).get();
 });
 
-// -------------------- STATUS --------------------
-$(document).on('change', 'input[name="status"]', function() {
-    updateDropdownLabels();
-});
-
 // -------------------- APPLY BUTTON --------------------
 $('.dropdown').on('click', '.user-apply', function() {
     updateDropdownLabels();
@@ -915,7 +936,5 @@ $('.dropdown').on('click', '.close-filter', function() {
 });
 </script>
 
-
 </body>
-
 </html>

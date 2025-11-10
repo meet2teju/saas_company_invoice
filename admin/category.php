@@ -153,15 +153,32 @@
                                 $filterQuery[] = "c.status = " . intval($_GET['status']);
                             }
 
-                            // Add organization-based filtering
+                            // **UPDATED: Organization-based filtering for ALL users**
                             $whereClause = "WHERE c.is_deleted = 0";
                             if ($currentOrgId > 0) {
                                 $whereClause .= " AND c.org_id = $currentOrgId";
                             }
 
-                            // Add user-specific filtering for non-admin users
-                            if ($userRoleId != 1) {
-                                $whereClause .= " AND c.user_id = $currentUserId";
+                            // **UPDATED: User-specific filtering based on role**
+                            if ($userRoleId == 1) {
+                                // Admin users: Can see ALL categories from their organization (no user_id restriction)
+                                // No additional condition needed
+                            } else {
+                                // Non-admin users: Can see their OWN categories + categories created by admin users
+                                // Get admin user IDs in this organization
+                                $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
+                                $adminResult = mysqli_query($conn, $adminUsersQuery);
+                                $adminUserIds = [$currentUserId]; // Start with current user's ID
+                                
+                                while ($adminRow = mysqli_fetch_assoc($adminResult)) {
+                                    $adminUserIds[] = $adminRow['id'];
+                                }
+                                
+                                // Remove duplicates and create comma-separated list
+                                $adminUserIds = array_unique($adminUserIds);
+                                $adminUserIdsString = implode(',', $adminUserIds);
+                                
+                                $whereClause .= " AND c.user_id IN ($adminUserIdsString)";
                             }
 
                             if (!empty($filterQuery)) {
@@ -378,7 +395,7 @@
                         </div>
                         <div class="modal-footer d-flex align-items-center justify-content-between gap-1">
                             <button type="button" class="btn btn-outline-white" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" name="add_category" class="btn btn-primary">Add New</button>
+                            <button type="submit" name="submit" class="btn btn-primary">Add New</button>
                         </div>
                     </form>
                 </div>
