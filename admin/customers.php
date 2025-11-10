@@ -30,14 +30,23 @@ $selectedBalances  = $_POST['balance'] ?? [];
 $filters = [];
 $join = "LEFT JOIN client_address ca ON c.id = ca.client_id";
 
-// Add organization-based filtering for ALL users
+// Organization isolation - NO ONE can see clients from other organizations
 if ($currentOrgId > 0) {
     $filters[] = "c.org_id = $currentOrgId";
 }
 
-// Add user-specific filtering for non-admin users
-if ($userRoleId != 1) {
-    $filters[] = "c.user_id = $currentUserId";
+// Role-based access control
+if ($userRoleId == 1) {
+    // Admin users: Can see all clients from their organization
+    // No additional filters needed as organization filter already applied
+} else {
+    // Non-admin users: Can see their own clients AND clients created by admin users
+    $filters[] = "(c.user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = c.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 
 // Filter: by selected customer(s)
@@ -104,6 +113,15 @@ $customers_query = "SELECT * FROM client WHERE is_deleted = 0";
 if ($currentOrgId > 0) {
     $customers_query .= " AND org_id = $currentOrgId";
 }
+// Add role-based filtering for non-admin users
+if ($userRoleId != 1) {
+    $customers_query .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = client.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
+}
 $customers = mysqli_query($conn, $customers_query);
 
 // Update balance query with organization filtering
@@ -112,6 +130,15 @@ $balance_query_sql = "SELECT DISTINCT current_amount FROM client_bank cb
                       WHERE c.is_deleted = 0";
 if ($currentOrgId > 0) {
     $balance_query_sql .= " AND c.org_id = $currentOrgId";
+}
+// Add role-based filtering for non-admin users in balance query
+if ($userRoleId != 1) {
+    $balance_query_sql .= " AND (c.user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = c.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 $balance_query_sql .= " ORDER BY current_amount ASC";
 $balance_query = mysqli_query($conn, $balance_query_sql);

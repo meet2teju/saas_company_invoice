@@ -2,66 +2,31 @@
 <?php
 include '../config/config.php';
 
-// Define timeAgo function first
-// function timeAgo($datetime) {
-//     if (empty($datetime)) {
-//         return 'Never';
-//     }
-    
-//     $timestamp = strtotime($datetime);
-//     $diff = time() - $timestamp;
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
 
-//     if ($diff < 60) return "Online";
-//     if ($diff < 3600) return floor($diff / 60) . " mins ago";
-//     if ($diff < 86400) return floor($diff / 3600) . " hours ago";
-//     return date('d M Y', $timestamp);
-// }
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
 
-// // Get filter parameters from request
-// $status_filter = isset($_GET['status']) ? (array)$_GET['status'] : [];
-// $user_filter = isset($_GET['users']) ? (array)$_GET['users'] : [];
-// $date_range = isset($_GET['date_range']) ? $_GET['date_range'] : '';
+$login_id = $_SESSION['crm_user_id']; // login.id
+$role_id  = $_SESSION['role_id'];     // login.role_id
 
-// // Build the base query
-// $query = "SELECT login.*, user_role.name as role_name FROM login 
-//           LEFT JOIN user_role ON login.role_id = user_role.id 
-//           WHERE 1=1";
-
-// // Add status filter if provided
-// if (!empty($status_filter)) {
-//     $status_filter = array_map(function($status) use ($conn) {
-//         return mysqli_real_escape_string($conn, $status);
-//     }, $status_filter);
-    
-//     $status_list = implode("','", $status_filter);
-//     $query .= " AND login.status IN ('$status_list')";
-// }
-
-// // Add user filter if provided
-// if (!empty($user_filter)) {
-//     $user_filter = array_map(function($user) use ($conn) {
-//         return mysqli_real_escape_string($conn, $user);
-//     }, $user_filter);
-    
-//     $user_list = implode("','", $user_filter);
-//     $query .= " AND login.id IN ('$user_list')";
-// }
-
-// // Add date range filter if provided
-// if (!empty($date_range)) {
-//     $dates = explode(' - ', $date_range);
-//     $start_date = date('Y-m-d', strtotime(trim($dates[0])));
-//     $end_date = date('Y-m-d', strtotime(trim($dates[1])));
-//     $query .= " AND DATE(login.created_at) BETWEEN '$start_date' AND '$end_date'";
-// }
-
-// $query .= " ORDER BY login.id DESC";
-
-// $roles = mysqli_query($conn, "SELECT * FROM user_role");
-// $all_users = mysqli_query($conn, "SELECT id, name, profile_img FROM login");
-// $users = mysqli_query($conn, $query);
-
-
+// Get role name from user_role
+$role_query = mysqli_query($conn, "SELECT name FROM user_role WHERE id = $role_id LIMIT 1");
+$role_row   = mysqli_fetch_assoc($role_query);
+$role_name  = strtolower(trim($role_row['name'] ?? ''));
 
 // Define timeAgo function first
 function timeAgo($datetime) {
@@ -83,10 +48,15 @@ $status_filter = isset($_GET['status']) ? (array)$_GET['status'] : [];
 $user_filter = isset($_GET['users']) ? (array)$_GET['users'] : [];
 $date_range = isset($_GET['date_range']) ? $_GET['date_range'] : '';
 
-// Build the base query 
+// Build the base query with organization filtering
 $query = "SELECT login.*, user_role.name as role_name FROM login 
           LEFT JOIN user_role ON login.role_id = user_role.id 
           WHERE 1=1 AND login.role_id != 4";
+
+// Add organization filter
+if ($currentOrgId > 0) {
+    $query .= " AND login.org_id = $currentOrgId";
+}
 
 // Add status filter if provided
 if (!empty($status_filter)) {
@@ -118,8 +88,21 @@ if (!empty($date_range)) {
 
 $query .= " ORDER BY login.id DESC";
 
-$roles = mysqli_query($conn, "SELECT * FROM user_role");
-$all_users = mysqli_query($conn, "SELECT id, name, profile_img FROM login WHERE role_id != 4");
+// Fetch roles with organization filtering
+$roles_query = "SELECT * FROM user_role WHERE 1=1";
+if ($currentOrgId > 0) {
+    $roles_query .= " AND (org_id = $currentOrgId OR org_id IS NULL OR org_id = 0)";
+}
+$roles = mysqli_query($conn, $roles_query);
+
+// Fetch all users with organization filtering
+$all_users_query = "SELECT id, name, profile_img FROM login WHERE role_id != 4";
+if ($currentOrgId > 0) {
+    $all_users_query .= " AND org_id = $currentOrgId";
+}
+$all_users = mysqli_query($conn, $all_users_query);
+
+// Execute main users query
 $users = mysqli_query($conn, $query);
 
 ?>
@@ -201,86 +184,10 @@ $users = mysqli_query($conn, $query);
                 </div>
                 <!-- End Page Header -->
 
-                <!-- <div class="mb-3">
-                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-                        <div class="d-flex align-items-center flex-wrap gap-2">
-                            <div class="table-search d-flex align-items-center mb-0">
-                                <div class="search-input">
-                                    <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
-                                </div>
-                            </div>
-                            
-                            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                                <i class="isax isax-filter me-1"></i>Filter
-                            </a>
-                           <?php if (!empty($user_filter) || !empty($date_range) || !empty($status_filter)): ?>
-                            <a href="users.php" class="btn btn-outline-secondary">
-                                <i class="fa-solid fa-xmark me-1"></i> Clear Filters
-                            </a>
-                        <?php endif; ?>
-
-
-                            <a href="#" class="btn btn-outline-danger d-inline-flex align-items-center delete-multiple d-none">
-                            <i class="fa-regular fa-trash-can me-1"></i>Delete
-                        </a>
-
-                        </div>
-                    </div>
-                    <div class="align-items-center gap-2 flex-wrap filter-info mt-3">
-                        <h6 class="fs-13 fw-semibold">Filters</h6>
-                     <?php if(!empty($status_filter)): ?>
-                            <?php foreach($status_filter as $status): ?>
-                                <span class="tag bg-light border rounded-1 fs-12 text-dark badge">
-                                    <span class="num-count d-inline-flex align-items-center justify-content-center bg-success fs-10 me-1">1</span>
-                                    Status: <?= $status == '1' ? 'Active' : 'Inactive' ?>
-                                    <a href="users.php?<?= http_build_query(array_merge($_GET, ['status' => array_diff($status_filter, [$status])])) ?>" class="ms-1 tag-close"><i class="fa-solid fa-x fs-10"></i></a>
-                                </span>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                        <?php if(!empty($user_filter)): ?>
-                            <?php 
-                            $user_names = [];
-                            foreach($user_filter as $user_id) {
-                                $user_result = mysqli_query($conn, "SELECT name FROM login WHERE id = '$user_id'");
-                                if ($user_row = mysqli_fetch_assoc($user_result)) {
-                                    $user_names[] = htmlspecialchars($user_row['name']);
-                                }
-                            }
-                            
-                            foreach($user_names as $user_name): ?>
-                                <span class="tag bg-light border rounded-1 fs-12 text-dark badge">
-                                    <span class="num-count d-inline-flex align-items-center justify-content-center bg-success fs-10 me-1">1</span>
-                                    User: <?= $user_name ?>
-                                    <a href="users.php?<?= http_build_query(array_merge($_GET, ['users' => array_diff($user_filter, [$user_id])])) ?>" class="ms-1 tag-close"><i class="fa-solid fa-x fs-10"></i></a>
-                                </span>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
-                        <?php if(!empty($date_range)): ?>
-                            <span class="tag bg-light border rounded-1 fs-12 text-dark badge">
-                                <span class="num-count d-inline-flex align-items-center justify-content-center bg-success fs-10 me-1">1</span>
-                                Date Range
-                                <a href="users.php?<?= http_build_query(array_diff_key($_GET, ['date_range' => ''])) ?>" class="ms-1 tag-close"><i class="fa-solid fa-x fs-10"></i></a>
-                            </span>
-                        <?php endif; ?>
-                        <?php if(!empty($status_filter) || !empty($user_filter) || !empty($date_range)): ?>
-                            <a href="users.php" class="link-danger fw-medium text-decoration-underline ms-md-1">Clear All</a>
-                        <?php endif; ?>
-                    </div>
-                </div> -->
-
                 <!-- Search & Actions -->
 <div class="mb-3">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
         <div class="d-flex align-items-center flex-wrap gap-2">
-            <!-- <div class="table-search d-flex align-items-center mb-0">
-                <div class="search-input">
-                    <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
-                </div>
-            </div>
-            
-            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                <i class="isax isax-filter me-1"></i>Filter
-            </a> -->
             
             <!-- Display Active Filters -->
             <?php 
@@ -662,22 +569,7 @@ $users = mysqli_query($conn, $query);
                         </div>
                     </div>
 
-                        <!-- <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Role<span class="text-danger ms-1">*</span></label>
-                                <select class="form-select" name="role_id" >
-                                    <option value="">Select Role</option>
-                                    <?php
-                                    mysqli_data_seek($roles, 0);
-                                    while ($role = mysqli_fetch_assoc($roles)) {
-                                        echo '<option value="' . htmlspecialchars($role['id']) . '">' . htmlspecialchars($role['name']) . '</option>';
-                                    }
-                                    ?>
-                                </select>
-                                <span class="text-danger error-msg" id="add_roleError"></span>
-                            </div>
-                        </div> -->
-                           <div class="col-md-6">
+                        <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Role<span class="text-danger ms-1">*</span></label>
                                 <select class="form-select" name="role_id" >
@@ -769,7 +661,6 @@ $users = mysqli_query($conn, $query);
                                     </div>
 
                                     <div class="col-md-6">
-                           
                                  <div class="mb-3">
                                             <label class="form-label">Name<span class="text-danger ms-1">*</span></label>
                                             <input type="text" name="name" class="form-control" id="namee" value="<?= htmlspecialchars($row['name']) ?>" >
@@ -815,22 +706,6 @@ $users = mysqli_query($conn, $query);
                                         </div>
                                     </div>
 
-                                    <!-- <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label class="form-label">Role<span class="text-danger ms-1">*</span></label>
-                                            <select class="form-select" name="role_id" >
-                                                <option value="">Select</option>
-                                                <?php
-                                                mysqli_data_seek($roles, 0);
-                                                while ($role = mysqli_fetch_assoc($roles)): ?>
-                                                    <option value="<?= htmlspecialchars($role['id']) ?>" <?= ($row['role_id'] == $role['id']) ? 'selected' : '' ?>>
-                                                        <?= htmlspecialchars($role['name']) ?>
-                                                    </option>
-                                                <?php endwhile; ?>
-                                            </select>
-                                            <span class="text-danger error-msg" id="edit_roleError_<?php echo $row['id']; ?>"></span>
-                                        </div>
-                                    </div> -->
 <div class="col-md-6">
     <div class="mb-3">
         <label class="form-label">Role<span class="text-danger ms-1">*</span></label>
@@ -1091,13 +966,6 @@ toggleDeleteBtn();
     </script>
 <script>
 // Add User Form Validation
-// document.getElementById('addUserForm').addEventListener('submit', function(event) {
-//     event.preventDefault();
-//     if (validateAddUserForm()) {
-//         this.submit();
-//     }
-// });
-
 document.querySelector('#addUserForm').addEventListener('submit', async function (e) {
     e.preventDefault(); // prevent default submit
     const isValid = await validateAddUserForm();
@@ -1116,15 +984,6 @@ function resetAddFormErrors() {
     
 }
 
-// Edit User Form Validation (using event delegation)
-// document.addEventListener('submit', function(event) {
-//     if (event.target && event.target.classList.contains('edit-user-form')) {
-//         event.preventDefault();
-//         if (validateEditUserForm(event.target)) {
-//             event.target.submit();
-//         }
-//     }
-// });
 document.addEventListener('submit', async function(event) {
     if (event.target && event.target.classList.contains('edit-user-form')) {
         event.preventDefault();
@@ -1157,15 +1016,7 @@ async function validateEditUserForm(form) {
     }
 
     // Email validation
-    // const emailPattern = /^[^ ]+@[^ ]+\.[a-z]{2,3}$/;
-    // if (email === '') {
-    //     document.getElementById(`edit_emailError_${userId}`).textContent = 'Email is Required';
-    //     isValid = false;
-    // } else if (!emailPattern.test(email)) {
-    //     document.getElementById(`edit_emailError_${userId}`).textContent = 'Invalid email format';
-    //     isValid = false;
-    // }
- const emailPattern = /^[^ ]+@[^ ]+\.[a-z]{2,}$/;
+    const emailPattern = /^[^ ]+@[^ ]+\.[a-z]{2,}$/;
     if (email === '') {
         document.getElementById(`edit_emailError_${userId}`).textContent = 'Email is Required';
         isValid = false;
@@ -1316,15 +1167,6 @@ async function validateAddUserForm() {
         isValid = false;
     }
 
-    // Email validation
-    // const emailPattern = /^[^ ]+@[^ ]+\.[a-z]{2,}$/;
-    // if (email === '') {
-    //     document.getElementById('add_emailError').textContent = 'Email is Required';
-    //     isValid = false;
-    // } else if (!emailPattern.test(email)) {
-    //     document.getElementById('add_emailError').textContent = 'Invalid email format';
-    //     isValid = false;
-    // }
     // Email validation
     const emailPattern = /^[^ ]+@[^ ]+\.[a-z]{2,}$/;
     if (email === '') {

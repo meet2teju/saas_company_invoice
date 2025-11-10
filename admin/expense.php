@@ -2,76 +2,122 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
-// Initialize filter conditions
-$filterSql = "WHERE e.is_deleted = 0";
-
-// Get user role ID and user ID from session
+// Get current user info
 $currentUserId = $_SESSION['crm_user_id'] ?? 0;
-$userRoleId = $_SESSION['role_id'] ?? 0; // Assuming you have role_id in session
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
 
-// Check if user has admin role (role_id = 1) based on your role table
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
+$login_id = $_SESSION['crm_user_id']; // login.id
+$role_id  = $_SESSION['role_id'];     // login.role_id
+
+// Get role name from user_role
+$role_query = mysqli_query($conn, "SELECT name FROM user_role WHERE id = $role_id LIMIT 1");
+$role_row   = mysqli_fetch_assoc($role_query);
+$role_name  = strtolower(trim($role_row['name'] ?? ''));
+
+// --- FILTER LOGIC ---
+$filters = [];
+$selected_customers = $_POST['customer'] ?? [];
+$selected_categories = $_POST['categories'] ?? [];
+$date_range = $_POST['date_range'] ?? '';
+
+// Build base WHERE conditions for organization filtering
+$org_where = "";
+if ($currentOrgId > 0) {
+    $org_where = " AND e.org_id = $currentOrgId";
+}
+
+// Customer Filter
+if (!empty($selected_customers)) {
+    $ids = array_map('intval', $selected_customers);
+    $filters[] = "e.client_id IN (" . implode(',', $ids) . ")";
+}
+
+// Expense Category Filter
+if (!empty($selected_categories)) {
+    $cids = array_map('intval', $selected_categories);
+    $filters[] = "e.ecategory_id IN (" . implode(',', $cids) . ")";
+}
+
+// Date Range Filter
+if (!empty($date_range)) {
+    $dates = explode(" - ", $date_range);
+    if (count($dates) === 2) {
+        $start = date('Y-m-d', strtotime($dates[0]));
+        $end   = date('Y-m-d', strtotime($dates[1]));
+        $filters[] = "DATE(e.date) BETWEEN '$start' AND '$end'";
+    }
+}
+
+// Base WHERE
+$where = "WHERE e.is_deleted = 0 $org_where";
+
+// Add other filters
+if (!empty($filters)) {
+    $where .= " AND " . implode(" AND ", $filters);
+}
+
+// CORRECTED: Role-based access control using the same pattern as clients
+if ($userRoleId == 1) {
+    // Admin users: Can see all expenses from their organization
+    // No additional filters needed as organization filter already applied
+} else {
+    // Non-admin users: Can see their own expenses AND expenses created by admin users
+    $where .= " AND (e.user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = e.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
+}
+
+// Final Query
+$sql = "
+SELECT e.*, 
+       c.name AS category_name,
+       cl.first_name,
+       cl.customer_image
+FROM expenses e
+LEFT JOIN expense_category c ON e.ecategory_id = c.id
+LEFT JOIN client cl ON e.client_id = cl.id
+$where
+ORDER BY e.date DESC
+";
+
+$result = mysqli_query($conn, $sql);
+
+// Fetch clients for filter - with organization and role-based filtering
+$clients_query = "SELECT id, first_name, customer_image FROM client WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $clients_query .= " AND org_id = $currentOrgId";
+}
+// Add role-based filtering for non-admin users (same pattern as main query)
 if ($userRoleId != 1) {
-    // For non-admin users (role_id != 1), show only their own expenses
-    $filterSql .= " AND e.user_id = $currentUserId";
+    $clients_query .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = client.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
-
-// Collect and sanitize POST parameters
-$start_date = $end_date = '';
-$selected_customers = [];
-$selected_categories = [];
-$date_range = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Date range filter
-    if (!empty($_POST['start_date']) && !empty($_POST['end_date'])) {
-        $start_date = mysqli_real_escape_string($conn, $_POST['start_date']);
-        $end_date = mysqli_real_escape_string($conn, $_POST['end_date']);
-        $filterSql .= " AND DATE(e.date) BETWEEN '$start_date' AND '$end_date'";
-        $date_range = $_POST['date_range'] ?? '';
-    }
-
-    // Customer filter
-    if (!empty($_POST['customer']) && is_array($_POST['customer'])) {
-        $selected_customers = array_map('intval', $_POST['customer']);
-        $customer_ids_str = implode(',', $selected_customers);
-        $filterSql .= " AND e.client_id IN ($customer_ids_str)";
-    }
-
-    // Expense category filter
-    if (!empty($_POST['categories']) && is_array($_POST['categories'])) {
-        $selected_categories = array_map('intval', $_POST['categories']);
-        $category_ids_str = implode(',', $selected_categories);
-        $filterSql .= " AND e.ecategory_id IN ($category_ids_str)";
-    }
-}
-
-// Fetch clients for filter dropdown
-$clientsResult = mysqli_query($conn, "SELECT id, first_name, customer_image FROM client WHERE is_deleted = 0 ORDER BY first_name ASC");
+$clientsResult = mysqli_query($conn, $clients_query);
 
 // Fetch categories for filter dropdown
 $categoriesResult = mysqli_query($conn, "SELECT id, name FROM expense_category WHERE is_deleted = 0 ORDER BY name ASC");
-
-// Fetch filtered expenses
-$query = "
-    SELECT 
-        e.id, 
-        c.name AS category_name, 
-        e.date, 
-        
-        e.amount, 
-        cl.first_name,
-        cl.customer_image,
-        e.description
-    FROM expenses e
-    LEFT JOIN expense_category c ON e.ecategory_id = c.id
-    LEFT JOIN client cl ON e.client_id = cl.id
-    $filterSql
-    ORDER BY e.date DESC
-";
-
-$result = mysqli_query($conn, $query);
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -87,13 +133,13 @@ $result = mysqli_query($conn, $query);
         <div class="content content-two">
 
             <!-- Page Header -->
-          <?php if (isset($_SESSION['message'])): ?>
-    <div class="alert alert-<?= $_SESSION['message_type'] ?> alert-dismissible fade show" role="alert">
-        <?= $_SESSION['message']; ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-    <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
-<?php endif; ?>
+            <?php if (isset($_SESSION['message'])): ?>
+            <div class="alert alert-<?= $_SESSION['message_type'] ?> alert-dismissible fade show" role="alert">
+                <?= $_SESSION['message']; ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
+            <?php endif; ?>
 
             <div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3 mb-3">
                 <div><h6>Expenses</h6></div>
@@ -117,193 +163,158 @@ $result = mysqli_query($conn, $query);
             </div>
 
             <!-- Search & Actions -->
-            <!-- <div class="mb-3">
+            <div class="mb-3">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                     <div class="d-flex align-items-center flex-wrap gap-2">
-                        <div class="table-search d-flex align-items-center mb-0">
-                            <div class="search-input">
-                                <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
+                        
+                        <!-- Display Active Filters -->
+                        <?php 
+                        $active_filters = [];
+                        
+                        // Customer filters
+                        if (!empty($selected_customers)) {
+                            $customer_names = [];
+                            $ids = implode(",", array_map('intval', $selected_customers));
+                            $res = mysqli_query($conn, "SELECT first_name FROM client WHERE id IN ($ids)");
+                            while ($row = mysqli_fetch_assoc($res)) {
+                                $customer_names[] = htmlspecialchars($row['first_name']);
+                            }
+                            if (!empty($customer_names)) {
+                                $active_filters[] = "Client: " . (count($customer_names) > 2 ? 
+                                    implode(", ", array_slice($customer_names, 0, 2)) . " +" . (count($customer_names) - 2) : 
+                                    implode(", ", $customer_names));
+                            }
+                        }
+                        
+                        // Category filters
+                        if (!empty($selected_categories)) {
+                            $category_names = [];
+                            $ids = implode(",", array_map('intval', $selected_categories));
+                            $res = mysqli_query($conn, "SELECT name FROM expense_category WHERE id IN ($ids)");
+                            while ($row = mysqli_fetch_assoc($res)) {
+                                $category_names[] = htmlspecialchars($row['name']);
+                            }
+                            if (!empty($category_names)) {
+                                $active_filters[] = "Category: " . (count($category_names) > 2 ? 
+                                    implode(", ", array_slice($category_names, 0, 2)) . " +" . (count($category_names) - 2) : 
+                                    implode(", ", $category_names));
+                            }
+                        }
+                        
+                        // Date range filter
+                        if (!empty($date_range)) {
+                            $active_filters[] = "Date: " . htmlspecialchars($date_range);
+                        }
+                        ?>
+                        
+                        <!-- Display active filters and clear button -->
+                        <?php if (!empty($active_filters)): ?>
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- Active Filters Display -->
+                                <div class="active-filters bg-light px-3 py-2 rounded d-flex align-items-center gap-2">
+                                    <small class="text-muted fw-bold">Active Filters:</small>
+                                    <?php foreach ($active_filters as $filter): ?>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                            <?= $filter ?>
+                                        </span>
+                                    <?php endforeach; ?>
+                                </div>
+                                
+                                <!-- Clear Filter Button -->
+                                <a href="expense.php" class="btn btn-outline-secondary">
+                                    <i class="fa-solid fa-xmark me-1"></i> Clear Filters
+                                </a>
                             </div>
-                        </div>
-                            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                                <i class="isax isax-filter me-1"></i>Filter
-                            </a>
-                          <?php if (!empty($selected_customers) || !empty($selected_categories) || !empty($date_range)): ?>
-                            <a href="expense.php" class="btn btn-outline-secondary">
-                                <i class="fa-solid fa-xmark me-1"></i> Clear Filters
-                            </a>
                         <?php endif; ?>
 
+                        <!-- Multiple Delete Button -->
                         <a href="#" class="btn btn-outline-danger delete-multiple d-none">
                             <i class="fa-regular fa-trash-can me-1"></i>Delete
                         </a>
-
                     </div>
-                </div>
-            </div> -->
-
-          <!-- Search & Actions -->
-<div class="mb-3">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-        <div class="d-flex align-items-center flex-wrap gap-2">
-            <!-- <div class="table-search d-flex align-items-center mb-0">
-                <div class="search-input">
-                    <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
                 </div>
             </div>
-            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                <i class="isax isax-filter me-1"></i>Filter
-            </a> -->
-            
-            <!-- Display Active Filters -->
-            <?php 
-            $active_filters = [];
-            
-            // Customer filters
-            if (!empty($selected_customers)) {
-                $customer_names = [];
-                $ids = implode(",", array_map('intval', $selected_customers));
-                $res = mysqli_query($conn, "SELECT first_name FROM client WHERE id IN ($ids)");
-                while ($row = mysqli_fetch_assoc($res)) {
-                    $customer_names[] = htmlspecialchars($row['first_name']);
-                }
-                if (!empty($customer_names)) {
-                    $active_filters[] = "Client: " . (count($customer_names) > 2 ? 
-                        implode(", ", array_slice($customer_names, 0, 2)) . " +" . (count($customer_names) - 2) : 
-                        implode(", ", $customer_names));
-                }
-            }
-            
-            // Category filters
-            if (!empty($selected_categories)) {
-                $category_names = [];
-                $ids = implode(",", array_map('intval', $selected_categories));
-                $res = mysqli_query($conn, "SELECT name FROM expense_category WHERE id IN ($ids)");
-                while ($row = mysqli_fetch_assoc($res)) {
-                    $category_names[] = htmlspecialchars($row['name']);
-                }
-                if (!empty($category_names)) {
-                    $active_filters[] = "Category: " . (count($category_names) > 2 ? 
-                        implode(", ", array_slice($category_names, 0, 2)) . " +" . (count($category_names) - 2) : 
-                        implode(", ", $category_names));
-                }
-            }
-            
-            // Date range filter
-            if (!empty($date_range)) {
-                $active_filters[] = "Date: " . htmlspecialchars($date_range);
-            }
-            ?>
-            
-            <!-- Display active filters and clear button -->
-            <?php if (!empty($active_filters)): ?>
-                <div class="d-flex align-items-center gap-2">
-                    <!-- Active Filters Display -->
-                    <div class="active-filters bg-light px-3 py-2 rounded d-flex align-items-center gap-2">
-                        <small class="text-muted fw-bold">Active Filters:</small>
-                        <?php foreach ($active_filters as $filter): ?>
-                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                                <?= $filter ?>
-                            </span>
-                        <?php endforeach; ?>
-                    </div>
-                    
-                    <!-- Clear Filter Button -->
-                    <a href="expense.php" class="btn btn-outline-secondary">
-                        <i class="fa-solid fa-xmark me-1"></i> Clear Filters
-                    </a>
-                </div>
-            <?php endif; ?>
-
-            <!-- Multiple Delete Button -->
-            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                <i class="fa-regular fa-trash-can me-1"></i>Delete
-            </a>
-        </div>
-    </div>
-</div>
 
             <!-- Table -->
             <div class="table-responsive">
-                    <table class="table table-nowrap datatable">
-                        <thead class="thead-light">
+                <table class="table table-nowrap datatable">
+                    <thead class="thead-light">
+                        <tr>
+                            <th class="no-sort"><input class="form-check-input" type="checkbox" id="select-all"></th>
+                            <th>Expense Category</th>
+                            <th>Client</th>
+                            <th>Date</th>
+                            <th>Amount</th>
+                            <th>Notes</th>
+                            <th class="no-sort">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while ($row = mysqli_fetch_assoc($result)) { 
+                            $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
+                        ?>
                             <tr>
-                                <th class="no-sort"><input class="form-check-input" type="checkbox" id="select-all"></th>
-                                <th>Expense Category</th>
-                                <th>Client</th>
-                                <th>Date</th>
-                                
-                                <th>Amount</th>
-                                <th>Notes</th>
-                                <th class="no-sort">Action</th>
+                                <td><input type="checkbox" class="form-check-input user-checkbox" value="<?= $row['id'] ?>"></td>
+                                <td><?= htmlspecialchars($row['category_name']) ?></td>
+                                <td>
+                                    <img src="<?= $clientImg ?>" alt="Customer" class="rounded-circle me-2" width="30" height="30">
+                                    <?= htmlspecialchars($row['first_name']) ?>
+                                </td>                                    
+                                <td><?= date('d-m-Y', strtotime($row['date'])) ?></td>
+                                <td>$&nbsp;<?= number_format($row['amount'], 2) ?></td>
+                                <td style="white-space: normal; word-wrap: break-word;">
+                                    <?= htmlspecialchars($row['description']) ?>
+                                </td>
+                                <td>
+                                    <div class="dropdown">
+                                        <a href="#" data-bs-toggle="dropdown"><i class="isax isax-more"></i></a>
+                                        <ul class="dropdown-menu">
+                                            <?php if (check_is_access_new("view_expense") == 1) { ?>
+                                                <li><a href="expense-details.php?id=<?= $row['id'] ?>" class="dropdown-item"><i class="isax isax-eye"></i>&nbsp;&nbsp;&nbsp;View</a></li>
+                                            <?php } ?>
+                                            <?php if (check_is_access_new("edit_expense") == 1) { ?>
+                                                <li><a href="edit-expense.php?id=<?= $row['id'] ?>" class="dropdown-item"><i class="isax isax-edit me-2"></i>Edit</a></li>
+                                            <?php } ?>
+                                            <?php if (check_is_access_new("delete_expense") == 1) { ?>
+                                                <li><a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#delete_modal<?= $row['id'] ?>"><i class="isax isax-trash me-2"></i>Delete</a></li>
+                                            <?php } ?>
+                                        </ul>
+                                    </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php while ($row = mysqli_fetch_assoc($result)) { 
-                                 $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
-?>
-                                <tr>
-                                    <td><input type="checkbox" class="form-check-input user-checkbox" value="<?= $row['id'] ?>"></td>
-                                    <td><?= htmlspecialchars($row['category_name']) ?></td>
-                                    <td>
-                                        <img src="<?= $clientImg ?>" alt="Customer" class="rounded-circle me-2" width="30" height="30">
-                                        <?= htmlspecialchars($row['first_name']) ?>
-                                    </td>                                    
-                                    <td><?= date('d-m-Y', strtotime($row['date'])) ?></td>
-                                    
-                                    <td>$&nbsp;<?= number_format($row['amount'], 2) ?></td>
-                                    <td style="white-space: normal; word-wrap: break-word;">
-                                        <?= htmlspecialchars($row['description']) ?>
-                                    </td>
-                                    <td>
-                                        <div class="dropdown">
-                                            <a href="#" data-bs-toggle="dropdown"><i class="isax isax-more"></i></a>
-                                            <ul class="dropdown-menu">
-                                                <?php if (check_is_access_new("view_expense") == 1) { ?>
-                                                    <li><a href="expense-details.php?id=<?= $row['id'] ?>" class="dropdown-item"><i class="isax isax-eye"></i>&nbsp;&nbsp;&nbsp;View</a></li>
-                                                <?php } ?>
-                                                <?php if (check_is_access_new("edit_expense") == 1) { ?>
-                                                    <li><a href="edit-expense.php?id=<?= $row['id'] ?>" class="dropdown-item"><i class="isax isax-edit me-2"></i>Edit</a></li>
-                                                <?php } ?>
-                                                <?php if (check_is_access_new("delete_expense") == 1) { ?>
-                                                    <li><a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#delete_modal<?= $row['id'] ?>"><i class="isax isax-trash me-2"></i>Delete</a></li>
-                                                <?php } ?>
-                                            </ul>
-                                        </div>
-                                    </td>
-                                </tr>
 
-                                <!-- Delete Modal -->
-                                <div class="modal fade" id="delete_modal<?= $row['id'] ?>" tabindex="-1" aria-hidden="true">
-                                    <div class="modal-dialog modal-dialog-centered">
-                                        <div class="modal-content">
-                                            <form method="POST" action="process/action_delete_expense.php">
-                                                <input type="hidden" name="id" value="<?= $row['id'] ?>">
-                                                <div class="modal-body text-center">
-                                                    <img src="assets/img/icons/delete.svg" alt="Delete Icon" class="mb-3">
-                                                    <h6>Delete Expense</h6>
-                                                    <p>Are you sure you want to delete this Expense?</p>
-                                                    <div class="d-flex justify-content-center">
-                                                        <button type="button" class="btn btn-outline-white me-3" data-bs-dismiss="modal">Cancel</button>
-                                                        <button type="submit" class="btn btn-primary">Yes, Delete</button>
-                                                    </div>
+                            <!-- Delete Modal -->
+                            <div class="modal fade" id="delete_modal<?= $row['id'] ?>" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <form method="POST" action="process/action_delete_expense.php">
+                                            <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                                            <div class="modal-body text-center">
+                                                <img src="assets/img/icons/delete.svg" alt="Delete Icon" class="mb-3">
+                                                <h6>Delete Expense</h6>
+                                                <p>Are you sure you want to delete this Expense?</p>
+                                                <div class="d-flex justify-content-center">
+                                                    <button type="button" class="btn btn-outline-white me-3" data-bs-dismiss="modal">Cancel</button>
+                                                    <button type="submit" class="btn btn-primary">Yes, Delete</button>
                                                 </div>
-                                            </form>
-                                        </div>
+                                            </div>
+                                        </form>
                                     </div>
                                 </div>
-                            <?php } ?>
-                        </tbody>
-                    </table>
-
-                                </div>
                             </div>
+                        <?php } ?>
+                    </tbody>
+                </table>
+            </div>
 
-                            <?php include 'layouts/footer.php'; ?>
-                        </div>
-                    </div>
-        <!-- Start Filter -->
-        <div class="offcanvas offcanvas-offset offcanvas-end" tabindex="-1" id="customcanvas">
+        </div>
+
+        <?php include 'layouts/footer.php'; ?>
+    </div>
+</div>
+
+<!-- Filter Canvas -->
+<div class="offcanvas offcanvas-offset offcanvas-end" tabindex="-1" id="customcanvas">
     <div class="offcanvas-header d-block pb-0">
         <div class="border-bottom d-flex align-items-center justify-content-between pb-3">
             <h6 class="offcanvas-title">Filter</h6>
@@ -311,7 +322,7 @@ $result = mysqli_query($conn, $query);
         </div>
     </div>
     <div class="offcanvas-body pt-3">
-        <form action="expense.php" method="post">
+        <form action="expense.php" method="POST">
             <!-- Clients -->
             <div class="mb-3">
                 <label class="form-label">Clients</label>
@@ -324,16 +335,15 @@ $result = mysqli_query($conn, $query);
                         $selectedClientNames[] = htmlspecialchars($row['first_name']);
                     }
                 }
-if (!empty($selectedClientNames)) {
-    if (count($selectedClientNames) > 3) {
-        $clientText = implode(", ", array_slice($selectedClientNames, 0, 3)) 
-                    . " +" . (count($selectedClientNames) - 3);
-    } else {
-        $clientText = implode(", ", $selectedClientNames);
-    }
-} else {
-    $clientText = "Select";
-}
+                if (!empty($selectedClientNames)) {
+                    if (count($selectedClientNames) > 3) {
+                        $clientText = implode(", ", array_slice($selectedClientNames, 0, 3)) . " +" . (count($selectedClientNames) - 3);
+                    } else {
+                        $clientText = implode(", ", $selectedClientNames);
+                    }
+                } else {
+                    $clientText = "Select";
+                }
                 ?>
                 <div class="dropdown">
                     <a href="javascript:void(0);" class="dropdown-toggle btn btn-lg bg-light d-flex align-items-center justify-content-start fs-13 fw-normal border customer-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="true">
@@ -388,16 +398,15 @@ if (!empty($selectedClientNames)) {
                         $selectedCategoryNames[] = htmlspecialchars($row['name']);
                     }
                 }
-if (!empty($selectedCategoryNames)) {
-    if (count($selectedCategoryNames) > 3) {
-        $categoryText = implode(", ", array_slice($selectedCategoryNames, 0, 3)) 
-                      . " +" . (count($selectedCategoryNames) - 3);
-    } else {
-        $categoryText = implode(", ", $selectedCategoryNames);
-    }
-} else {
-    $categoryText = "Select";
-}
+                if (!empty($selectedCategoryNames)) {
+                    if (count($selectedCategoryNames) > 3) {
+                        $categoryText = implode(", ", array_slice($selectedCategoryNames, 0, 3)) . " +" . (count($selectedCategoryNames) - 3);
+                    } else {
+                        $categoryText = implode(", ", $selectedCategoryNames);
+                    }
+                } else {
+                    $categoryText = "Select";
+                }
                 ?>
                 <div class="dropdown">
                     <a href="javascript:void(0);" 
@@ -453,101 +462,101 @@ if (!empty($selectedCategoryNames)) {
                 </div>
             </div>
 
-             <div class="offcanvas-footer">
-                        <div class="row g-2">
-                            <div class="col-6"><a href="expense.php" class="btn btn-outline-white w-100">Reset</a></div>
-                            <div class="col-6"><button type="submit" class="btn btn-primary w-100" id="filter-submit">Apply</button></div>
-                        </div>
-                    </div>
+            <div class="offcanvas-footer">
+                <div class="row g-2">
+                    <div class="col-6"><a href="expense.php" class="btn btn-outline-white w-100">Reset</a></div>
+                    <div class="col-6"><button type="submit" class="btn btn-primary w-100" id="filter-submit">Apply</button></div>
+                </div>
+            </div>
         </form>
     </div>
 </div>
-        <!-- End Filter -->
-        <!-- Multi Delete Modal -->
-        <div class="modal fade" id="multideleteModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered modal-m">
-                <div class="modal-content">
-                    <form method="POST" id="multiDeleteForm" action="process/action_multi_delete_expense.php">
-                        <div class="modal-body text-center">
-                            <div class="mb-3">
-                                <img src="assets/img/icons/delete.svg" alt="img">
-                            </div>
-                            <h6 class="mb-1">Delete Expenses</h6>
-                            <p class="mb-3">Are you sure you want to delete the selected Expenses?</p>
-                            <div class="d-flex justify-content-center">
-                                <button type="button" class="btn btn-white me-3" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Yes, Delete</button>
-                            </div>
-                        </div>
-                    </form>
+
+<!-- Multi Delete Modal -->
+<div class="modal fade" id="multideleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-m">
+        <div class="modal-content">
+            <form method="POST" id="multiDeleteForm" action="process/action_multi_delete_expense.php">
+                <div class="modal-body text-center">
+                    <div class="mb-3">
+                        <img src="assets/img/icons/delete.svg" alt="img">
+                    </div>
+                    <h6 class="mb-1">Delete Expenses</h6>
+                    <p class="mb-3">Are you sure you want to delete the selected Expenses?</p>
+                    <div class="d-flex justify-content-center">
+                        <button type="button" class="btn btn-white me-3" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Yes, Delete</button>
+                    </div>
                 </div>
-            </div>
+            </form>
         </div>
+    </div>
+</div>
 
 <?php include 'layouts/vendor-scripts.php'; ?>
 
 <script>
     const multiDeleteModal = new bootstrap.Modal(document.getElementById('multideleteModal'));
-const deleteBtn = document.querySelector('.delete-multiple');
+    const deleteBtn = document.querySelector('.delete-multiple');
 
-// Toggle delete button visibility
-function toggleDeleteBtn() {
-    const anyChecked = document.querySelectorAll('.user-checkbox:checked').length > 0;
-    deleteBtn.classList.toggle('d-none', !anyChecked);
-}
-
-// Delete button click — open modal directly
-deleteBtn.addEventListener('click', function (e) {
-    e.preventDefault();
-    const checkboxes = document.querySelectorAll('.user-checkbox:checked');
-    const form = document.getElementById('multiDeleteForm');
-
-    // Clear previous hidden inputs
-    form.querySelectorAll('input[name="expense_ids[]"]').forEach(el => el.remove());
-
-    // Add selected ids
-    checkboxes.forEach(checkbox => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'expense_ids[]';
-        input.value = checkbox.value;
-        form.appendChild(input);
-    });
-
-    // Update modal text
-    const modalTitle = document.querySelector('#multideleteModal h6');
-    const modalMessage = document.querySelector('#multideleteModal p');
-
-    if (checkboxes.length === 1) {
-        modalTitle.textContent = 'Delete Expense';
-        modalMessage.textContent = 'Are you sure you want to delete the selected expense?';
-    } else {
-        modalTitle.textContent = 'Delete Expenses';
-        modalMessage.textContent = `Are you sure you want to delete the ${checkboxes.length} selected expenses?`;
+    // Toggle delete button visibility
+    function toggleDeleteBtn() {
+        const anyChecked = document.querySelectorAll('.user-checkbox:checked').length > 0;
+        deleteBtn.classList.toggle('d-none', !anyChecked);
     }
 
-    multiDeleteModal.show();
-});
+    // Delete button click — open modal directly
+    deleteBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+        const form = document.getElementById('multiDeleteForm');
 
-// Select All functionality
-document.getElementById('select-all').addEventListener('change', function () {
-    document.querySelectorAll('.user-checkbox').forEach(checkbox => {
-        checkbox.checked = this.checked;
+        // Clear previous hidden inputs
+        form.querySelectorAll('input[name="expense_ids[]"]').forEach(el => el.remove());
+
+        // Add selected ids
+        checkboxes.forEach(checkbox => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'expense_ids[]';
+            input.value = checkbox.value;
+            form.appendChild(input);
+        });
+
+        // Update modal text
+        const modalTitle = document.querySelector('#multideleteModal h6');
+        const modalMessage = document.querySelector('#multideleteModal p');
+
+        if (checkboxes.length === 1) {
+            modalTitle.textContent = 'Delete Expense';
+            modalMessage.textContent = 'Are you sure you want to delete the selected expense?';
+        } else {
+            modalTitle.textContent = 'Delete Expenses';
+            modalMessage.textContent = `Are you sure you want to delete the ${checkboxes.length} selected expenses?`;
+        }
+
+        multiDeleteModal.show();
     });
-    toggleDeleteBtn(); // update Delete button
-});
 
-// Individual checkbox change (works for dynamic or static checkboxes)
-document.addEventListener('change', function (e) {
-    if (e.target.classList.contains('user-checkbox')) {
-        toggleDeleteBtn();
-    }
-});
+    // Select All functionality
+    document.getElementById('select-all').addEventListener('change', function () {
+        document.querySelectorAll('.user-checkbox').forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        toggleDeleteBtn(); // update Delete button
+    });
 
-// Initial check on page load (in case some boxes are pre-checked)
-toggleDeleteBtn();
+    // Individual checkbox change (works for dynamic or static checkboxes)
+    document.addEventListener('change', function (e) {
+        if (e.target.classList.contains('user-checkbox')) {
+            toggleDeleteBtn();
+        }
+    });
 
+    // Initial check on page load (in case some boxes are pre-checked)
+    toggleDeleteBtn();
 </script>
+
 <script>
 $(document).ready(function() {
     // Initialize date range picker with preserved values
@@ -591,29 +600,29 @@ $(document).ready(function() {
     }
 
     // Update dropdown labels based on selected values
-function updateDropdownLabels() {
-    // Customers
-    let customerLabels = [];
-    $('.customer-checkbox:checked').each(function() {
-        customerLabels.push($(this).closest('label').text().trim());
-    });
-    if (customerLabels.length > 3) {
-        $('.customer-toggle').text(customerLabels.slice(0, 3).join(', ') + ' +' + (customerLabels.length - 3));
-    } else {
-        $('.customer-toggle').text(customerLabels.length > 0 ? customerLabels.join(', ') : 'Select');
-    }
+    function updateDropdownLabels() {
+        // Customers
+        let customerLabels = [];
+        $('.customer-checkbox:checked').each(function() {
+            customerLabels.push($(this).closest('label').text().trim());
+        });
+        if (customerLabels.length > 3) {
+            $('.customer-toggle').text(customerLabels.slice(0, 3).join(', ') + ' +' + (customerLabels.length - 3));
+        } else {
+            $('.customer-toggle').text(customerLabels.length > 0 ? customerLabels.join(', ') : 'Select');
+        }
 
-    // Categories
-    let categoryLabels = [];
-    $('.category-checkbox:checked').each(function() {
-        categoryLabels.push($(this).closest('label').text().trim());
-    });
-    if (categoryLabels.length > 2) {
-        $('.category-toggle').text(categoryLabels.slice(0, 2).join(', ') + ' +' + (categoryLabels.length - 3));
-    } else {
-        $('.category-toggle').text(categoryLabels.length > 0 ? categoryLabels.join(', ') : 'Select');
+        // Categories
+        let categoryLabels = [];
+        $('.category-checkbox:checked').each(function() {
+            categoryLabels.push($(this).closest('label').text().trim());
+        });
+        if (categoryLabels.length > 2) {
+            $('.category-toggle').text(categoryLabels.slice(0, 2).join(', ') + ' +' + (categoryLabels.length - 3));
+        } else {
+            $('.category-toggle').text(categoryLabels.length > 0 ? categoryLabels.join(', ') : 'Select');
+        }
     }
-}
 
     // Initialize dropdown labels on page load
     updateDropdownLabels();
@@ -682,7 +691,6 @@ function updateDropdownLabels() {
         });
     });
 });
-
 </script>
 
 </body>

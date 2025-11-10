@@ -1,9 +1,12 @@
-
 <?php
 session_start();
 include '../../config/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Get user and organization IDs from session (with fallbacks)
+    $currentUserId = $_SESSION['crm_user_id'] ?? 1;
+    $orgId = $_SESSION['org_id'] ?? 1;
+
     $name = mysqli_real_escape_string($conn, $_POST['name']);
     $rate = floatval($_POST['rate']);
     
@@ -22,8 +25,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     //     exit();
     // }
     
-    // Insert into database
-    $query = "INSERT INTO tax (name, rate, status, created_at) VALUES ('$name', $rate, 1, NOW())";
+    // Insert into database with user_id, org_id, and other organizational fields
+    $query = "INSERT INTO tax (
+        name, 
+        rate, 
+        status, 
+        org_id, 
+        user_id, 
+        is_deleted, 
+        created_by, 
+        updated_by, 
+        created_at
+    ) VALUES (
+        '$name', 
+        $rate, 
+        1, 
+        '$orgId', 
+        '$currentUserId', 
+        0, 
+        '$currentUserId', 
+        '$currentUserId', 
+        NOW()
+    )";
     
     if (mysqli_query($conn, $query)) {
         $_SESSION['message'] = 'Tax rate added successfully';

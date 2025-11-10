@@ -8,10 +8,12 @@ if (isset($_POST['add_unit'])) {
     $created_by = $_SESSION['crm_user_id'] ?? 0;
     $updated_by = $created_by;
     $org_id = $_SESSION['org_id'] ?? 0;
+    $user_id = $_SESSION['crm_user_id'] ?? 0; // Add this line
     $is_deleted = 0;
 
-    $sql = "INSERT INTO units (name, short_name, created_at, updated_at, created_by, updated_by, is_deleted, org_id)
-            VALUES ('$unit_name', '$short_name', NOW(), NOW(), $created_by, $updated_by, $is_deleted, $org_id)";
+    // **UPDATED: Added user_id to the INSERT query**
+    $sql = "INSERT INTO units (name, short_name, created_at, updated_at, created_by, updated_by, is_deleted, org_id, user_id)
+            VALUES ('$unit_name', '$short_name', NOW(), NOW(), $created_by, $updated_by, $is_deleted, $org_id, $user_id)";
     
     $result = mysqli_query($conn, $sql);
 
