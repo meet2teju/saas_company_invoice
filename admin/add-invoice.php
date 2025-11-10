@@ -2,6 +2,24 @@
 <?php
 include '../config/config.php';
 
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
 // Get next AUTO_INCREMENT value
 $query = "SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES 
           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'invoice'";
@@ -65,7 +83,23 @@ if ($row && isset($row['AUTO_INCREMENT'])) {
                                                     // Get selected client ID from URL
                                                     $selectedClient = isset($_GET['client_id']) ? intval($_GET['client_id']) : 0;
 
-                                                    $result = mysqli_query($conn, "SELECT * FROM client");
+                                                    // MODIFIED: Apply access control to clients dropdown
+                                                    $clients_query = "SELECT * FROM client WHERE is_deleted = 0";
+                                                    if ($currentOrgId > 0) {
+                                                        $clients_query .= " AND org_id = $currentOrgId";
+                                                    }
+                                                    // Add role-based filtering for non-admin users
+                                                    if ($userRoleId != 1) {
+                                                        $clients_query .= " AND (user_id = $currentUserId OR EXISTS (
+                                                            SELECT 1 FROM login u 
+                                                            WHERE u.id = client.user_id 
+                                                            AND u.role_id = 1 
+                                                            AND u.org_id = $currentOrgId
+                                                        ))";
+                                                    }
+                                                    $clients_query .= " ORDER BY first_name ASC";
+                                                    
+                                                    $result = mysqli_query($conn, $clients_query);
                                                     while ($row = mysqli_fetch_assoc($result)) {
                                                         $isSelected = ($row['id'] == $selectedClient) ? 'selected' : '';
                                                         echo '<option value="' . $row['id'] . '" ' . $isSelected . '>' . htmlspecialchars($row['first_name']) . '</option>';
@@ -117,10 +151,15 @@ if ($row && isset($row['AUTO_INCREMENT'])) {
                                                     <select class="form-select select2" name="user_id" id="user_id">
                                                   <option value="">Select Salesperson</option>
                                                   <?php
+                                                  // MODIFIED: Apply organization filtering to salesperson dropdown
                                                   $query = "SELECT login.id, login.name FROM login
                                                             JOIN user_role ON login.role_id = user_role.id
-                                                            WHERE  login.is_deleted = 0
-                                                            ORDER BY login.name ASC";
+                                                            WHERE login.is_deleted = 0";
+                                                  if ($currentOrgId > 0) {
+                                                      $query .= " AND login.org_id = $currentOrgId";
+                                                  }
+                                                  $query .= " ORDER BY login.name ASC";
+                                                  
                                                   $result = mysqli_query($conn, $query);
                                                   while ($row = mysqli_fetch_assoc($result)) {
                                                       echo '<option value="' . $row['id'] . '">' . htmlspecialchars($row['name']) . '</option>';
@@ -254,7 +293,14 @@ if ($row && isset($row['AUTO_INCREMENT'])) {
                                                                     <select class="select2" name="bank_id" id="bank_id">
                                                                          <option value="">Select Account</option>
                                                                         <?php                                                         
-                                                                        $result = mysqli_query($conn, "SELECT * FROM bank where status=1");
+                                                                        // MODIFIED: Apply organization filtering to bank accounts
+                                                                        $bank_query = "SELECT * FROM bank WHERE status = 1";
+                                                                        if ($currentOrgId > 0) {
+                                                                            $bank_query .= " AND org_id = $currentOrgId";
+                                                                        }
+                                                                        $bank_query .= " ORDER BY account_holder ASC";
+                                                                        
+                                                                        $result = mysqli_query($conn, $bank_query);
                                                                         while ($row = mysqli_fetch_assoc($result)) {
                                                                         echo '<option value="' . $row['id'] . '">' . $row['account_holder'] . ' - ' . $row['account_number'] . ' (' . $row['bank_name'] . ')</option>';
                                                                         }
@@ -390,7 +436,12 @@ $(document).ready(function() {
       $.ajax({
         url: 'process/get_projects_by_client.php',
         type: 'POST',
-        data: { client_id: clientId },
+        data: { 
+          client_id: clientId,
+          current_user_id: <?= $currentUserId ?>,
+          current_org_id: <?= $currentOrgId ?>,
+          user_role_id: <?= $userRoleId ?>
+        },
         success: function(data) {
           $('#project_id').html(data);
         },
@@ -416,7 +467,12 @@ $(document).ready(function() {
       $.ajax({
         url: 'process/get_tasks_by_project.php',
         type: 'POST',
-        data: { project_id: projectId },
+        data: { 
+          project_id: projectId,
+          current_user_id: <?= $currentUserId ?>,
+          current_org_id: <?= $currentOrgId ?>,
+          user_role_id: <?= $userRoleId ?>
+        },
         success: function(data) {
           $('#task_id').html(data);
           // Initialize select2 for multi-select
@@ -451,7 +507,12 @@ $(document).ready(function() {
           $.ajax({
             url: 'process/get_task_details.php',
             type: 'POST',
-            data: { task_id: taskId },
+            data: { 
+              task_id: taskId,
+              current_user_id: <?= $currentUserId ?>,
+              current_org_id: <?= $currentOrgId ?>,
+              user_role_id: <?= $userRoleId ?>
+            },
             dataType: 'json',
             success: function(response) {
               if (response.success) {
@@ -562,7 +623,12 @@ $(document).ready(function() {
      Items dropdown utilities
   ========================== */
   function loadItems(type, target) {
-    $.post('process/get_productcategories_by_type.php', { item_type: type }, function(data) {
+    $.post('process/get_productcategories_by_type.php', { 
+      item_type: type,
+      current_user_id: <?= $currentUserId ?>,
+      current_org_id: <?= $currentOrgId ?>,
+      user_role_id: <?= $userRoleId ?>
+    }, function(data) {
       if (target) {
         target.html(data);
         updateItemDropdowns();
@@ -906,7 +972,12 @@ $(document).ready(function() {
       $.ajax({
         url: 'process/fetch_client_full_info.php',
         type: 'POST',
-        data: { client_id: clientId },
+        data: { 
+          client_id: clientId,
+          current_user_id: <?= $currentUserId ?>,
+          current_org_id: <?= $currentOrgId ?>,
+          user_role_id: <?= $userRoleId ?>
+        },
         dataType: 'json',
         success: function(response) {
           $('#client_info_block').html(response.billing_html);

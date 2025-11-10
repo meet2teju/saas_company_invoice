@@ -33,14 +33,23 @@ $end_date = '';
 $org_where = "";
 $user_where = "";
 
-// Add organization-based filtering for ALL users
+// CORRECTED: Organization isolation - NO ONE can see invoices from other organizations
 if ($currentOrgId > 0) {
     $org_where = " AND i.org_id = $currentOrgId";
 }
 
-// Add user-specific filtering for non-admin users
-if ($userRoleId != 1) {
-    $user_where = " AND i.user_id = $currentUserId";
+// CORRECTED: Role-based access control
+if ($userRoleId == 1) {
+    // Admin users: Can see all invoices from their organization
+    // No additional filters needed as organization filter already applied
+} else {
+    // Non-admin users: Can see their own invoices AND invoices created by admin users
+    $user_where = " AND (i.user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = i.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 
 // Build the filter SQL - MODIFIED THIS PART FOR ROLE-BASED AND ORGANIZATION FILTERING
@@ -113,8 +122,14 @@ $totalinvoiceWhere = "WHERE is_deleted = 0";
 if ($currentOrgId > 0) {
     $totalinvoiceWhere .= " AND org_id = $currentOrgId";
 }
+// CORRECTED: Role-based filtering for total invoices
 if ($userRoleId != 1) {
-    $totalinvoiceWhere .= " AND user_id = $currentUserId";
+    $totalinvoiceWhere .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = invoice.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 
 $totalinvoice = "SELECT SUM(total_amount) AS total_invoices FROM invoice $totalinvoiceWhere";
@@ -131,8 +146,14 @@ $sql_paid_where = "WHERE status = 'Paid' AND is_deleted = 0";
 if ($currentOrgId > 0) {
     $sql_paid_where .= " AND org_id = $currentOrgId";
 }
+// CORRECTED: Role-based filtering for paid invoices
 if ($userRoleId != 1) {
-    $sql_paid_where .= " AND user_id = $currentUserId";
+    $sql_paid_where .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = invoice.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 
 $sql_paid = "SELECT SUM(total_amount) AS total_paid_invoices FROM invoice $sql_paid_where";
@@ -147,8 +168,14 @@ $sql_pending_where = "WHERE status = 'unpaid' AND is_deleted = 0";
 if ($currentOrgId > 0) {
     $sql_pending_where .= " AND org_id = $currentOrgId";
 }
+// CORRECTED: Role-based filtering for pending invoices
 if ($userRoleId != 1) {
-    $sql_pending_where .= " AND user_id = $currentUserId";
+    $sql_pending_where .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = invoice.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 
 $sql_pending = "SELECT SUM(total_amount) AS total_pending_invoices FROM invoice $sql_pending_where";
@@ -163,8 +190,14 @@ $sql_overdue_where = "WHERE status = 'Overdue' AND is_deleted = 0";
 if ($currentOrgId > 0) {
     $sql_overdue_where .= " AND org_id = $currentOrgId";
 }
+// CORRECTED: Role-based filtering for overdue invoices
 if ($userRoleId != 1) {
-    $sql_overdue_where .= " AND user_id = $currentUserId";
+    $sql_overdue_where .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = invoice.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 
 $sql_overdue = "SELECT SUM(total_amount) AS total_overdue_invoices FROM invoice $sql_overdue_where";
@@ -185,9 +218,14 @@ function getInvoiceTotal($conn, $status = null, $month = null, $year = null)
         $query .= " AND org_id = $currentOrgId";
     }
     
-    // Add role-based filtering
+    // CORRECTED: Role-based filtering
     if ($userRoleId != 1) {
-        $query .= " AND user_id = $currentUserId";
+        $query .= " AND (user_id = $currentUserId OR EXISTS (
+            SELECT 1 FROM login u 
+            WHERE u.id = invoice.user_id 
+            AND u.role_id = 1 
+            AND u.org_id = $currentOrgId
+        ))";
     }
 
     if ($status !== null) {
@@ -241,7 +279,12 @@ if ($currentOrgId > 0) {
 }
 // For non-admin users, also filter by user_id
 if ($userRoleId != 1) {
-    $customers_query .= " AND user_id = $currentUserId";
+    $customers_query .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = client.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
 }
 $customers = mysqli_query($conn, $customers_query);
 ?>
@@ -737,7 +780,18 @@ $customers = mysqli_query($conn, $customers_query);
                                 <tbody>
                                     <?php
                                     // MODIFIED QUERY FOR PAID TAB WITH ROLE-BASED AND ORGANIZATION FILTERING
-                                    $paidFilterSql = "WHERE i.status = 'Paid' AND i.is_deleted = 0 AND i.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND i.user_id = $currentUserId" : "");
+                                    $paidFilterSql = "WHERE i.status = 'Paid' AND i.is_deleted = 0";
+                                    if ($currentOrgId > 0) {
+                                        $paidFilterSql .= " AND i.org_id = $currentOrgId";
+                                    }
+                                    if ($userRoleId != 1) {
+                                        $paidFilterSql .= " AND (i.user_id = $currentUserId OR EXISTS (
+                                            SELECT 1 FROM login u 
+                                            WHERE u.id = i.user_id 
+                                            AND u.role_id = 1 
+                                            AND u.org_id = $currentOrgId
+                                        ))";
+                                    }
                                     
                                     $sql = "SELECT i.*, c.first_name, c.last_name, c.customer_image 
                                     FROM invoice i 
@@ -910,7 +964,18 @@ $customers = mysqli_query($conn, $customers_query);
                                 <tbody>
                                     <?php
                                     // MODIFIED QUERY FOR CANCELLED TAB WITH ROLE-BASED AND ORGANIZATION FILTERING
-                                    $cancelledFilterSql = "WHERE i.status = 'cancelled' AND i.is_deleted = 0 AND i.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND i.user_id = $currentUserId" : "");
+                                    $cancelledFilterSql = "WHERE i.status = 'cancelled' AND i.is_deleted = 0";
+                                    if ($currentOrgId > 0) {
+                                        $cancelledFilterSql .= " AND i.org_id = $currentOrgId";
+                                    }
+                                    if ($userRoleId != 1) {
+                                        $cancelledFilterSql .= " AND (i.user_id = $currentUserId OR EXISTS (
+                                            SELECT 1 FROM login u 
+                                            WHERE u.id = i.user_id 
+                                            AND u.role_id = 1 
+                                            AND u.org_id = $currentOrgId
+                                        ))";
+                                    }
                                     
                                     $sql = "SELECT i.*, c.first_name, c.last_name, c.customer_image 
                                     FROM invoice i 
@@ -1082,7 +1147,18 @@ $customers = mysqli_query($conn, $customers_query);
                                 <tbody>
                                     <?php
                                     // MODIFIED QUERY FOR UNPAID TAB WITH ROLE-BASED AND ORGANIZATION FILTERING
-                                    $unpaidFilterSql = "WHERE i.status = 'unpaid' AND i.is_deleted = 0 AND i.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND i.user_id = $currentUserId" : "");
+                                    $unpaidFilterSql = "WHERE i.status = 'unpaid' AND i.is_deleted = 0";
+                                    if ($currentOrgId > 0) {
+                                        $unpaidFilterSql .= " AND i.org_id = $currentOrgId";
+                                    }
+                                    if ($userRoleId != 1) {
+                                        $unpaidFilterSql .= " AND (i.user_id = $currentUserId OR EXISTS (
+                                            SELECT 1 FROM login u 
+                                            WHERE u.id = i.user_id 
+                                            AND u.role_id = 1 
+                                            AND u.org_id = $currentOrgId
+                                        ))";
+                                    }
                                     
                                     $sql = "SELECT i.*, c.first_name, c.last_name, c.customer_image 
                                     FROM invoice i 
@@ -1256,7 +1332,18 @@ $customers = mysqli_query($conn, $customers_query);
                                 <tbody>
                                     <?php
                                     // MODIFIED QUERY FOR DRAFT TAB WITH ROLE-BASED AND ORGANIZATION FILTERING
-                                    $draftFilterSql = "WHERE i.status = 'draft' AND i.is_deleted = 0 AND i.org_id = $currentOrgId" . ($userRoleId != 1 ? " AND i.user_id = $currentUserId" : "");
+                                    $draftFilterSql = "WHERE i.status = 'draft' AND i.is_deleted = 0";
+                                    if ($currentOrgId > 0) {
+                                        $draftFilterSql .= " AND i.org_id = $currentOrgId";
+                                    }
+                                    if ($userRoleId != 1) {
+                                        $draftFilterSql .= " AND (i.user_id = $currentUserId OR EXISTS (
+                                            SELECT 1 FROM login u 
+                                            WHERE u.id = i.user_id 
+                                            AND u.role_id = 1 
+                                            AND u.org_id = $currentOrgId
+                                        ))";
+                                    }
                                     
                                     $sql = "SELECT i.*, c.first_name, c.last_name, c.customer_image 
                                     FROM invoice i 

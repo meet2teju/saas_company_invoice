@@ -34,7 +34,7 @@ $selected_customers = $_POST['customer'] ?? [];
 $selected_projects  = $_POST['project'] ?? [];
 $date_range         = $_POST['date_range'] ?? '';
 
-// Build base WHERE conditions for organization filtering
+// Build base WHERE conditions for organization filtering (Organization Isolation)
 $org_where = "";
 if ($currentOrgId > 0) {
     $org_where = " AND p.org_id = $currentOrgId";
@@ -63,7 +63,7 @@ if (!empty($date_range)) {
     }
 }
 
-// Base WHERE
+// Base WHERE with Organization Isolation
 $where = "WHERE p.is_deleted = 0 $org_where";
 
 // Add other filters
@@ -71,16 +71,28 @@ if (!empty($filters)) {
     $where .= " AND " . implode(" AND ", $filters);
 }
 
-// User-based filtering - FIXED
-if ($role_name !== 'admin') { 
-    // For non-admin users, show only projects they're assigned to
-    $where .= " AND EXISTS (
-        SELECT 1 FROM project_users pu
-        WHERE pu.project_id = p.id AND pu.user_id = $login_id
+// User-based filtering - IMPLEMENTING THE THREE CONDITIONS
+if ($userRoleId == 1) {
+    // Admin users (role_id = 1): Can see all projects from their organization
+    // No additional conditions needed as org_where already handles organization isolation
+} else {
+    // Non-admin users: Can see their own projects AND projects created by admin users
+    $where .= " AND (
+        p.created_by = $currentUserId 
+        OR 
+        EXISTS (
+            SELECT 1 FROM project_users pu 
+            WHERE pu.project_id = p.id AND pu.user_id = $currentUserId
+        )
+        OR
+        p.created_by IN (
+            SELECT id FROM login 
+            WHERE org_id = $currentOrgId AND role_id = 1
+        )
     )";
 }
 
-// Final Query - FIXED: Use DISTINCT to avoid duplicate projects
+// Final Query
 $sql = "
 SELECT DISTINCT p.*
 FROM project p
@@ -106,11 +118,24 @@ $projectList_query = "SELECT id, project_name FROM project WHERE is_deleted = 0"
 if ($currentOrgId > 0) {
     $projectList_query .= " AND org_id = $currentOrgId";
 }
-// For non-admin users, show only projects they're assigned to
-if ($role_name !== 'admin') {
-    $projectList_query .= " AND EXISTS (
-        SELECT 1 FROM project_users pu
-        WHERE pu.project_id = project.id AND pu.user_id = $login_id
+
+// Apply the same project visibility rules for the filter dropdown
+if ($userRoleId == 1) {
+    // Admin can see all projects in their organization
+} else {
+    // Non-admin users can see their own projects AND projects created by admin users
+    $projectList_query .= " AND (
+        created_by = $currentUserId 
+        OR 
+        EXISTS (
+            SELECT 1 FROM project_users pu 
+            WHERE pu.project_id = project.id AND pu.user_id = $currentUserId
+        )
+        OR
+        created_by IN (
+            SELECT id FROM login 
+            WHERE org_id = $currentOrgId AND role_id = 1
+        )
     )";
 }
 $projectList = mysqli_query($conn, $projectList_query);
