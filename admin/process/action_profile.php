@@ -1,8 +1,8 @@
 <?php
-// ===== Enable error reporting for development =====
-// ini_set('display_errors', 1);
-// ini_set('display_startup_errors', 1);
-// error_reporting(E_ALL);
+// Enable error reporting for development
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
 session_start();
 include '../../config/config.php';
@@ -20,12 +20,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $state    = isset($_POST['state']) && $_POST['state'] !== '' ? (int)$_POST['state'] : 'NULL';
     $city     = isset($_POST['city']) && $_POST['city'] !== '' ? (int)$_POST['city'] : 'NULL';
     
+    // FIX: Handle zipcode properly - convert empty to NULL
     $zipcode  = trim($_POST['zipcode'] ?? '');
+    if ($zipcode === '') {
+        $zipcode = 'NULL';
+    } else {
+        $zipcode = "'" . mysqli_real_escape_string($conn, $zipcode) . "'";
+    }
+    
     $updated_at = date('Y-m-d H:i:s');
     $updated_by = $_SESSION['crm_user_id'] ?? 0;
 
     if (!empty($dob)) {
         $dob = date('Y-m-d', strtotime($dob));
+        $dob = "'$dob'";
     } else {
         $dob = 'NULL';
     }
@@ -36,6 +44,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $image = time() . '_' . basename($_FILES['profile_img']['name']);
         $target_path = '../../uploads/' . $image;
         move_uploaded_file($_FILES['profile_img']['tmp_name'], $target_path);
+        $image = "'$image'";
+    } else {
+        $image = 'profile_img'; // This keeps the current value
+    }
+
+    // === Email uniqueness check ===
+    $emailCheck = "SELECT id FROM login WHERE email = '".mysqli_real_escape_string($conn, $email)."' AND id != '".mysqli_real_escape_string($conn, $id)."' LIMIT 1";
+    $emailResult = mysqli_query($conn, $emailCheck);
+
+    if (mysqli_num_rows($emailResult) > 0) {
+        $_SESSION['error'] = "Email already exists. Please use a different email.";
+        $_SESSION['message_type'] = 'error';
+        header("Location: ../account-settings.php");
+        exit();
     }
 
     // === Build update query ===
@@ -47,30 +69,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         country = $country,
         state = $state,
         city = $city,
-        zipcode = '" . mysqli_real_escape_string($conn, $zipcode) . "',
+        zipcode = $zipcode,
         updated_at = '$updated_at',
         updated_by = '$updated_by'";
- $emailCheck = "SELECT id FROM login WHERE email = '".mysqli_real_escape_string($conn, $email)."' AND id != '".mysqli_real_escape_string($conn, $id)."' LIMIT 1";
-    $emailResult = mysqli_query($conn, $emailCheck);
-
-    if (mysqli_num_rows($emailResult) > 0) {
-        $_SESSION['error'] = "Email already exists. Please use a different email.";
-        $_SESSION['message_type'] = 'error';
-        header("Location: ../account-settings.php");
-        exit();
-    }
 
     if ($dob !== 'NULL') {
-        $sql .= ", dob = '$dob'";
-    } else {
-        $sql .= ", dob = NULL";
+        $sql .= ", dob = $dob";
     }
 
-    if ($image != '') {
-        $sql .= ", profile_img = '$image'";
+    if ($image !== 'profile_img') {
+        $sql .= ", profile_img = $image";
     }
 
     $sql .= " WHERE id = '" . mysqli_real_escape_string($conn, $id) . "'";
+
+    // Debug: Uncomment to see the generated SQL
+    // echo "SQL: " . $sql; exit();
 
     if (mysqli_query($conn, $sql)) {
         // === Update session for topbar ===
@@ -78,12 +92,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_SESSION['crm_user_email'] = $email;
         $_SESSION['crm_user_phone'] = $phone;
 
-        if ($image != '') {
-            $_SESSION['crm_profile_img'] = $image;
+        if ($image !== 'profile_img') {
+            $_SESSION['crm_profile_img'] = str_replace("'", "", $image);
         }
 
         $_SESSION['success'] = "Profile updated successfully.";
-          $_SESSION['message_type'] = 'success';
+        $_SESSION['message_type'] = 'success';
     } else {
         $_SESSION['error'] = "Failed to update profile. Error: " . mysqli_error($conn);
     }

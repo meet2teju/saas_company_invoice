@@ -46,9 +46,9 @@ $documents = mysqli_query($conn, "SELECT * FROM expense_document WHERE expense_i
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6>Edit Expense</h6>
-                            <a href="" class="btn btn-outline-white d-inline-flex align-items-center">
+                            <!-- <a href="" class="btn btn-outline-white d-inline-flex align-items-center">
                                 <i class="isax isax-eye me-1"></i>Preview
-                            </a>
+                            </a> -->
                         </div>
                         <div class="card">
                             <div class="card-body">

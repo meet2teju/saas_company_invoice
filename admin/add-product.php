@@ -185,7 +185,7 @@
                                             </div>
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
-                                                    <label class="form-label">HSN Code<span class="text-danger ms-1">*</span></label>
+                                                    <label class="form-label">HSN Code</label>
                                                     <input type="text" name="code" id="code" class="form-control">
                                                     <span class="text-danger error-text" id="code_error"></span>
                                                 </div>
@@ -343,7 +343,7 @@
                                 </div>
                                 <div class="col-lg-4 col-md-6">
                                     <div class="mb-3">
-                                        <label class="form-label preview-label">HSN Code<span class="text-danger ms-1">*</span></label>
+                                        <label class="form-label preview-label">HSN Code</label>
                                         <div class="preview-field" id="previewCode"></div>
                                     </div>
                                 </div>
@@ -546,10 +546,10 @@ $(document).ready(function () {
                 valid = false;
             }
 
-            if (!$('#code').val().trim()) {
-                $('#code_error').text('Product HSNcode is required.');
-                valid = false;
-            }
+            //if (!$('#code').val().trim()) {
+             //   $('#code_error').text('Product HSNcode is required.');
+          //      valid = false;
+           // }
 
             // Dropdowns
             if (!$('#category_id').val()) {

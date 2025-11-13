@@ -35,7 +35,7 @@ include '../config/config.php';
                         <div>
                             <div class="d-flex align-items-center justify-content-between mb-3">
                                 <h6>Add Expense</h6>
-                                <a href="expense-details.php" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a>
+                                <!-- <a href="expense-details.php" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a> -->
                             </div>
                             <div class="card">
                                 <div class="card-body">

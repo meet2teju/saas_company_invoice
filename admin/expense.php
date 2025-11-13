@@ -241,7 +241,7 @@ $categoriesResult = mysqli_query($conn, "SELECT id, name FROM expense_category W
                     <thead class="thead-light">
                         <tr>
                             <th class="no-sort"><input class="form-check-input" type="checkbox" id="select-all"></th>
-                            <th>Expense Category</th>
+                            <th>Expense</th>
                             <th>Client</th>
                             <th>Date</th>
                             <th>Amount</th>

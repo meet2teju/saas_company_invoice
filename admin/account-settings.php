@@ -188,7 +188,7 @@ if ($result && mysqli_num_rows($result) > 0) {
                                                 </div><!-- end col -->
                                                 <div class="col-md-6">
                                                     <div class="mb-3">
-                                                        <label class="form-label">City<span class="text-danger ms-1">*</span></label>
+                                                        <label class="form-label">City</label>
                                                         <select class="form-control select2" id="city" name="city">
                                                          <option value="">Select City</option>
                                                             <?php while ($city = mysqli_fetch_assoc($city_result)) {
@@ -332,11 +332,11 @@ $(document).ready(function () {
         // }
 
         // Validate City
-        const city = $('[name="city"]');
-        if (city.val().trim() === '') {
-            city.after('<span class="text-danger error">City is required</span>');
-            isValid = false;
-        }
+        // const city = $('[name="city"]');
+        // if (city.val().trim() === '') {
+        //     city.after('<span class="text-danger error">City is required</span>');
+        //     isValid = false;
+        // }
 
         // Validate Profile Image (optional)
         const file = $('input[type="file"][name="profile_img"]')[0].files[0];

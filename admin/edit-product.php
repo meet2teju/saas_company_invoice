@@ -163,7 +163,7 @@ $row = mysqli_fetch_assoc($result);
                                             <!-- Code Field -->
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
-                                                    <label class="form-label">HSN Code<span class="required">*</span> </label>
+                                                    <label class="form-label">HSN Code</label>
                                                     <input type="text" class="form-control" name="code" id="code" value="<?= htmlspecialchars($row['code']) ?>">
                                                     <span id="code_error" class="error-message text-danger"></span>
                                                 </div>
@@ -378,7 +378,7 @@ $row = mysqli_fetch_assoc($result);
                                 </div>
                                 <div class="col-lg-4 col-md-6">
                                     <div class="mb-3">
-                                        <label class="form-label preview-label">HSN Code<span class="required">*</span> </label>
+                                        <label class="form-label preview-label">HSN Code</label>
                                         <div class="preview-field" id="previewCode"></div>
                                     </div>
                                 </div>
@@ -572,11 +572,11 @@ $(document).ready(function() {
             isValid = false;
         }
 
-        if ($('#code').val().trim() === '') {
-            $('#code_error').text('Product HSNcode is required');
-            $('#code').addClass('is-invalid');
-            isValid = false;
-        }
+        // if ($('#code').val().trim() === '') {
+        //     $('#code_error').text('Product HSNcode is required');
+        //     $('#code').addClass('is-invalid');
+        //     isValid = false;
+        // }
 
         if ($('#category_id').val() === '') {
             $('#category_error').text('Category is required');
