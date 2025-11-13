@@ -56,7 +56,7 @@ if ($row && isset($row['AUTO_INCREMENT'])) {
                                               <div class="col-lg-4 col-md-6">
                                                   <div class="mb-3">
                                                     <label class="form-label">Client Name <span class="text-danger">*</span></label>
-                                                    <select class="form-select select2" name="client_id" id="client_id">
+                                                    <!-- <select class="form-select select2" name="client_id" id="client_id">
                                                         <option value="">Select Client</option>
                                                         <?php                                                         
                                                         $result = mysqli_query($conn, "SELECT * FROM client");
@@ -64,7 +64,21 @@ if ($row && isset($row['AUTO_INCREMENT'])) {
                                                             echo '<option value="' . $row['id'] . '">' . $row['first_name'] . '</option>';
                                                         }
                                                         ?>  
-                                                    </select>
+                                                    </select> -->
+
+                                                    <select class="form-select select2" name="client_id" id="client_id">
+    <option value="">Select Client</option>
+    <?php                                                         
+    $result = mysqli_query($conn, "SELECT * FROM client");
+    while ($row = mysqli_fetch_assoc($result)) {
+        $displayName = $row['first_name'];
+        if (!empty($row['company_name'])) {
+            $displayName .= ' - ' . $row['company_name'];
+        }
+        echo '<option value="' . $row['id'] . '">' . $displayName . '</option>';
+    }
+    ?>  
+</select>
                                                     <span class="text-danger error-text" id="clientname_error"></span>
                                                   </div>
                                               </div>

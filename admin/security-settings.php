@@ -88,7 +88,8 @@ $lastChanged = ($row['password_updated_at']) ? date("M d, Y", strtotime($row['pa
 									<span class="isax toggle-password isax-eye-slash"cdata-target="#password"></span>
 									<input type="password" name="password" id="password" class="pass-input form-control border-start-0 ps-0" placeholder="****************">
 								</div>
-                                    <span class="text-danger" id="passwordError"></span>
+                                    <span class="text-danger error-message" id="passwordError"></span>
+
 
 							</div>
 							<div class="mb-3">
@@ -135,89 +136,96 @@ $lastChanged = ($row['password_updated_at']) ? date("M d, Y", strtotime($row['pa
 
 
     <script>
-    $(document).ready(function() {
-        // Open modal
-        $('#openPasswordModal').click(function() {
-            $('#change_password').modal('show');
-        });
+$(document).ready(function() {
+    // Open modal
+    $('#openPasswordModal').click(function() {
+        $('#change_password').modal('show');
+    });
 
-        // Toggle password visibility
-        $('.toggle-password').click(function() {
-            $(this).toggleClass('isax-eye isax-eye-slash');
-            var input = $('#password');
-            input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
-        });
+    // Toggle password visibility
+    $('.toggle-password').click(function() {
+        $(this).toggleClass('isax-eye isax-eye-slash');
+        var input = $('#password');
+        input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
+    });
 
-        $('.toggle-passwords').click(function() {
-            $(this).toggleClass('isax-eye isax-eye-slash');
-            var input = $('#newpassword');
-            input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
-        });
+    $('.toggle-passwords').click(function() {
+        $(this).toggleClass('isax-eye isax-eye-slash');
+        var input = $('#newpassword');
+        input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
+    });
 
-        $('.toggle-passworda').click(function() {
-            $(this).toggleClass('isax-eye isax-eye-slash');
-            var input = $('#renewpassword');
-            input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
-        });
+    $('.toggle-passworda').click(function() {
+        $(this).toggleClass('isax-eye isax-eye-slash');
+        var input = $('#renewpassword');
+        input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
+    });
 
+    // Form submission with AJAX
+    $('#passwordForm').submit(function(e) {
+        e.preventDefault();
         
-        // Form submission with AJAX
-        $('#passwordForm').submit(function(e) {
-            e.preventDefault();
-            
-            // Clear previous errors
-            $('#formErrors').addClass('d-none').empty();
-            $('.text-danger').empty();
-            
-            // Disable submit button
-            $('#submitBtn').prop('disabled', true);
-            
-            $.ajax({
-                url: 'process/action_change_password.php',
-                type: 'POST',
-                data: $(this).serialize(),
-                dataType: 'json',
-                success: function(response) {
-                    if (response.success) {
-                        // Success - reload page
-                        location.reload();
-                    } else {
-                        // Show errors
-                        if (response.message) {
-                            $('#formErrors').removeClass('d-none').text(response.message);
-                        }
-                        
-                        if (response.errors) {
-                            $.each(response.errors, function(key, value) {
-                                $('#' + key + 'Error').text(value);
-                            });
-                        }
+        // Clear previous errors - ONLY clear the error spans, not asterisks
+        $('#passwordError, #newpasswordError, #renewpasswordError').empty();
+        $('#generalError').remove();
+        
+        // Disable submit button
+        $('#submitBtn').prop('disabled', true);
+        
+        $.ajax({
+            url: 'process/action_change_password.php',
+            type: 'POST',
+            data: $(this).serialize(),
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    // Success - reload page
+                    $('#change_password').modal('hide');
+                    location.reload();
+                } else {
+                    // Show errors
+                    if (response.errors) {
+                        $.each(response.errors, function(key, value) {
+                            $('#' + key + 'Error').text(value);
+                        });
                     }
-                },
-                error: function(xhr, status, error) {
-                    $('#formErrors').removeClass('d-none').text('An error occurred. Please try again.');
-                },
-                complete: function() {
-                    $('#submitBtn').prop('disabled', false);
+                    
+                    // Show general message if no field-specific errors
+                    if (response.message && (!response.errors || Object.keys(response.errors).length === 0)) {
+                        $('.modal-body').prepend('<div class="alert alert-danger" id="generalError">' + response.message + '</div>');
+                    }
                 }
-            });
+            },
+            error: function(xhr, status, error) {
+                $('.modal-body').prepend('<div class="alert alert-danger" id="generalError">An error occurred. Please try again.</div>');
+            },
+            complete: function() {
+                $('#submitBtn').prop('disabled', false);
+            }
         });
     });
-    </script>
-    <script>
 
-        // Real-time password match validation
-$('#newpassword, #renewpassword').on('keyup', function() {
-    const newPass = $('#newpassword').val();
-    const confirmPass = $('#renewpassword').val();
+    // Real-time password match validation
+    $('#newpassword, #renewpassword').on('keyup', function() {
+        const newPass = $('#newpassword').val();
+        const confirmPass = $('#renewpassword').val();
 
-    if (confirmPass && newPass !== confirmPass) {
-        $('#renewpasswordError').text('Passwords do not match.');
-    } else {
-        $('#renewpasswordError').text('');
-    }
+        if (confirmPass && newPass !== confirmPass) {
+            $('#renewpasswordError').text('Passwords do not match.');
+        } else {
+            $('#renewpasswordError').text('');
+        }
+    });
+    
+    // Clear errors when modal is closed
+    $('#change_password').on('hidden.bs.modal', function () {
+        $('#passwordError, #newpasswordError, #renewpasswordError').empty();
+        $('#generalError').remove();
+        $('#passwordForm')[0].reset();
+    });
 });
+</script>
 
-    </script>
+
 </body>
 </html>

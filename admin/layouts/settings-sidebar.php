@@ -15,12 +15,12 @@
 									<li class="submenu">
 										<a href="javascript:void(0);" class="<?php echo ($page =='account-settings.php' || $page == 'security-settings.php' || $page == 'company-settings.php'|| $page == 'localization-settings.php' || $page =='integrations-settings.php') ? 'active subdrop' : '' ;?>">
 											<i class="isax isax-setting-2 fs-18"></i>
-											<span class="fs-14 fw-medium ms-2">General Settings</span>
+											<span class="fs-14 fw-medium ms-2">Profile Settings</span>
 											<span class="isax isax-arrow-down-1 arrow-menu ms-auto"></span>
 										</a>
 										<ul>
 											<li><a href="account-settings.php" class="<?php echo ($page =='account-settings.php') ? 'active' : '' ;?>">Profile </a></li>
-											<li><a href="security-settings.php" class="<?php echo ($page =='security-settings.php') ? 'active' : '' ;?>">Change Paaword</a></li>
+											<li><a href="security-settings.php" class="<?php echo ($page =='security-settings.php') ? 'active' : '' ;?>">Change Password</a></li>
 											<li><a href="company-settings.php" class="<?php echo ($page =='company-settings.php') ? 'active' : '' ;?>">Company Profile</a></li>
 											<!-- <li><a href="localization-settings.php" class="<?php echo ($page =='localization-settings.php') ? 'active' : '' ;?>">Localization</a></li> -->
 										</ul>

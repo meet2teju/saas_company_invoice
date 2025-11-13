@@ -29,7 +29,7 @@ if (!$result || mysqli_num_rows($result) === 0) {
 $row = mysqli_fetch_assoc($result);
 
 // Fetch dropdown data
-$clients = mysqli_query($conn, "SELECT id, first_name FROM client WHERE is_deleted = 0");
+$clients = mysqli_query($conn, "SELECT id, first_name,company_name FROM client WHERE is_deleted = 0");
 $users = mysqli_query($conn,  "SELECT login.id, login.name FROM login
         JOIN user_role ON login.role_id = user_role.id
         WHERE login.is_deleted = 0
@@ -78,10 +78,14 @@ $is_service = ($row['item_type'] == 0) ? 'checked' : '';
                                                   <label class="form-label">Client Name <span class="text-danger">*</span></label>
                                                   <select class="form-select select2" name="client_id" id="client_id" >
                                                       <option value="">Select Client</option>
-                                                    <?php while ($client = mysqli_fetch_assoc($clients)) {
-                                                      $selected = ($client['id'] == $row['client_id']) ? 'selected' : '';
-                                                      echo "<option value='{$client['id']}' $selected>{$client['first_name']}</option>";
-                                                  } ?> 
+                                                   <?php while ($client = mysqli_fetch_assoc($clients)) {
+    $displayName = $client['first_name'];
+    if (!empty($client['company_name'])) {
+        $displayName .= ' - ' . $client['company_name'];
+    }
+    $selected = ($client['id'] == $row['client_id']) ? 'selected' : '';
+    echo "<option value='{$client['id']}' $selected>{$displayName}</option>";
+} ?>
                                                   </select>
                                                   <span class="text-danger error-text" id="clientname_error"></span>
                                                 </div>

@@ -119,7 +119,7 @@ $country_codes = [
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6>Add Client</h6>
-                            <a href="#" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a>
+                            <!-- <a href="#" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a> -->
                         </div>
 
                         <div class="card">
