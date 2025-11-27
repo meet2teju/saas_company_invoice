@@ -111,9 +111,9 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                                 <!-- <li>
                                     <a href="javascript:void(0);" class="dropdown-item"> <i class="isax isax-money-recive fs-14 me-2"></i> Debit Notes</a>
                                 </li> -->
-                                <li>
+                                <!-- <li>
                                     <a href="javascript:void(0);" class="dropdown-item"> <i class="isax isax-document fs-14 me-2"></i> Purchase Order</a>
-                                </li>
+                                </li> -->
                                 <li>
                                     <a href="javascript:void(0);" class="dropdown-item"> <i class="isax isax-document-download fs-14 me-2"></i> Quotation</a>
                                 </li>
@@ -330,7 +330,7 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                                                         <div class="d-flex flex-column align-items-center">
                                                             <i class="isax isax-document-text fs-48 text-muted mb-2"></i>
                                                             <p class="text-muted mb-0">No invoices found for this client</p>
-                                                            <a href="create-invoice.php?client_id=<?= $clientId ?>" class="btn btn-primary btn-sm mt-2">Create First Invoice</a>
+                                                            <a href="add-invoice.php?client_id=<?= $clientId ?>" class="btn btn-primary btn-sm mt-2">Create First Invoice</a>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -600,7 +600,7 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
 
                 <div class="modal-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Update Client</button>
+                <button type="submit" class="btn btn-primary">Update</button>
                 </div>
             </div>
             </form>

@@ -121,6 +121,7 @@ if (isset($_POST['submit'])) {
         $bank_branch = $_POST['bank_branch'] ?? '';
         $account_holder = $_POST['account_holder'] ?? '';
         $account_number = $_POST['account_number'] ?? '';
+        $routing_number = $_POST['routing_number'] ?? '';
         $ifsc = $_POST['IFSC_code'] ?? '';
 
         // Only insert if at least one banking field has a value
@@ -128,10 +129,10 @@ if (isset($_POST['submit'])) {
             !empty($account_number) || !empty($ifsc)) {
             
             $bankQuery = "INSERT INTO client_bank (
-                client_id, bank_name, bank_branch, account_holder, account_number, IFSC_code, status,
+                client_id, bank_name, bank_branch, account_holder, account_number,routing_number,IFSC_code, status,
                 org_id, is_deleted, created_by, updated_by
             ) VALUES (
-                '$clientId', '$bank_name', '$bank_branch', '$account_holder', '$account_number', '$ifsc', 1,
+                '$clientId', '$bank_name', '$bank_branch', '$account_holder', '$account_number','$routing_number','$ifsc', 1,
                 '$orgId', 0, '$currentUserId', '$currentUserId'
             )";
 

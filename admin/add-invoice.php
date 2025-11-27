@@ -147,7 +147,7 @@ if ($row && isset($row['AUTO_INCREMENT'])) {
                                             </div>
                                             <div class="col-lg-4 col-md-6">
                                               <div class="mb-3">
-                                                  <label class="form-label">Salesperson<span class="text-danger">*</span></label>
+                                                  <label class="form-label">Salesperson</label>
                                                     <select class="form-select select2" name="user_id" id="user_id">
                                                   <option value="">Select Salesperson</option>
                                                   <?php
@@ -166,7 +166,7 @@ if ($row && isset($row['AUTO_INCREMENT'])) {
                                                   }
                                                   ?>
                                               </select>
-                                              <span class="text-danger error-text" id="username_error"></span>
+                                              <!-- <span class="text-danger error-text" id="username_error"></span> -->
                                               </div>
                                             </div>
                                             <div class="col-lg-4 col-md-6">
@@ -919,10 +919,10 @@ $(document).ready(function() {
       $('#invoice_date_error').text('Invoice Date is required.');
       isValid = false;
     }
-    if (!$('#user_id').val()) {
-      $('#username_error').text('Salesperson is required.');
-      isValid = false;
-    }
+   // if (!$('#user_id').val()) {
+    //  $('#username_error').text('Salesperson is required.');
+    //  isValid = false;
+   // }
     if (!$('#due_date').val()) {
       $('#invoice_due_error').text('Due Date is required.');
       isValid = false;

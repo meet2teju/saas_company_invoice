@@ -13,14 +13,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
      $bank_name = mysqli_real_escape_string($conn, $_POST['bank_name']);
     $account_holder = mysqli_real_escape_string($conn, $_POST['account_holder']);
     $account_number = mysqli_real_escape_string($conn, $_POST['account_number']);
+    $routing_number = mysqli_real_escape_string($conn, $_POST['routing_number']);
     $ifsc_code = mysqli_real_escape_string($conn, $_POST['ifsc_code']);
     $swift_code = mysqli_real_escape_string($conn, $_POST['swift_code']);
     $opening_balance = mysqli_real_escape_string($conn, $_POST['opening_balance']);
 
     // Basic validation - check if required fields are not empty
     if (!empty($bank_name) && !empty($account_holder) && !empty($account_number)) {
-        $sql = "INSERT INTO bank (bank_name, account_holder, account_number, ifsc_code, swift_code, opening_balance, status)
-                VALUES ('$bank_name', '$account_holder', '$account_number', '$ifsc_code', '$swift_code', '$opening_balance', 1)";
+        $sql = "INSERT INTO bank (bank_name, account_holder, account_number,routing_number, ifsc_code, swift_code, opening_balance, status)
+                VALUES ('$bank_name', '$account_holder', '$account_number','$routing_number', '$ifsc_code', '$swift_code', '$opening_balance', 1)";
 
         if (mysqli_query($conn, $sql)) {
             $_SESSION['message'] = 'Bank added successfully.';
