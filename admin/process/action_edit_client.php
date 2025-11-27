@@ -171,6 +171,7 @@ if (isset($_POST['submit'])) {
         $bank_branch = mysqli_real_escape_string($conn, $_POST['bank_branch']);
         $account_holder = mysqli_real_escape_string($conn, $_POST['account_holder']);
         $account_number = mysqli_real_escape_string($conn, $_POST['account_number']);
+        $routing_number = mysqli_real_escape_string($conn, $_POST['routing_number']);
         $ifsc = mysqli_real_escape_string($conn, $_POST['IFSC_code']);
 
         $bankQuery = "UPDATE client_bank SET 
@@ -178,6 +179,7 @@ if (isset($_POST['submit'])) {
             bank_branch = '$bank_branch',
             account_holder = '$account_holder',
             account_number = '$account_number',
+            routing_number = '$routing_number',
             IFSC_code = '$ifsc',
             updated_by = '$currentUserId',
             updated_at = NOW()

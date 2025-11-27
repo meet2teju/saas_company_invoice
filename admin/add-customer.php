@@ -493,6 +493,12 @@ $country_codes = [
 
                                                     </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
+                                                        <label class="form-label">Routing Number</label>
+                                                        <input type="text" class="form-control" name="routing_number">
+                                                          <span id="routing_number_error" class="text-danger error-text"></span>
+
+                                                    </div>
+                                                    <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">IFSC</label>
                                                         <input type="text" class="form-control" name="IFSC_code" >
                                                        <span id="ifsc_code_error" class="text-danger error-text"></span>

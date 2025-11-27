@@ -7,6 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $bank_name = $_POST['bank_name'];
     $account_holder = $_POST['account_holder'];
     $account_number = $_POST['account_number'];
+     $routing_number = $_POST['routing_number'];
     $ifsc_code = $_POST['ifsc_code'];
     $swift_code = $_POST['swift_code'];
     $opening_balance = $_POST['opening_balance'];
@@ -27,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 bank_name = '$bank_name',
                 account_holder = '$account_holder',
                 account_number = '$account_number',
+                routing_number = '$routing_number',
                 ifsc_code = '$ifsc_code',
                 swift_code = '$swift_code',
                 opening_balance = '$opening_balance'

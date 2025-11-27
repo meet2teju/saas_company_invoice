@@ -517,6 +517,10 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                           <span id="account_number_error" class="text-danger error-text"></span>
 
                                                     </div>
+                                                     <div class="col-lg-4 col-md-6 mb-3">
+                                                        <label class="form-label">Routing Number</label>
+                                                        <input type="text" class="form-control" name="routing_number" value="<?php echo htmlspecialchars($bankrow['routing_number']??''); ?>">
+                                                    </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">IFSC</label>
                                                         <input type="text" class="form-control" name="IFSC_code" value="<?php echo htmlspecialchars($bankrow['IFSC_code']??''); ?>">
