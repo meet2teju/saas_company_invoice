@@ -66,6 +66,14 @@ $contacts_result = mysqli_query($conn, $contacts_query);
         <div class="content">
             <div class="row">
                 <div class="col-md-12 mx-auto">
+                      <?php if (isset($_SESSION['message'])): ?>
+                        <div class="alert alert-<?php echo ($_SESSION['message_type'] == 'success') ? 'success' : 'danger'; ?> alert-dismissible fade show mb-4" role="alert">
+                            <?php echo $_SESSION['message']; ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                        <?php 
+                        unset($_SESSION['message'], $_SESSION['message_type']); 
+                    endif; ?>
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6>Edit Client</h6>
@@ -1967,3 +1975,66 @@ $(document).ready(function() {
     });
 });
 </script>
+<script>
+$(document).ready(function() {
+    // Initialize Select2 for address dropdowns with search functionality
+    function initializeAddressSelect2() {
+        // Billing address dropdowns
+        $('#billing_country').select2({
+            placeholder: "Select Country",
+            allowClear: true,
+            width: '100%'
+        });
+        
+        $('#billing_state').select2({
+            placeholder: "Select State", 
+            allowClear: true,
+            width: '100%'
+        });
+        
+        $('#billing_city').select2({
+            placeholder: "Select City",
+            allowClear: true,
+            width: '100%'
+        });
+
+        // Shipping address dropdowns
+        $('#shipping_country').select2({
+            placeholder: "Select Country",
+            allowClear: true,
+            width: '100%'
+        });
+        
+        $('#shipping_state').select2({
+            placeholder: "Select State",
+            allowClear: true,
+            width: '100%'
+        });
+        
+        $('#shipping_city').select2({
+            placeholder: "Select City",
+            allowClear: true,
+            width: '100%'
+        });
+    }
+
+    // Initialize when page loads
+    initializeAddressSelect2();
+
+    // Re-initialize when tabs are shown (in case they're dynamically loaded)
+    $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function() {
+        setTimeout(function() {
+            initializeAddressSelect2();
+        }, 100);
+    });
+
+    // Also re-initialize when AJAX calls complete for state/city loading
+    $(document).ajaxComplete(function() {
+        setTimeout(function() {
+            initializeAddressSelect2();
+        }, 100);
+    });
+});
+</script>
+</body>
+</html>

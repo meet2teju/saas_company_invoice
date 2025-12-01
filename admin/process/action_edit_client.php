@@ -37,7 +37,7 @@ if (isset($_POST['submit'])) {
         if (mysqli_num_rows($resClientEmail) > 0) {
             $_SESSION['message'] = "Client email already exists in another client.";
             $_SESSION['message_type'] = 'danger';
-            header("Location: ../customers.php");
+            header("../edit-customer.php?id=" . $clientId);
             exit();
         }
 
@@ -54,7 +54,7 @@ if (isset($_POST['submit'])) {
                     if (mysqli_num_rows($resContact) > 0) {
                         $_SESSION['message'] = "Contact email '$contactEmail' already exists for another client.";
                         $_SESSION['message_type'] = 'danger';
-                        header("Location: ../customers.php");
+                        header("Location: ../edit-customer.php?id=" . $clientId);
                         exit();
                     }
                 }
@@ -128,65 +128,117 @@ if (isset($_POST['submit'])) {
         }
 
         // === Update client_address ===
-        $billing_name = mysqli_real_escape_string($conn, $_POST['billing_name']);
-        $billing_address1 = mysqli_real_escape_string($conn, $_POST['billing_address1']);
-        $billing_address2 = mysqli_real_escape_string($conn, $_POST['billing_address2']);
+       // === Handle client_address - Check if exists first ===
+        $billing_name = mysqli_real_escape_string($conn, $_POST['billing_name'] ?? '');
+        $billing_address1 = mysqli_real_escape_string($conn, $_POST['billing_address1'] ?? '');
+        $billing_address2 = mysqli_real_escape_string($conn, $_POST['billing_address2'] ?? '');
         $billing_country = isset($_POST['billing_country']) && $_POST['billing_country'] !== '' ? (int)$_POST['billing_country'] : 0;
         $billing_state = isset($_POST['billing_state']) && $_POST['billing_state'] !== '' ? (int)$_POST['billing_state'] : 0;
         $billing_city = isset($_POST['billing_city']) && $_POST['billing_city'] !== '' ? (int)$_POST['billing_city'] : 0;
-        $billing_pincode = mysqli_real_escape_string($conn, $_POST['billing_pincode']);
-        $shipping_name = mysqli_real_escape_string($conn, $_POST['shipping_name']);
-        $shipping_address1 = mysqli_real_escape_string($conn, $_POST['shipping_address1']);
-        $shipping_address2 = mysqli_real_escape_string($conn, $_POST['shipping_address2']);
+        $billing_pincode = mysqli_real_escape_string($conn, $_POST['billing_pincode'] ?? '');
+        $shipping_name = mysqli_real_escape_string($conn, $_POST['shipping_name'] ?? '');
+        $shipping_address1 = mysqli_real_escape_string($conn, $_POST['shipping_address1'] ?? '');
+        $shipping_address2 = mysqli_real_escape_string($conn, $_POST['shipping_address2'] ?? '');
         $shipping_country = isset($_POST['shipping_country']) && $_POST['shipping_country'] !== '' ? (int)$_POST['shipping_country'] : 0;
         $shipping_state = isset($_POST['shipping_state']) && $_POST['shipping_state'] !== '' ? (int)$_POST['shipping_state'] : 0;
         $shipping_city = isset($_POST['shipping_city']) && $_POST['shipping_city'] !== '' ? (int)$_POST['shipping_city'] : 0;
-        $shipping_pincode = mysqli_real_escape_string($conn, $_POST['shipping_pincode']);
+        $shipping_pincode = mysqli_real_escape_string($conn, $_POST['shipping_pincode'] ?? '');
 
-        $addressQuery = "UPDATE client_address SET 
-            billing_name = '$billing_name',
-            billing_address1 = '$billing_address1',
-            billing_address2 = '$billing_address2',
-            billing_country = '$billing_country',
-            billing_state = '$billing_state',
-            billing_city = '$billing_city',
-            billing_pincode = '$billing_pincode',
-            shipping_name = '$shipping_name',
-            shipping_address1 = '$shipping_address1',
-            shipping_address2 = '$shipping_address2',
-            shipping_country = '$shipping_country',
-            shipping_state = '$shipping_state',
-            shipping_city = '$shipping_city',
-            shipping_pincode = '$shipping_pincode',
-            updated_by = '$currentUserId',
-            updated_at = NOW()
-        WHERE client_id = '$clientId'";
+
+
+       // Check if address record exists for this client
+        $checkAddressQuery = "SELECT id FROM client_address WHERE client_id = '$clientId'";
+        $addressResult = mysqli_query($conn, $checkAddressQuery);
+
+        if (mysqli_num_rows($addressResult) > 0) {
+            // Address record exists - UPDATE
+            $addressQuery = "UPDATE client_address SET 
+                billing_name = '$billing_name',
+                billing_address1 = '$billing_address1',
+                billing_address2 = '$billing_address2',
+                billing_country = '$billing_country',
+                billing_state = '$billing_state',
+                billing_city = '$billing_city',
+                billing_pincode = '$billing_pincode',
+                shipping_name = '$shipping_name',
+                shipping_address1 = '$shipping_address1',
+                shipping_address2 = '$shipping_address2',
+                shipping_country = '$shipping_country',
+                shipping_state = '$shipping_state',
+                shipping_city = '$shipping_city',
+                shipping_pincode = '$shipping_pincode',
+                updated_by = '$currentUserId',
+                updated_at = NOW()
+            WHERE client_id = '$clientId'";
+        } else {
+            // Address record doesn't exist - INSERT
+            $addressQuery = "INSERT INTO client_address SET 
+                client_id = '$clientId',
+                billing_name = '$billing_name',
+                billing_address1 = '$billing_address1',
+                billing_address2 = '$billing_address2',
+                billing_country = '$billing_country',
+                billing_state = '$billing_state',
+                billing_city = '$billing_city',
+                billing_pincode = '$billing_pincode',
+                shipping_name = '$shipping_name',
+                shipping_address1 = '$shipping_address1',
+                shipping_address2 = '$shipping_address2',
+                shipping_country = '$shipping_country',
+                shipping_state = '$shipping_state',
+                shipping_city = '$shipping_city',
+                shipping_pincode = '$shipping_pincode',
+                created_by = '$currentUserId',
+                updated_by = '$currentUserId',
+                created_at = NOW(),
+                updated_at = NOW()";
+        }
 
         if (!mysqli_query($conn, $addressQuery)) {
-            throw new Exception("Address update failed: " . mysqli_error($conn));
+          throw new Exception("Address update/insert failed: " . mysqli_error($conn));
         }
 
         // === Update client_bank ===
-        $bank_name = mysqli_real_escape_string($conn, $_POST['bank_name']);
-        $bank_branch = mysqli_real_escape_string($conn, $_POST['bank_branch']);
-        $account_holder = mysqli_real_escape_string($conn, $_POST['account_holder']);
-        $account_number = mysqli_real_escape_string($conn, $_POST['account_number']);
-        $routing_number = mysqli_real_escape_string($conn, $_POST['routing_number']);
-        $ifsc = mysqli_real_escape_string($conn, $_POST['IFSC_code']);
+        $bank_name = mysqli_real_escape_string($conn, $_POST['bank_name'] ?? '');
+        $bank_branch = mysqli_real_escape_string($conn, $_POST['bank_branch'] ?? '');
+        $account_holder = mysqli_real_escape_string($conn, $_POST['account_holder'] ?? '');
+        $account_number = mysqli_real_escape_string($conn, $_POST['account_number'] ?? '');
+        $routing_number = mysqli_real_escape_string($conn, $_POST['routing_number'] ?? '');
+        $ifsc = mysqli_real_escape_string($conn, $_POST['IFSC_code'] ?? '');
+        // Check if bank record exists for this client
+        $checkBankQuery = "SELECT id FROM client_bank WHERE client_id = '$clientId'";
+        $bankResult = mysqli_query($conn, $checkBankQuery);
 
-        $bankQuery = "UPDATE client_bank SET 
-            bank_name = '$bank_name',
-            bank_branch = '$bank_branch',
-            account_holder = '$account_holder',
-            account_number = '$account_number',
-            routing_number = '$routing_number',
-            IFSC_code = '$ifsc',
-            updated_by = '$currentUserId',
-            updated_at = NOW()
-        WHERE client_id = '$clientId'";
+        if (mysqli_num_rows($bankResult) > 0) {
+            // Bank record exists - UPDATE
+            $bankQuery = "UPDATE client_bank SET 
+                bank_name = '$bank_name',
+                bank_branch = '$bank_branch',
+                account_holder = '$account_holder',
+                account_number = '$account_number',
+                routing_number = '$routing_number',
+                IFSC_code = '$ifsc',
+                updated_by = '$currentUserId',
+                updated_at = NOW()
+            WHERE client_id = '$clientId'";
+        } else {
+            // Bank record doesn't exist - INSERT
+            $bankQuery = "INSERT INTO client_bank SET 
+                client_id = '$clientId',
+                bank_name = '$bank_name',
+                bank_branch = '$bank_branch',
+                account_holder = '$account_holder',
+                account_number = '$account_number',
+                routing_number = '$routing_number',
+                IFSC_code = '$ifsc',
+                created_by = '$currentUserId',
+                updated_by = '$currentUserId',
+                created_at = NOW(),
+                updated_at = NOW()";
+        }
 
         if (!mysqli_query($conn, $bankQuery)) {
-            throw new Exception("Bank update failed: " . mysqli_error($conn));
+         throw new Exception("Bank update/insert failed: " . mysqli_error($conn));
         }
 
         // === Handle documents ===
@@ -247,14 +299,14 @@ if (isset($_POST['submit'])) {
         mysqli_commit($conn);
         $_SESSION['message'] = 'Client updated successfully';
         $_SESSION['message_type'] = 'success';
-        header("Location: ../customers.php");
+        header("Location: ../edit-customer.php?id=" . $clientId);
         exit();
 
     } catch (Exception $e) {
         mysqli_rollback($conn);
         $_SESSION['message'] = 'Update failed: ' . $e->getMessage();
         $_SESSION['message_type'] = 'danger';
-        header("Location: ../customers.php");
+        header("Location: ../edit-customer.php?id=" . $clientId);
         exit();
     }
 }

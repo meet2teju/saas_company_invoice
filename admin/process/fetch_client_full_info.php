@@ -76,7 +76,7 @@ if (isset($_POST['client_id'])) {
         if (!empty($row['billing_country'])) $location_parts[] = htmlspecialchars($row['billing_country']);
         
         if (!empty($location_parts)) {
-            $address_html .= '<p class="mb-1 fs-13"><span class="text-dark">Location:</span> ' . implode(', ', $location_parts);
+            $address_html .= '<p class="mb-1 fs-13"><span class="text-dark"></span> ' . implode(', ', $location_parts);
             if (!empty($row['billing_pincode'])) {
                 $address_html .= ' - ' . htmlspecialchars($row['billing_pincode']);
             }
@@ -152,7 +152,7 @@ if (isset($_POST['client_id'])) {
         if (!empty($country['name'])) $location_parts[] = htmlspecialchars($country['name']);
         
         if (!empty($location_parts)) {
-            $address_html .= '<p class="mb-1 fs-13"><span class="text-dark">Location:</span> ' . implode(', ', $location_parts);
+            $address_html .= '<p class="mb-1 fs-13"><span class="text-dark"></span> ' . implode(', ', $location_parts);
             if (!empty($company['zipcode'])) {
                 $address_html .= ' - ' . htmlspecialchars($company['zipcode']);
             }

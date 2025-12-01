@@ -236,11 +236,12 @@ $logo = !empty($logoRow['company_logo']) ? '../uploads/' . $logoRow['company_log
                     <li>
                         <ul>
                             <li class="submenu">
-                                <a href="javascript:void(0);" class="<?= in_array($page, ['expense.php','add-expense.php','expense-details.php','edit-expense.php']) ? 'active subdrop' : '' ?>">
+                                 <a href="javascript:void(0);" class="<?= in_array($page, ['expense.php','add-expense.php','expense-details.php','edit-expense.php','expense_category.php','add_expense_category.php','edit_expense_category.php']) ? 'active subdrop' : '' ?>">
                                     <i class="isax isax-money-send5"></i><span>Expenses</span><span class="menu-arrow"></span>
                                 </a>
                                 <ul>
                                     <li><a href="expense.php" class="<?= ($page == 'expense.php') ? 'active' : '' ?>">Expenses</a></li>
+                                    <li><a href="expense_category.php" class="<?= ($page == 'expense_category.php') ? 'active' : '' ?>">Expense Category</a></li>
                                 </ul>
                             </li>
                         </ul>
