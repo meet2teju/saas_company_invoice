@@ -80,28 +80,71 @@ if (isset($_POST['submit'])) {
         }
 
         // === Insert quotation items ===
-        foreach ($_POST['product_id'] as $index => $product_id) {
-            $product_id    = $_POST['product_id'][$index] ?? '';
-            $quantity      = (float)($_POST['quantity'][$index] ?? 0);
-            $unit_id       = $_POST['unit_id'][$index] ?? '';
-            $selling_price = unformat($_POST['selling_price'][$index] ?? 0);
-            $tax_id        = $_POST['tax_id'][$index] ?? '';
-            $item_amount   = unformat($_POST['amount'][$index] ?? 0);
+       // Check if we're using item_id (products) or service_name (services)
+        if (isset($_POST['item_id'])) {
+            // New logic for product/service system
+            foreach ($_POST['item_id'] as $index => $item_id) {
+                $item_id       = $_POST['item_id'][$index] ?? '';
+                $service_name  = mysqli_real_escape_string($conn, $_POST['service_name'][$index] ?? '');
+                $quantity      = (float)($_POST['quantity'][$index] ?? 0);
+                $unit_id       = $_POST['unit_id'][$index] ?? '';
+                $selling_price = unformat($_POST['selling_price'][$index] ?? 0);
+                $tax_id        = $_POST['tax_id'][$index] ?? '';
+                $rate          = unformat($_POST['rate'][$index] ?? 0);
+                $item_amount   = unformat($_POST['amount'][$index] ?? 0);
+                $name          = mysqli_real_escape_string($conn, $_POST['name'][$index] ?? '');
 
-            $product_id_sql = ($product_id === '' ? 'NULL' : (int)$product_id);
-            $unit_id_sql    = ($unit_id === '' ? 0 : (int)$unit_id);
-            $tax_id_sql     = ($tax_id === '' ? 'NULL' : (int)$tax_id);
+                // Determine if this is a product or service
+                $isProduct = (!empty($item_id) && $item_id != 0);
+                
+                if ($isProduct) {
+                    // Product item
+                    $product_id_sql = (int)$item_id;
+                    $service_name_sql = 'NULL';
+                    $unit_id_sql = ($unit_id === '' ? 0 : (int)$unit_id);
+                } else {
+                    // Service item
+                    $product_id_sql = 'NULL';
+                    $service_name_sql = "'$service_name'";
+                    $unit_id_sql = 0; // Services typically don't have units
+                }
 
-            if (!empty($product_id)) {
+                $tax_id_sql = ($tax_id === '' ? 'NULL' : (int)$tax_id);
                 $itemInsertQuery = "INSERT INTO quotation_item (
-                    quotation_id, quantity, product_id, unit_id, selling_price,
-                    tax_id, amount, org_id, is_deleted, created_by, updated_by
+                    quotation_id, quantity, product_id, service_name, unit_id, selling_price,
+                    tax_id, rate, amount, org_id, is_deleted, created_by, updated_by
                 ) VALUES (
-                    '$quotationId', '$quantity', $product_id_sql, '$unit_id_sql', '$selling_price',
-                    $tax_id_sql, '$item_amount', '$orgId', 0, '$currentUserId', '$currentUserId'
+                    '$quotationId', '$quantity', $product_id_sql, $service_name_sql, '$unit_id_sql', '$selling_price',
+                    $tax_id_sql, '$rate', '$item_amount', '$orgId', 0, '$currentUserId', '$currentUserId'
                 )";
 
                 if (!mysqli_query($conn, $itemInsertQuery)) throw new Exception("Item insert failed: " . mysqli_error($conn));
+            }
+         } else {
+            // Fallback to old product-only logic (for backward compatibility)
+            foreach ($_POST['product_id'] as $index => $product_id) {
+                $product_id    = $_POST['product_id'][$index] ?? '';
+                $quantity      = (float)($_POST['quantity'][$index] ?? 0);
+                $unit_id       = $_POST['unit_id'][$index] ?? '';
+                $selling_price = unformat($_POST['selling_price'][$index] ?? 0);
+                $tax_id        = $_POST['tax_id'][$index] ?? '';
+                $item_amount   = unformat($_POST['amount'][$index] ?? 0);
+
+                $product_id_sql = ($product_id === '' ? 'NULL' : (int)$product_id);
+                $unit_id_sql    = ($unit_id === '' ? 0 : (int)$unit_id);
+                $tax_id_sql     = ($tax_id === '' ? 'NULL' : (int)$tax_id);
+
+                if (!empty($product_id)) {
+                    $itemInsertQuery = "INSERT INTO quotation_item (
+                        quotation_id, quantity, product_id, unit_id, selling_price,
+                        tax_id, amount, org_id, is_deleted, created_by, updated_by
+                    ) VALUES (
+                        '$quotationId', '$quantity', $product_id_sql, '$unit_id_sql', '$selling_price',
+                        $tax_id_sql, '$item_amount', '$orgId', 0, '$currentUserId', '$currentUserId'
+                    )";
+
+                    if (!mysqli_query($conn, $itemInsertQuery)) throw new Exception("Item insert failed: " . mysqli_error($conn));
+                }
             }
         }
 

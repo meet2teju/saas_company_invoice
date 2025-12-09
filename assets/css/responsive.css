@@ -1,0 +1,274 @@
+@media only screen and (max-width: 1439px){
+    .navbar-nav .nav-item a, .footer-menu li a{
+        font-size: 18px;
+    }
+    .banner-title{
+        font-size: 50px;
+        line-height: 60px;
+    }
+    .banner-p{
+        font-size: 18px;
+        line-height: 28px;
+    }
+    .invoice-logo-title{
+        font-size: 40px; 
+    }
+    .invoice-step-title{
+        font-size: 36px;
+        line-height: 50px;
+    }
+    .step-title{
+        font-size: 22px;
+    }
+    .step-subtitle{
+        font-size: 16px;
+    }
+    .outer-icon-box{
+        min-height: 66px;
+        min-width: 66px;
+    }
+    .icon-box{
+        min-height: 46px;
+        min-width: 46px;
+        font-size: 24px;
+    }
+    .price{
+        font-size: 36px;
+    }
+    .month{
+        font-size: 16px;
+    }
+    .plan-title{
+        font-size: 28px;
+    }
+    .subtitle{
+        font-size: 18px;
+    }
+    .feature{
+        font-size: 18px;
+    }
+}
+@media only screen and (min-width: 992px) and (max-width: 1199px) {
+    .navbar .navbar-brand img {
+        width: 140px;
+    }
+    .navbar-nav .nav-item a, .footer-menu li a{
+        font-size: 16px;
+    }
+    .navbar-nav .nav-item{
+        padding: 0px 10px;
+    }
+    .bac-shape{
+        max-width: 880px;
+    }
+    .secondary-btn, .primary-btn{
+        padding: 10px 20px;
+    }
+    .pricing-left-box{
+        padding: 50px 30px;
+    }
+    .pricing-title{
+        font-size: 28px;
+    }
+    .contact-form{
+        padding: 30px;
+    }
+    .contact-title{
+        font-size: 30px;
+        line-height: 38px;
+    }
+    .lead-form input{
+        padding: 13px 20px;
+    }
+}
+@media only screen and (min-width: 768px) and (max-width: 991px) {
+    .main-part {
+        padding-top: 70px;
+    }
+    .navbar-collapse{
+        border: 0;
+        padding: 20px;
+        border-radius: 10px;
+        background: #fff;
+        border: 1px solid #cfcfcf;
+    }
+    .navbar-nav .nav-item{
+        padding: 0;
+    }
+    .navbar .navbar-brand img {
+        width: 140px;
+    }
+    .navbar-nav .nav-item a{
+        font-size: 18px;
+        color: #000;
+    }
+    .footer-menu li a{
+        font-size: 18px;
+        color: #fff;
+    }
+    .bac-shape{
+        max-width: 880px;
+    }
+    .secondary-btn, .primary-btn{
+        padding: 10px 20px;
+    }
+    .pricing-left-box{
+        padding: 20px;
+    }
+    .pricing-title{
+        font-size: 26px;
+    }
+    .contact-form{
+        padding: 20px;
+    }
+    .contact-title{
+        font-size: 28px;
+        line-height: 36px;
+    }
+    .lead-form input{
+        padding: 13px 20px;
+    }
+    .secondary-btn{
+        background: #007aff;
+    }
+}
+@media only screen and (max-width: 767px){
+    .main-part {
+        padding-top: 70px;
+    }
+    .navbar-collapse{
+        border: 0;
+        padding: 20px;
+        border-radius: 10px;
+        background: #fff;
+        border: 1px solid #cfcfcf;
+    }
+    .navbar-nav .nav-item{
+        padding: 0;
+    }
+    .navbar .navbar-brand img {
+        width: 140px;
+    }
+    .navbar-nav .nav-item a{
+        font-size: 18px;
+        color: #000;
+    }
+    .footer-menu li a{
+        font-size: 18px;
+        color: #fff;
+    }
+    .bac-shape{
+        max-width: 880px;
+    }
+    .secondary-btn, .primary-btn{
+        padding: 10px 20px;
+    }
+    .pricing-left-box{
+        padding: 20px;
+    }
+    .pricing-title{
+        font-size: 26px;
+        line-height: 36px;
+    }
+    .contact-form{
+        padding: 20px;
+    }
+    .contact-title{
+        font-size: 28px;
+        line-height: 36px;
+    }
+    .lead-form input{
+        padding: 13px 20px;
+    }
+    .secondary-btn{
+        background: #007aff;
+    }
+    .info-section{
+        padding: 20px;
+    }
+    .footer-top{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 15px;
+    }
+    .footer-menu {
+        flex-wrap: wrap;
+        gap: 15px;
+        text-align: center;
+        justify-content: center;
+    }
+    .footer-bottom{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 15px;
+    }
+}
+@media screen and (max-width: 576px) {
+    .hero-banner {
+        padding: 50px 0px;
+    }
+    .banner-title{
+        font-size: 44px;
+        line-height: 56px;
+    }
+    .invoice-logo-title {
+        font-size: 32px;
+    }
+    .invoice-step-title{
+        font-size: 36px;
+        line-height: 44px;
+        margin-bottom: 15px;
+    }
+    .step-box {
+        gap: 20px;
+    }
+    .pricing-right-box {
+        padding: 20px 15px;
+    }
+    .pricing-title{
+        font-size: 22px;
+        line-height: 30px;
+    }
+}
+@media screen and (max-width: 425px) {
+    .secondary-btn, .primary-btn{
+        font-size: 16px;
+    }
+    .banner-title{
+        font-size: 38px;
+        line-height: 50px;
+    }
+    .invoice-logo-title {
+        font-size: 28px;
+    }
+    .invoice-step-title{
+        font-size: 30px;
+        line-height: 40px;
+    }
+    .step-box {
+        display: flex;
+        flex-direction: column;
+        text-align: center;
+    }
+    .contact-title {
+        font-size: 24px;
+        line-height: 32px;
+    }
+    .features-box {
+        padding: 15px;
+        border-radius: 10px;
+    }
+    .feature{
+        font-size: 16px;
+    }
+    .feature i{
+        font-size: 20px;
+        margin-right: 10px;
+    }
+}
+@media screen and (max-width: 320px) {
+}
