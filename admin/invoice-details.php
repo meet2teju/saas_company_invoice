@@ -39,14 +39,35 @@ if (!empty($bank_id)) {
     $bank = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM bank WHERE id = $bank_id"));
 }
 
-// Fetch items
-$items_result = mysqli_query($conn, "SELECT ii.*, p.name AS product_name,p.code, t.name AS tax_name, u.name AS unit_name
+// Fetch items with updated structure for products and services
+$items_result = mysqli_query($conn, "
+    SELECT ii.*, 
+           p.name AS product_name,
+           p.code AS product_code,
+           s.name AS service_product_name,
+           s.code AS service_code,
+           COALESCE(p.code, s.code) AS code,
+           t.name AS tax_name, 
+           u.name AS unit_name
     FROM invoice_item ii
     LEFT JOIN product p ON p.id = ii.product_id
+    LEFT JOIN product s ON s.id = ii.service_id
     LEFT JOIN units u ON u.id = ii.unit_id
     LEFT JOIN tax t ON t.id = ii.tax_id
-	
-    WHERE ii.invoice_id = $invoice_id AND ii.is_deleted = 0");
+    WHERE ii.invoice_id = $invoice_id AND ii.is_deleted = 0
+");
+
+// Check if any item has quantity value (not null and greater than 0)
+$showQuantityColumn = false;
+mysqli_data_seek($items_result, 0); // Reset pointer
+while ($item = mysqli_fetch_assoc($items_result)) {
+    if (!is_null($item['quantity']) && $item['quantity'] > 0) {
+        $showQuantityColumn = true;
+        break;
+    }
+}
+// Reset pointer again for later use
+mysqli_data_seek($items_result, 0);
 
 // Fetch client address only if client_id is valid
 $client_address = null;
@@ -60,14 +81,13 @@ if (!empty($client_id)) {
         LEFT JOIN countries co ON co.id = ca.billing_country
         LEFT JOIN states s ON s.id = ca.billing_state
         LEFT JOIN cities ci ON ci.id = ca.billing_city
-		
         WHERE ca.client_id = $client_id
         LIMIT 1
     ";
     $client_address = mysqli_fetch_assoc(mysqli_query($conn, $client_address_query));
 }
-// Fetch company info (Bill From)
-// Fetch company info (Bill From) with city/state/country names
+
+// Fetch company info (Bill From) with city/state/country names and invoice logo
 $company = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT ci.*, 
            co.name AS country_name,
@@ -80,8 +100,54 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
     LIMIT 1
 "));
 
-?>
+// Check if notes are available
+$showNotes = !empty($invoice['invoice_note']);
 
+// Check if terms & conditions are available
+$showTerms = !empty($invoice['description']);
+
+// Check if bank details are available
+$showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account_number']) || !empty($bank['ifsc_code']));
+
+// Function to convert number to words
+// function numberToWords($number) {
+//     $ones = array(
+//         0 => 'Zero', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four',
+//         5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine',
+//         10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen',
+//         14 => 'Fourteen', 15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen',
+//         18 => 'Eighteen', 19 => 'Nineteen'
+//     );
+    
+//     $tens = array(
+//         2 => 'Twenty', 3 => 'Thirty', 4 => 'Forty', 5 => 'Fifty',
+//         6 => 'Sixty', 7 => 'Seventy', 8 => 'Eighty', 9 => 'Ninety'
+//     );
+    
+//     if ($number < 20) {
+//         return $ones[$number];
+//     }
+    
+//     if ($number < 100) {
+//         return $tens[(int)($number / 10)] . ($number % 10 != 0 ? ' ' . $ones[$number % 10] : '');
+//     }
+    
+//     if ($number < 1000) {
+//         return $ones[(int)($number / 100)] . ' Hundred' . ($number % 100 != 0 ? ' ' . numberToWords($number % 100) : '');
+//     }
+    
+//     if ($number < 100000) {
+//         return numberToWords((int)($number / 1000)) . ' Thousand' . ($number % 1000 != 0 ? ' ' . numberToWords($number % 1000) : '');
+//     }
+    
+//     if ($number < 10000000) {
+//         return numberToWords((int)($number / 100000)) . ' Lakh' . ($number % 100000 != 0 ? ' ' . numberToWords($number % 100000) : '');
+//     }
+    
+//     return numberToWords((int)($number / 10000000)) . ' Crore' . ($number % 10000000 != 0 ? ' ' . numberToWords($number % 10000000) : '');
+// }
+
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -94,6 +160,167 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
 	<!-- Add the required libraries for PDF generation -->
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+	
+<style>
+    /* Print-specific styles - Only for PDF */
+    @media print {
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+        
+        body * {
+            visibility: hidden;
+        }
+        #pdf-content, #pdf-content * {
+            visibility: visible;
+        }
+        #pdf-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            background: white;
+            margin: 0;
+            padding: 0;
+        }
+        .no-print, .btn, .alert, .offcanvas, .modal {
+            display: none !important;
+        }
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+            margin-bottom: 0 !important;
+        }
+        .table-dark {
+            background-color: #2c3e50 !important;
+            color: white !important;
+        }
+        /* Hide empty elements in PDF */
+        .pdf-hide-empty:empty {
+            display: none !important;
+        }
+        /* Hide invoice details section in print */
+        .invoice-details-section {
+            display: none !important;
+        }
+        /* Ensure proper page breaks */
+        .card-body {
+            padding: 20px !important;
+        }
+        /* Improve readability for A4 */
+        table {
+            font-size: 11px;
+            width: 100%;
+        }
+        h6, .fs-14, .fs-16 {
+            font-size: 12px !important;
+        }
+    }
+
+    /* PDF-only header - EXACTLY LIKE QUOTATION FILE */
+    .pdf-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #333;
+        padding-bottom: 10px;
+    }
+    .pdf-logo {
+        max-width: 150px;
+        max-height: 80px;
+    }
+    
+    @media screen {
+        .pdf-header {
+            display: none;
+        }
+    }
+
+    /* Rest of your existing CSS remains exactly the same */
+    .gst-badge {
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+    .gst-badge.gst {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+    .gst-badge.non-gst {
+        background-color: #fff3cd;
+        color: #664d03;
+        border: 1px solid #ffecb5;
+    }
+
+    .billing-section {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    .billing-from, .billing-to {
+        flex: 1;
+        min-width: 300px;
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+    }
+    .billing-title {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 10px;
+        color: #2c3e50;
+        border-bottom: 2px solid #007bff;
+        padding-bottom: 5px;
+    }
+
+    .company-logo-section {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+    }
+    .company-logo-img {
+        max-width: 120px;
+        max-height: 80px;
+        margin-right: 20px;
+    }
+    .company-info-text {
+        flex: 1;
+    }
+    .company-name {
+        font-size: 20px;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    .company-tagline {
+        font-size: 14px;
+        color: #6c757d;
+        margin-bottom: 0;
+    }
+    
+    .pdf-only {
+        display: none;
+    }
+    
+    @media print {
+        .pdf-only {
+            display: block;
+        }
+        .no-pdf {
+            display: none;
+        }
+    }
+</style>
 </head>
 
 <body>
@@ -110,9 +337,9 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
 		<div class="page-wrapper">
 
 			<!-- Start Content -->
-			<div class="content">
+			<div class="content content-two">
 			  <?php if (isset($_SESSION['message'])): ?>
-                    <div class="alert alert-<?= $_SESSION['message_type'] ?>">
+                    <div class="alert alert-<?= $_SESSION['message_type'] ?> no-print">
                         <?= $_SESSION['message']; unset($_SESSION['message']); ?>
                     </div>
                 <?php endif; ?>
@@ -120,10 +347,15 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
 				<div class="row">
 					<div class="col-md-12 mx-auto">
 						<div>
-							<div class="d-flex align-items-center justify-content-between flex-wrap row-gap-3 mb-3">
+							<div class="d-flex align-items-center justify-content-between flex-wrap row-gap-3 mb-3 no-print">
 								<h6>Invoice Detail</h6>
 								<div class="d-flex align-items-center flex-wrap row-gap-3">
-									<a href="javascript:void(0);" onclick="downloadAsPDF(event)" class="btn btn-outline-white d-inline-flex align-items-center me-3">Download PDF</a>
+								
+                                    <!-- Download PDF button -->
+                                    <a href="generate-invoice-pdf.php?id=<?= $invoiceId ?>" class="btn btn-outline-white d-inline-flex align-items-center me-3">
+                                        <i class="isax isax-document-download me-1"></i>Download PDF
+                                    </a>
+                                    
 									<a href="process/action_send_invoice_email.php?invoice_id=<?= $invoiceId ?>" 
 										class="btn btn-outline-white d-inline-flex align-items-center me-3">
 											<i class="isax isax-message-notif me-1"></i>Send Email
@@ -139,229 +371,299 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
 									</a>
 								</div>
 							</div>
-							<div class="card" id="downloadpdf">
-								<div class="card-body">
-									<div class="bg-light rounded position-relative mb-3">
-										<!-- <div class="position-absolute top-0 end-0 z-0">
-											
+							
+							<!-- PDF Content Section - This is what gets converted to PDF -->
+							<div id="pdf-content">
+								<!-- PDF Header with Logo - Only visible in PDF -->
+								<div class="pdf-header">
+									<div>
+										<?php if (!empty($company['invoice_logo'])): ?>
+											<img src="../uploads/<?= htmlspecialchars($company['invoice_logo']) ?>" class="pdf-logo" alt="Company Logo">
+										<?php else: ?>
+											<h4><?= htmlspecialchars($company['name'] ?? 'Company Name') ?></h4>
+										<?php endif; ?>
+									</div>
+									<div class="text-end">
+										<h5>INVOICE</h5>
+										<p class="mb-0">Invoice No: <?= htmlspecialchars($invoice['invoice_id']) ?></p>
+										<p class="mb-0">Date: <?= htmlspecialchars($invoice['invoice_date']) ?></p>
+									</div>
+								</div>
+								
+								<div class="card">
+									<div class="card-body">
+										<!-- Company Logo Section - Visible on screen but not in PDF -->
+										<div class="company-logo-section no-pdf">
+											<?php if (!empty($company['invoice_logo'])): ?>
+												<img src="../uploads/<?= htmlspecialchars($company['invoice_logo']) ?>" class="company-logo-img" alt="Company Logo">
+											<?php endif; ?>
 										</div>
-										<div class="d-flex align-items-center justify-content-between border-bottom flex-wrap mb-3 pb-2 position-relative z-1">
-											<div class="mb-3">
-												<div class="d-flex align-items-center flex-wrap row-gap-3">
-													<div class="me-4">
-														<h6 class="fs-14 fw-semibold mb-1">Dreams Technologies Pvt Ltd.,</h6>
-														<p class="mb-1"><?= htmlspecialchars($login_user['city_name']) ?>, <?= htmlspecialchars($login_user['state_name']) ?>, <?= htmlspecialchars($login_user['country_name']) ?>, <?= htmlspecialchars($login_user['zipcode']) ?></p>
 
-													</div>
-													
-												</div>
-											</div>
-											
-										</div> -->
-
-										<!-- start row -->
-										<div class="row gy-3 position-relative z-1">
-											<div class="col-lg-4">
-												<div>
-													<h6 class="mb-2 fs-16 fw-semibold">Invoice Details</h6>
+										<!-- Invoice Details Section - Hidden in Print/PDF -->
+										<div class="invoice-details-section bg-light rounded position-relative mb-3 no-pdf">
+											<!-- start row -->
+											<div class="row gy-3 position-relative z-1">
+												<div class="col-lg-12">
 													<div>
-														<p class="mb-1">Invoice Number : <span class="text-dark"><?= htmlspecialchars($invoice['invoice_id']) ?></span></p>
-														<p class="mb-1">Issued On : <span class="text-dark"><?= htmlspecialchars($invoice['invoice_date']) ?></span></span></p>
-														<p class="mb-1">Due Date :  <span class="text-dark"><?= htmlspecialchars($invoice['due_date']) ?></span></span></p>
-														<p class="mb-1">Reference Name:  <span class="text-dark"><?= htmlspecialchars($invoice['reference_name']) ?></span></span></p>
-														<p class="mb-1">Sales Person :  <span class="text-dark"> <?= htmlspecialchars($invoice['salesperson_name'] ?? 'N/A') ?></span></span></p>
-														<p class="mb-1">Order Number :  <span class="text-dark"><?= htmlspecialchars($invoice['order_number']) ?></span></span></p>
-														<!-- <p class="mb-1">Recurring Invoice  :  <span class="text-dark">Monthly</span></p> -->
-														<?php 
+														<h6 class="mb-2 fs-16 fw-semibold">Invoice Details</h6>
+														<div class="pdf-hide-empty">
+															<p class="mb-1">Invoice Number : <span class="text-dark"><?= htmlspecialchars($invoice['invoice_id']) ?></span></p>
+															<p class="mb-1">Issued On : <span class="text-dark"><?= htmlspecialchars($invoice['invoice_date']) ?></span></span></p>
+															<p class="mb-1">Due Date :  <span class="text-dark"><?= htmlspecialchars($invoice['due_date']) ?></span></span></p>
+															<?php if (!empty($invoice['reference_name'])): ?>
+																<p class="mb-1">Reference Name:  <span class="text-dark"><?= htmlspecialchars($invoice['reference_name']) ?></span></span></p>
+															<?php endif; ?>
+															<?php if (!empty($invoice['salesperson_name'])): ?>
+																<p class="mb-1">Sales Person :  <span class="text-dark"> <?= htmlspecialchars($invoice['salesperson_name']) ?></span></span></p>
+															<?php endif; ?>
+															<?php if (!empty($invoice['order_number'])): ?>
+																<p class="mb-1">Order Number :  <span class="text-dark"><?= htmlspecialchars($invoice['order_number']) ?></span></span></p>
+															<?php endif; ?>
+															<p class="mb-1">GST Type : 
+																<span class="gst-badge <?= ($invoice['gst_type'] ?? 'gst') === 'non_gst' ? 'non-gst' : 'gst' ?>">
+																	<?= ($invoice['gst_type'] ?? 'gst') === 'non_gst' ? 'Non-GST' : 'GST' ?>
+																</span>
+															</p>
+															<?php 
 															$status = $invoice['status'] ?? 'Pending';
-
 															$badgeClass = match(strtolower($status)) {
-																'paid'    => 'bg-success',
-																'unpaid'  => 'bg-warning text-dark',
-																'cancelled'  => 'bg-danger',
-																default   => 'bg-secondary'
+																'paid' => 'bg-success',
+																'unpaid' => 'bg-warning text-dark',
+																'cancelled' => 'bg-danger',
+																default => 'bg-secondary'
 															};
 															?>
-
-															<span id="invoice-status" class="badge <?= $badgeClass ?> badge-sm">
-																<?= ucfirst($status) ?>
-															</span>
-
-													</div>
-												</div>
-											</div><!-- end col -->
-											<div class="col-lg-4">
-    <div>
-        <h6 class="mb-2 fs-16 fw-semibold">Billing From</h6>
-        <div class="bg-white rounded">
-            <div class="d-flex align-items-center mb-1">
-                <div>
-                    <h6 class="fs-14 fw-semibold"><?= htmlspecialchars($company['name'] ??'') ?></h6>
-                </div>
-            </div>
-            <p class="mb-1"><?= htmlspecialchars($company['address'] ??'') ?></p>
-            <p class="mb-1">
-                <?= htmlspecialchars($company['city_name'] ??'') ?>, 
-                <?= htmlspecialchars($company['state_name'] ??'') ?>, 
-                <?= htmlspecialchars($company['country_name'] ??'') ?>, 
-                <?= htmlspecialchars($company['zipcode'] ??'') ?>
-            </p>
-            <p class="mb-1">Phone : <?= htmlspecialchars($company['mobile_number'] ??'') ?></p>
-            <p class="mb-1">Email : <?= htmlspecialchars($company['email'] ??'') ?></p>
-        </div>
-    </div>
-</div>
-
-
-											<div class="col-lg-4">
-												<div>
-													<h6 class="mb-2 fs-16 fw-semibold">Billing To</h6>
-													<div class="bg-white rounded">
-														<div class="d-flex align-items-center mb-1">
-															
-															<div>
-																<h6 class="fs-14 fw-semibold"><?= htmlspecialchars($client['first_name'] ??'') ?></h6>
-															</div>
+															<p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm"><?= ucfirst($status) ?></span></p>
 														</div>
-														<p class="mb-1"><?= htmlspecialchars($client_address['billing_address1'] ??'') ?></p>
-														<p class="mb-1"><?= htmlspecialchars($client_address['city_name'] ??'') ?>, <?= htmlspecialchars($client_address['state_name'] ??'') ?>, <?= htmlspecialchars($client_address['country_name'] ??'') ?>, <?= htmlspecialchars($client_address['billing_pincode'] ??'') ?></p>
-														<p class="mb-1">Phone : <?= htmlspecialchars($client['phone_number'] ??'') ?></p>
-														<p class="mb-1">Email : <?= htmlspecialchars($client['email'] ??'') ?></p>
-														
+													</div>
+												</div><!-- end col -->
+											</div>
+											<!-- end row -->
+										</div>
+
+										<!-- Bill From and Bill To Side by Side -->
+										<div class="billing-section mb-3">
+											<!-- Bill From -->
+											<div class="billing-from">
+												<div class="billing-title">Billing From</div>
+												<div class="d-flex align-items-center mb-1">
+													<div>
+														<h6 class="fs-14 fw-semibold"><?= htmlspecialchars($company['name'] ??'') ?></h6>
 													</div>
 												</div>
-											</div><!-- end col -->
-										</div>
-										<!-- end row -->
+												<?php if (!empty($company['address'])): ?>
+													<p class="mb-1"><?= htmlspecialchars($company['address'] ??'') ?></p>
+												<?php endif; ?>
+												<?php if (!empty($company['city_name']) || !empty($company['state_name']) || !empty($company['country_name']) || !empty($company['zipcode'])): ?>
+													<p class="mb-1">
+														<?= htmlspecialchars($company['city_name'] ??'') ?>, 
+														<?= htmlspecialchars($company['state_name'] ??'') ?>, 
+														<?= htmlspecialchars($company['country_name'] ??'') ?>, 
+														<?= htmlspecialchars($company['zipcode'] ??'') ?>
+													</p>
+												<?php endif; ?>
+												<?php if (!empty($company['mobile_number'])): ?>
+													<p class="mb-1">Phone : <?= htmlspecialchars($company['mobile_number'] ??'') ?></p>
+												<?php endif; ?>
+												<?php if (!empty($company['email'])): ?>
+													<p class="mb-1">Email : <?= htmlspecialchars($company['email'] ??'') ?></p>
+												<?php endif; ?>
+											</div>
 
-									</div>
-									<div class="mb-3">
-										<h6 class="mb-3">Product / Service Items</h6>
-										<div class="table-responsive rounded border-bottom-0 border table-nowrap">
-											<table class="table m-0">
-												<thead class="table-dark" id="table-heading">
-													<?php if ($item_type == 1): ?>
-														<!-- Product Headings -->
+											<!-- Bill To - Updated section -->
+											<div class="billing-to">
+												<div class="billing-title">Billing To</div>
+												<?php if (!empty($client['company_name'])): ?>
+													<h6 class="fs-14 fw-semibold mb-1"><?= htmlspecialchars($client['company_name']) ?></h6>
+												<?php endif; ?>
+												
+												<?php 
+												// Build client name from first_name and last_name
+												$client_name = '';
+												if (!empty($client['first_name']) || !empty($client['last_name'])) {
+													$client_name = trim(($client['first_name'] ?? '') . ' ' . ($client['last_name'] ?? ''));
+												}
+												if (!empty($client_name)): ?>
+													<p class="mb-1 fs-13"><span class="text-dark">Client:</span> <?= htmlspecialchars($client_name) ?></p>
+												<?php endif; ?>
+												
+												<?php if (!empty($client_address['billing_address1'])): ?>
+													<p class="mb-1"><?= htmlspecialchars($client_address['billing_address1'] ??'') ?></p>
+												<?php endif; ?>
+												<?php if (!empty($client_address['city_name']) || !empty($client_address['state_name']) || !empty($client_address['country_name']) || !empty($client_address['billing_pincode'])): ?>
+													<p class="mb-1"><?= htmlspecialchars($client_address['city_name'] ??'') ?>, <?= htmlspecialchars($client_address['state_name'] ??'') ?>, <?= htmlspecialchars($client_address['country_name'] ??'') ?>, <?= htmlspecialchars($client_address['billing_pincode'] ??'') ?></p>
+												<?php endif; ?>
+												<?php if (!empty($client['phone_number'])): ?>
+													<p class="mb-1">Phone : <?= htmlspecialchars($client['phone_number'] ??'') ?></p>
+												<?php endif; ?>
+												<?php if (!empty($client['email'])): ?>
+													<p class="mb-1">Email : <?= htmlspecialchars($client['email'] ??'') ?></p>
+												<?php endif; ?>
+											</div>
+										</div>
+
+										<div class="mb-3">
+											<h6 class="mb-3">Product / Service Items</h6>
+											<div class="table-responsive rounded border-bottom-0 border table-nowrap">
+												<table class="table m-0">
+													<thead class="table-dark" id="table-heading">
 														<tr>
 															<th>#</th>
 															<th>Product/Service</th>
 															<th>HSN code</th>
-															<th>Quantity</th>
-															<th>Unit</th>
-															<th>Selling Price</th>
-															<th>Tax (%)</th>
+															<?php if ($showQuantityColumn): ?>
+																<th><?= $item_type == 1 ? 'Quantity' : 'Hours' ?></th>
+															<?php endif; ?>
+															<?php if ($item_type == 1): ?>
+																<th>Unit</th>
+															<?php endif; ?>
+															<th><?= $item_type == 1 ? 'Selling Price' : 'Hourly Price' ?></th>
+															<th>Tax</th>
 															<th>Amount</th>
 														</tr>
-													<?php else: ?>
-														<!-- Service Headings -->
+													</thead>
+													
+													<tbody>
+														<?php 
+														$i = 1; 
+														mysqli_data_seek($items_result, 0);
+														while($item = mysqli_fetch_assoc($items_result)) { 
+															// Combine product name (from product table) and service name (from invoice_item)
+															if (!empty($item['service_id'])) {
+																// If it's a service, combine both names with hyphen
+																$productName = !empty($item['service_product_name']) ? $item['service_product_name'] : '';
+																$serviceName = !empty($item['service_name']) ? $item['service_name'] : '';
+																$itemName = $productName .' '. '-' . ' '. $serviceName;
+															} else {
+																// If it's a product, use only product name
+																$itemName = !empty($item['product_name']) ? $item['product_name'] : 'Product';
+															}
+														?>
 														<tr>
-															<th>#</th>
-															<th>Service</th>
-															<th>HSN code</th>
-															<th>Hours</th>
-															<th>Unit</th>
-															<th>Hourly Price</th>
-															<th>Tax (%)</th>
-															<th>Amount</th>
+															<td><?= $i++ ?></td>
+															<td><?= htmlspecialchars($itemName) ?></td>
+															<td><?= htmlspecialchars($item['code'] ?? 'N/A') ?></td>
+															<?php if ($showQuantityColumn): ?>
+																<td><?= $item['quantity'] ?></td>
+															<?php endif; ?>
+															<?php if ($item_type == 1): ?>
+																<td><?= htmlspecialchars($item['unit_name'] ?? '') ?></td>
+															<?php endif; ?>
+															<td>$<?= $item['selling_price'] ?></td>
+															<td>
+																<?php if (($invoice['gst_type'] ?? 'gst') === 'non_gst'): ?>
+																	Non-GST
+																<?php else: ?>
+																	<?= $item['tax_name'] ?>
+																<?php endif; ?>
+															</td>
+															<td>$<?= $item['amount'] ?></td>
 														</tr>
-													<?php endif; ?>
-												</thead>
-												<tbody>
-													 <?php 
-													 $i = 1; 
-													 while($item = mysqli_fetch_assoc($items_result)) { 
-													 ?>
-                                                <tr>
-                                                    <td><?= $i++ ?></td>
-                                                    <td><?= htmlspecialchars($item['product_name']) ?></td>
-													<td><?= $item['code'] ?></td>
-                                                    <td><?= $item['quantity'] ?></td>
-                                                    <td><?= htmlspecialchars($item['unit_name']) ?></td>
-                                                    <td><?= $item['selling_price'] ?></td>
-                                                    <td><?= $item['tax_name'] ?></td>
-                                                    <td><?= $item['amount'] ?></td>
-                                                </tr>
-                                            <?php } ?>
-												</tbody>
-											</table>
+														<?php } ?>
+													</tbody>
+												</table>
+											</div>
 										</div>
-									</div>
-									<div class="border-bottom mb-3">
+										<div class="border-bottom mb-3">
+
+											<!-- start row -->
+											<div class="row justify-content-between">
+												<div class="col-lg-6">
+													<?php if ($showBankDetails): ?>
+														<div class="d-flex align-items-center p-4 mb-3">
+															<div>
+																<h6 class="mb-2">Bank Details</h6>
+																<div class="pdf-hide-empty">
+																	<?php if (!empty($bank['bank_name'])): ?>
+																		<p class="mb-1">Bank Name :  <span class="text-dark"><?= htmlspecialchars($bank['bank_name']) ?></span></p>
+																	<?php endif; ?>
+																	<?php if (!empty($bank['account_number'])): ?>
+																		<p class="mb-1">Account Number :  <span class="text-dark"> <?= htmlspecialchars($bank['account_number']) ?></span></p>
+																	<?php endif; ?>
+																	<?php if (!empty($bank['ifsc_code'])): ?>
+																		<p class="mb-1">IFSC Code :  <span class="text-dark"><?= htmlspecialchars($bank['ifsc_code']) ?></span></p>
+																	<?php endif; ?>
+																</div>
+															</div>
+														</div>
+													<?php endif; ?>
+													
+													<?php if ($showTerms): ?>
+														<div class="p-4">
+															<h6 class="mb-2">Terms & Conditions</h6>
+															<div>
+																<p class="mb-1"><?= htmlspecialchars($invoice['description']) ?>.</p>
+															</div>
+														</div>
+													<?php endif; ?>
+												</div><!-- end col -->
+												<div class="col-lg-4">
+													<div class="mb-3 p-4">
+														<div class="d-flex align-items-center justify-content-between mb-3">
+															<h6 class="fs-14 fw-semibold">Sub Amount</h6>
+															<h6 class="fs-14 fw-semibold">$<?= $invoice['amount'] ?></h6>
+														</div>
+														
+														<?php if (($invoice['gst_type'] ?? 'gst') === 'non_gst'): ?>
+															<div class="d-flex align-items-center justify-content-between mb-3">
+																<h6 class="fs-14 fw-semibold">Tax (Non-GST)</h6>
+																<h6 class="fs-14 fw-semibold">0.00</h6>
+															</div>
+														<?php else: ?>
+															<div class="d-flex align-items-center justify-content-between mb-3">
+																<h6 class="fs-14 fw-semibold">Tax Amount</h6>
+																<h6 class="fs-14 fw-semibold">$<?= $invoice['tax_amount'] ?></h6>
+															</div>
+														<?php endif; ?>
+														
+														<?php if (!empty($invoice['shipping_charge']) && $invoice['shipping_charge'] > 0): ?>
+															<div class="d-flex align-items-center justify-content-between mb-3">
+																<h6 class="fs-14 fw-semibold">Shipping Charge</h6>
+																<h6 class="fs-14 fw-semibold">$<?= $invoice['shipping_charge'] ?></h6>
+															</div>
+														<?php endif; ?>
+														
+														<div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3">
+															<h6>Total</h6>
+															<h6>$<?= $invoice['total_amount'] ?></h6>
+														</div>
+														<div class="d-flex justify-content-between align-items-center">
+															<h6 class="fs-14 fw-semibold mb-1 m-0">Total In Words</h6>
+															<p class="m-0"><?= numberToWords($invoice['total_amount']) ?> Dollars</p>
+														</div>
+
+													</div>
+												</div><!-- end col -->
+											</div>
+											<!-- end row -->
+
+										</div>
 
 										<!-- start row -->
+										<?php if ($showNotes): ?>
 										<div class="row">
-											<div class="col-lg-6">
-												<div class="d-flex align-items-center p-4 mb-3">
-
+											<div class="col-lg-12">
+												<div class="mb-3">
 													<div>
-														<h6 class="mb-2">Bank Details</h6>
-														<div>
-															<p class="mb-1">Bank Name :  <span class="text-dark"><?= htmlspecialchars($bank['bank_name']) ?></span></p>
-															<p class="mb-1">Account Number :  <span class="text-dark"> <?= htmlspecialchars($bank['account_number']) ?></span></p>
-															<p class="mb-1">IFSC Code :  <span class="text-dark"><?= htmlspecialchars($bank['ifsc_code']) ?></span></p>
-															<p class="mb-0">Payment Reference :  <span class="text-dark">INV-20250220-001</span></p>
-														</div>
-													</div>
-												</div>
-											</div><!-- end col -->
-											<div class="col-lg-6">
-												<div class="mb-3 p-4">
-													<div class="d-flex align-items-center justify-content-between mb-3">
-														<h6 class="fs-14 fw-semibold">Sub Amount</h6>
-														<h6 class="fs-14 fw-semibold"><?= $invoice['amount'] ?></h6>
-													</div>
-													<div class="d-flex align-items-center justify-content-between mb-3">
-														<h6 class="fs-14 fw-semibold">Tax Amount</h6>
-														<h6 class="fs-14 fw-semibold"><?= $invoice['tax_amount'] ?></h6>
-													</div>
-													<div class="d-flex align-items-center justify-content-between mb-3">
-														<h6 class="fs-14 fw-semibold">Shipping Charge</h6>
-														<h6 class="fs-14 fw-semibold"><?= $invoice['shipping_charge'] ?></h6>
-													</div>
-													
-													<div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3">
-														<h6>Total</h6>
-														<h6><?= $invoice['total_amount'] ?></h6>
-													</div>
-													<div>
-														<h6 class="fs-14 fw-semibold mb-1">Total In Words</h6>
-														<p><?= numberToWords($invoice['total_amount']) ?> </p>
-
+														<h6 class="fs-14 fw-semibold mb-1">Notes</h6>
+														<p><?= htmlspecialchars($invoice['invoice_note']) ?></p>
 													</div>
 												</div>
 											</div><!-- end col -->
 										</div>
+										<?php endif; ?>
 										<!-- end row -->
 
-									</div>
-
-									<!-- start row -->
-									<div class="row">
-										<div class="col-lg-7">
-											<div class="mb-3">
-												<div class="mb-3">
-													<h6 class="fs-14 fw-semibold mb-1">Terms & Conditions</h6>
-													<p><?= htmlspecialchars($invoice['description']) ?>.</p>
-												</div>
-												<div>
-													<h6 class="fs-14 fw-semibold mb-1">Notes</h6>
-													<p><?= htmlspecialchars($invoice['invoice_note']) ?></p>
-												</div>
-											</div>
-										<div><!-- end col -->
-										
-									</div>
-									<!-- end row -->
-
-									<div class="">
-										<!-- <div>
-											<h6 class="fs-14 fw-semibold mb-1">Dreams Technologies Pvt Ltd.,</h6>
-											<p>15 Hodges Mews, High Wycombe HP12 3JL, United Kingdom</p>
-										</div> -->
-										
-									</div>
-								</div><!-- end card body -->
-							</div><!-- end card -->
+										<div class="">
+											<!-- <div>
+												<h6 class="fs-14 fw-semibold mb-1">Dreams Technologies Pvt Ltd.,</h6>
+												<p>15 Hodges Mews, High Wycombe HP12 3JL, United Kingdom</p>
+											</div> -->
+											
+										</div>
+									</div><!-- end card body -->
+								</div><!-- end card -->
+							</div><!-- end pdf-content -->
 						</div>
 					</div><!-- end col -->
 				</div>
@@ -379,7 +681,7 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
 		========================= -->
 
 		<!-- Start Filter -->
-		<div class="offcanvas offcanvas-offset offcanvas-end" tabindex="-1" id="customcanvas">                                      
+		<div class="offcanvas offcanvas-offset offcanvas-end no-print" tabindex="-1" id="customcanvas">                                      
 			<div class="offcanvas-header d-block pb-0">
 				<div class="border-bottom d-flex align-items-center justify-content-between pb-3">
 					<h6 class="offcanvas-title">Details</h6>
@@ -433,68 +735,16 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
 							</div>
 						</div>
 					</div>
-					<!-- <div>
-						<h6 class="fs-16 fw-semibold mb-2">Payment Details</h6>
-						<div class="border-bottom mb-3 pb-0">
-							<div class="row">
-								<div class="col-6">
-									<div class="mb-3">
-										<h6 class="fs-14 fw-semibold mb-1">PayPal</h6>
-										<p>examplepaypal.com</p>
-									</div>
-								</div>
-								<div class="col-6">
-									<div class="mb-3">
-										<h6 class="fs-14 fw-semibold mb-1">Account </h6>
-										<p>examplepaypal.com</p>
-									</div>
-								</div>
-								<div class="col-6">
-									<div class="mb-3">
-										<h6 class="fs-14 fw-semibold mb-1">Payment Term</h6>
-										<p class="d-flex align-items-center">Days <span class="badge bg-danger ms-2">Due in 8 days</span></p>
-									</div>
-								</div>
-							</div>
-						</div>
-					</div>		 -->
-					<!-- <div>
-						<h6 class="fs-16 mb-2">Invoice History</h6>
-						<ul class="activity-feed bg-light rounded">
-							<li class="feed-item timeline-item">
-								<p class="mb-1">Status Changed to <span class="text-dark fw-semibold">Partially Paid</span></p>
-								<div class="invoice-date"><span><i class="isax isax-calendar me-1"></i>17 Jan 2025</span></div>
-							</li>
-							<li class="feed-item timeline-item">
-								<p class="mb-1"><span class="text-dark fw-semibold">$300 </span> Partial Amount Paid on <span class="text-dark fw-semibold">Paypal</span></p>
-								<div class="invoice-date"><span><i class="isax isax-calendar me-1"></i>16 Jan 2025</span></div>
-							</li>
-							<li class="feed-item timeline-item">
-								<p class="mb-1"><span class="text-dark fw-semibold">John Smith </span> Created <span class="text-dark fw-semibold">Invoice</span><a href="#" class="text-primary">#INV1254</a></p>
-								<div class="invoice-date"><span><i class="isax isax-calendar me-1"></i>16 Jan 2025</span></div>
-							</li>
-						</ul>
-					</div> -->
-					<!-- <div class="offcanvas-footer">
+					<div class="offcanvas-footer">
 						<div class="row g-2">
 							<div class="col-6">
-								<a href="invoice-details.php"  class="btn btn-outline-white w-100">Reset</a>
+								<a href="javascript:location.reload();" class="btn btn-outline-white w-100">Reset</a>
 							</div>
 							<div class="col-6">
 								<button data-bs-dismiss="offcanvas" class="btn btn-primary w-100" id="filter-submit">Submit</button>
 							</div>
 						</div>
-					</div> -->
-					<div class="offcanvas-footer">
-    <div class="row g-2">
-        <div class="col-6">
-            <a href="javascript:location.reload();" class="btn btn-outline-white w-100">Reset</a>
-        </div>
-        <div class="col-6">
-            <button data-bs-dismiss="offcanvas" class="btn btn-primary w-100" id="filter-submit">Submit</button>
-        </div>
-    </div>
-</div>
+					</div>
 				</form>
 			</div>
 		</div>
@@ -505,57 +755,7 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
 
 	<?php include 'layouts/vendor-scripts.php'; ?>
 
-	<script>
-	// Fixed Function to download invoice as PDF
-	function downloadAsPDF(event) {
-		// Show alert for testing
-		alert('PDF download starting...');
-		
-		// Get the element to convert to PDF
-		const element = document.getElementById('downloadpdf');
-		
-		// Get the button that was clicked to show loading state
-		const loadingBtn = event.currentTarget;
-		const originalText = loadingBtn.innerHTML;
-		loadingBtn.innerHTML = 'Converting...';
-		loadingBtn.disabled = true;
-		
-		// Use html2canvas to capture the content
-		html2canvas(element, {
-			scale: 2,
-			useCORS: true,
-			logging: true,
-			backgroundColor: '#ffffff'
-		}).then(function(canvas) {
-			// Create PDF
-			const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-			const imgData = canvas.toDataURL('image/png');
-			const imgWidth = pdf.internal.pageSize.getWidth();
-			const imgHeight = (canvas.height * imgWidth) / canvas.width;
-			
-			// Add image to PDF
-			pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-			
-			// Download the PDF
-			pdf.save('invoice-<?= $invoice['invoice_id'] ?>.pdf');
-			
-			// Reset button
-			loadingBtn.innerHTML = originalText;
-			loadingBtn.disabled = false;
-		}).catch(function(error) {
-			console.error('Error generating PDF:', error);
-			alert('Error generating PDF. Please try again.');
-			loadingBtn.innerHTML = originalText;
-			loadingBtn.disabled = false;
-		});
-		
-		// Prevent default link behavior
-		if (event) {
-			event.preventDefault();
-		}
-		return false;
-	}
-	</script>
+	
 <script>
 function sendInvoiceEmail(invoiceId) {
     fetch('process/action_send_invoice_email.php', {

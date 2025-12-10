@@ -2,6 +2,12 @@
 session_start();
 include '../../config/config.php';
 
+// Function to remove currency symbols and commas
+function unformat($value) {
+    return (float)str_replace(['$', ',',' '], '', $value);
+}
+
+// File upload function
 function uploadFile($file, $uploadDir) {
     if (!file_exists($uploadDir)) {
         mkdir($uploadDir, 0777, true);
@@ -33,26 +39,27 @@ if (isset($_POST['submit'])) {
         $order_number  = (int)($_POST['order_number'] ?? 0);
         $item_type     = (int)($_POST['item_type'] ?? 0);
         $user_id       = (int)($_POST['user_id'] ?? 0);
+        $gst_type      = mysqli_real_escape_string($conn, $_POST['gst_type'] ?? 'gst');
 
         $bank_id_raw   = $_POST['bank_id'] ?? '';
         $bank_id_sql   = ($bank_id_raw !== '' && is_numeric($bank_id_raw)) ? (int)$bank_id_raw : 'NULL';
 
         $invoice_note  = mysqli_real_escape_string($conn, $_POST['invoice_note'] ?? '');
         $description   = mysqli_real_escape_string($conn, $_POST['description'] ?? '');
-        $amount        = (float)($_POST['sub_amount'] ?? 0);
-        $tax_amount    = (float)($_POST['tax_amount'] ?? 0);
-        $shipping_charge= (float)($_POST['shipping_charge'] ?? 0);
-        $total_amount  = (float)($_POST['total_amount'] ?? 0);
+        $amount        = unformat($_POST['sub_amount'] ?? 0);
+        $tax_amount    = unformat($_POST['tax_amount'] ?? 0);
+        $shipping_charge= unformat($_POST['shipping_charge'] ?? 0);
+        $total_amount  = unformat($_POST['total_amount'] ?? 0);
 
-        // Insert invoice (without task_id in main table)
+        // Insert invoice (with gst_type)
         $query = "INSERT INTO invoice (
             client_id, project_id, invoice_id, reference_name, invoice_date, due_date,
-            order_number, item_type, user_id, bank_id,
+            order_number, item_type, user_id, bank_id, gst_type,
             invoice_note, description, amount, tax_amount, shipping_charge, total_amount,
             org_id, is_deleted, created_by, updated_by
         ) VALUES (
             '$client_id', '$project_id', '$invoice_id', '$reference_name', '$invoice_date', '$expiry_date',
-            '$order_number', '$item_type', '$user_id', $bank_id_sql,
+            '$order_number', '$item_type', '$user_id', $bank_id_sql, '$gst_type',
             '$invoice_note', '$description', '$amount', '$tax_amount', '$shipping_charge', '$total_amount',
             '$orgId', 0, '$currentUserId', '$currentUserId'
         )";
@@ -101,32 +108,57 @@ if (isset($_POST['submit'])) {
             }
         }
 
-        // Insert invoice items
-        if (isset($_POST['item_id'])) {
+        // === Insert invoice items - UPDATED: Store product_id and service_id separately ===
+        if (isset($_POST['item_id']) && is_array($_POST['item_id'])) {
             foreach ($_POST['item_id'] as $index => $item_id) {
-                $item_id      = $_POST['item_id'][$index] ?? '';
-                $quantity     = (float)($_POST['quantity'][$index] ?? 0);
-                $unit_id      = $_POST['unit_id'][$index] ?? '';
-                $selling_price= (float)($_POST['selling_price'][$index] ?? 0);
-                $tax_id       = $_POST['tax_id'][$index] ?? '';
-                $item_amount  = (float)($_POST['amount'][$index] ?? 0);
+                // Skip completely empty items
+                if (empty($item_id) && empty($_POST['service_name'][$index]) && empty($_POST['selling_price'][$index])) {
+                    continue;
+                }
 
-                $item_id_sql = ($item_id === '' ? 'NULL' : (int)$item_id);
-                $unit_id_sql    = ($unit_id === '' ? 0 : (int)$unit_id);
-                $tax_id_sql     = ($tax_id === '' ? 'NULL' : (int)$tax_id);
+                $item_id       = $_POST['item_id'][$index] ?? '';
+                $service_name  = mysqli_real_escape_string($conn, $_POST['service_name'][$index] ?? '');
+                $quantity      = (float)($_POST['quantity'][$index] ?? 0);
+                $selling_price = unformat($_POST['selling_price'][$index] ?? 0);
+                $tax_id        = $_POST['tax_id'][$index] ?? '';
+                $rate          = unformat($_POST['rate'][$index] ?? 0);
+                $item_amount   = unformat($_POST['amount'][$index] ?? 0);
+                $code          = mysqli_real_escape_string($conn, $_POST['code'][$index] ?? '');
+                $item_type_row = $_POST['item_type_row'][$index] ?? 'product'; // Get the row type
 
-                if (!empty($item_id)) {
-                    $itemInsertQuery = "INSERT INTO invoice_item (
-                        invoice_id, quantity, product_id, unit_id, selling_price,
-                        tax_id, amount, org_id, is_deleted, created_by, updated_by
-                    ) VALUES (
-                        '$invoiceId', '$quantity', $item_id_sql, $unit_id_sql, '$selling_price',
-                        $tax_id_sql, '$item_amount', '$orgId', 0, '$currentUserId', '$currentUserId'
-                    )";
+                // Initialize product_id and service_id
+                $product_id_sql = 'NULL';
+                $service_id_sql = 'NULL';
+                $service_name_sql = 'NULL';
 
-                    if (!mysqli_query($conn, $itemInsertQuery)) {
-                        throw new Exception("Item insert failed: " . mysqli_error($conn));
+                // Determine whether it's a product or service and set appropriate values
+                if ($item_type_row === 'product' && !empty($item_id)) {
+                    // This is a product - store in product_id
+                    $product_id_sql = (int)$item_id;
+                } else if ($item_type_row === 'service') {
+                    if (!empty($item_id)) {
+                        // This is a service selected from dropdown - store in service_id
+                        $service_id_sql = (int)$item_id;
+                        // Also store the service name for reference
+                        $service_name_sql = "'" . mysqli_real_escape_string($conn, $_POST['service_name'][$index] ?? '') . "'";
+                    } else if (!empty($service_name)) {
+                        // This is a custom service (no dropdown selection) - store in service_name
+                        $service_name_sql = "'$service_name'";
                     }
+                }
+
+                $tax_id_sql = (empty($tax_id) ? 'NULL' : (int)$tax_id);
+
+                $itemInsertQuery = "INSERT INTO invoice_item (
+                    invoice_id, quantity, product_id, service_id, service_name, selling_price,
+                    tax_id, rate, amount, org_id, is_deleted, created_by, updated_by
+                ) VALUES (
+                    '$invoiceId', '$quantity', $product_id_sql, $service_id_sql, $service_name_sql, '$selling_price',
+                    $tax_id_sql, '$rate', '$item_amount', '$orgId', 0, '$currentUserId', '$currentUserId'
+                )";
+
+                if (!mysqli_query($conn, $itemInsertQuery)) {
+                    throw new Exception("Item insert failed: " . mysqli_error($conn));
                 }
             }
         }

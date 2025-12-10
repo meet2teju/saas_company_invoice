@@ -84,6 +84,9 @@ $colCount = 6; // #, Product/Service, HSN Code, Selling Price, Tax, Amount
 if ($showQuantityColumn) {
     $colCount = 7; // Add QTY/Hours column
 }
+if ($item_type == 1) {
+    $colCount++; // Add Unit column for products
+}
 
 // Fetch client address
 $client_address = null;
@@ -519,8 +522,21 @@ if (!empty($company['email'])) {
 
 $html .= '</div>
                 <div class="billing-to">
-                    <div class="billing-title text-right">Billing To</div>
-                    <div class="to-title text-right">' . htmlspecialchars($client['first_name'] ?? '') . '</div>';
+                    <div class="billing-title text-right">Billing To</div>';
+
+// Client name/company name
+if (!empty($client['company_name'])) {
+    $html .= '<div class="to-title text-right">' . htmlspecialchars($client['company_name']) . '</div>';
+}
+
+// Client personal name
+$client_name = '';
+if (!empty($client['first_name']) || !empty($client['last_name'])) {
+    $client_name = trim(($client['first_name'] ?? '') . ' ' . ($client['last_name'] ?? ''));
+}
+if (!empty($client_name)) {
+    $html .= '<div class="address-deatils-box text-right mb-0"><span class="bold-text">Client:</span> ' . htmlspecialchars($client_name) . '</div>';
+}
                     
 if (!empty($client_address['billing_address1'])) {
     $html .= '<div class="address-deatils-box text-right mb-0">' . htmlspecialchars($client_address['billing_address1'] ?? '') . '</div>';
@@ -555,14 +571,18 @@ $html .= '</div>
 
 // Build table headers with consistent structure
 $html .= '<th width="5%">#</th>
-          <th width="' . ($showQuantityColumn ? '30%' : '35%') . '">Product/Service</th>
+          <th width="' . ($showQuantityColumn ? '25%' : '30%') . '">Product/Service</th>
           <th width="15%">HSN Code</th>';
 
 if ($showQuantityColumn) {
     $html .= '<th width="10%" class="text-center">' . ($item_type == 1 ? 'QTY' : 'Hours') . '</th>';
 }
 
-$html .= '<th width="15%">Selling Price</th>
+if ($item_type == 1) {
+    $html .= '<th width="10%">Unit</th>';
+}
+
+$html .= '<th width="15%">' . ($item_type == 1 ? 'Selling Price' : 'Hourly Price') . '</th>
           <th width="10%">Tax</th>
           <th width="' . ($showQuantityColumn ? '10%' : '15%') . '">Amount</th>';
 
@@ -588,6 +608,10 @@ foreach ($items as $item) {
     
     if ($showQuantityColumn) {
         $html .= '<td class="text-center">' . ($item['quantity'] ?? '0') . '</td>';
+    }
+    
+    if ($item_type == 1) {
+        $html .= '<td>' . htmlspecialchars($item['unit_name'] ?? '') . '</td>';
     }
     
     $html .= '<td>$' . number_format($item['selling_price'], 2) . '</td>
