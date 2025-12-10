@@ -25,18 +25,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Generate unique invoice ID
             $invoice_id = 'INV-' . date('Ymd') . '-' . rand(1000, 9999);
             
-            // Insert into invoice table
+            // Insert into invoice table - include item_type and gst_type
             $insert_invoice_sql = "INSERT INTO invoice (
-                client_id, invoice_id, reference_name, invoice_date, due_date, 
-                user_id, description, amount, shipping_charge, tax_amount, 
+                client_id, project_id, invoice_id, reference_name, invoice_date, due_date, 
+                user_id, item_type, gst_type, description, amount, shipping_charge, tax_amount, 
                 total_amount, status, org_id, created_by, created_at, updated_at
             ) VALUES (
                 '{$quotation['client_id']}', 
+                '{$quotation['project_id']}', 
                 '$invoice_id', 
                 '{$quotation['reference_name']}', 
                 '{$quotation['quotation_date']}', 
                 '{$quotation['expiry_date']}', 
                 '{$quotation['user_id']}', 
+                '{$quotation['item_type']}', 
+                '{$quotation['gst_type']}', 
                 '{$quotation['description']}', 
                 '{$quotation['amount']}', 
                 '{$quotation['shipping_charge']}', 
@@ -52,46 +55,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (mysqli_query($conn, $insert_invoice_sql)) {
                 $new_invoice_id = mysqli_insert_id($conn);
                 
-                // Copy quotation items to invoice items
+                // Copy quotation items to invoice items - match your table structure
                 $copy_items_sql = "INSERT INTO invoice_item (
-                    invoice_id, product_id, quantity, unit_id, selling_price, 
-                    tax_id, amount, created_at, updated_at
+                    invoice_id, product_id, service_id, service_name, quantity, unit_id, 
+                    selling_price, tax_id, rate, amount, org_id, created_by, updated_by, 
+                    created_at, updated_at
                 ) 
                 SELECT 
-                    $new_invoice_id, product_id, quantity, unit_id, selling_price, 
-                    tax_id, amount, NOW(), NOW()
+                    $new_invoice_id, product_id, service_id, service_name, quantity, unit_id, 
+                    selling_price, tax_id, rate, amount, org_id, created_by, updated_by, 
+                    NOW(), NOW()
                 FROM quotation_item 
                 WHERE quotation_id = $quotation_id AND is_deleted = 0";
                 
-                mysqli_query($conn, $copy_items_sql);
-                
-                // Copy documents to invoice documents (if you have invoice_document table)
-                $copy_docs_sql = "INSERT INTO invoice_document (
-                    invoice_id, document, created_at, updated_at
-                ) 
-                SELECT 
-                    $new_invoice_id, document, NOW(), NOW()
-                FROM quotation_document 
-                WHERE quotation_id = $quotation_id";
-                
-                mysqli_query($conn, $copy_docs_sql);
-                
-                // Remove quotation record (soft delete by setting is_deleted = 1)
-                $delete_quotation_sql = "UPDATE quotation SET is_deleted = 1 WHERE id = $quotation_id";
-                mysqli_query($conn, $delete_quotation_sql);
-                
-                $_SESSION['message'] = "Quotation converted to invoice successfully! Invoice ID: $invoice_id";
-                $_SESSION['message_type'] = "success";
-                
-                // Redirect to quotations list page
-                header("Location: ../quotations.php");
-                exit();
+                if (mysqli_query($conn, $copy_items_sql)) {
+                    // Copy documents to invoice documents (if you have invoice_document table)
+                    $copy_docs_sql = "INSERT INTO invoice_document (
+                        invoice_id, document, created_at, updated_at
+                    ) 
+                    SELECT 
+                        $new_invoice_id, document, NOW(), NOW()
+                    FROM quotation_document 
+                    WHERE quotation_id = $quotation_id";
+                    
+                    mysqli_query($conn, $copy_docs_sql);
+                    
+                    // Set quotation as deleted (soft delete) and update status to 'convert'
+                    $update_quotation_sql = "UPDATE quotation SET status = 'convert', is_deleted = 1 WHERE id = $quotation_id";
+                    mysqli_query($conn, $update_quotation_sql);
+                    
+                    $_SESSION['message'] = "Quotation converted to invoice successfully! Invoice ID: $invoice_id";
+                    $_SESSION['message_type'] = "success";
+                    
+                    // Optionally redirect to the new invoice
+                    header("Location: ../invoices.php?id=" . $new_invoice_id);
+                    exit();
+                } else {
+                    // Rollback invoice creation if items copy fails
+                    $delete_invoice_sql = "DELETE FROM invoice WHERE id = $new_invoice_id";
+                    mysqli_query($conn, $delete_invoice_sql);
+                    
+                    $_SESSION['message'] = "Error copying items: " . mysqli_error($conn);
+                    $_SESSION['message_type'] = "danger";
+                    header("Location: ../view-quotation.php?id=" . $quotation_id);
+                    exit();
+                }
             } else {
                 $_SESSION['message'] = "Error creating invoice: " . mysqli_error($conn);
                 $_SESSION['message_type'] = "danger";
                 header("Location: ../view-quotation.php?id=" . $quotation_id);
                 exit();
             }
+        } else {
+            $_SESSION['message'] = "Quotation not found.";
+            $_SESSION['message_type'] = "danger";
+            header("Location: ../quotations.php");
+            exit();
         }
     } else {
         // For other status updates, proceed as normal
