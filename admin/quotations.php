@@ -151,6 +151,9 @@ if ($userRoleId != 1) {
     $quotation_ids_query .= " AND user_id IN ($adminUserIdsString)";
 }
 $quotation_ids_result = mysqli_query($conn, $quotation_ids_query);
+
+// Check if there are any rows
+$hasData = mysqli_num_rows($result) > 0;
 ?>
 
 <!DOCTYPE html>
@@ -311,95 +314,97 @@ $quotation_ids_result = mysqli_query($conn, $quotation_ids_query);
 							</tr>
 						</thead>
 						<tbody>
-                            <?php
-                            if (mysqli_num_rows($result) > 0) {
-                                while ($row = mysqli_fetch_assoc($result)) {
+                            <?php if ($hasData): ?>
+                                <?php while ($row = mysqli_fetch_assoc($result)): 
                                     $quotationId = $row['id'];
                                     $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
-                            ?>
-							<tr>
-								<td>
-                                  <div class="form-check form-check-md">
-                                        <input class="form-check-input user-checkbox" type="checkbox" value="<?= $quotationId ?>">
-                                    </div>
-                                </td>
-								<td>
-									<a href="view-quotation.php?id=<?= $quotationId ?>" class="link-default"><?= htmlspecialchars($row['quotation_id']) ?></a>
-								</td>
-								<td>
-                                    <div class="d-flex align-items-center">
-										<a href="view-quotation.php?id=<?= $quotationId ?>" class="avatar avatar-sm rounded-circle me-2 flex-shrink-0">
-											<img src="<?= $clientImg ?>" onerror="this.src='assets/img/users/user-16.jpg';">
-										</a>
-										<div>
-											<h6 class="fs-14 fw-medium mb-0"><a href="view-quotation.php?id=<?= $quotationId ?>"><?= htmlspecialchars($row['first_name']) ?></a></h6>
-										</div>
-									</div>
-                                </td>
-								<td><?= date('d M Y', strtotime($row['quotation_date'])) ?></td>
-								<td>
-									<span class="badge badge-soft-success d-inline-flex align-items-center"><?= htmlspecialchars($row['status']) ?><i class="isax isax-tick-circle ms-1"></i></span>
-								</td>
-								<td class="action-item">
-                                    <a href="javascript:void(0);" data-bs-toggle="dropdown" class="custom-elipse">
-                                        <i class="isax isax-more"></i>
-                                    </a>
-                                    <ul class="dropdown-menu">
-                                        <?php if (check_is_access_new("view_quotation") == 1) { ?>
-                                        <li>
-                                            <a href="view-quotation.php?id=<?= $quotationId ?>" class="dropdown-item d-flex align-items-center">
-                                                <i class="isax isax-eye me-2"></i>View
+                                ?>
+                                <tr>
+                                    <td>
+                                        <div class="form-check form-check-md">
+                                            <input class="form-check-input user-checkbox" type="checkbox" value="<?= $quotationId ?>">
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <a href="view-quotation.php?id=<?= $quotationId ?>" class="link-default"><?= htmlspecialchars($row['quotation_id']) ?></a>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <a href="view-quotation.php?id=<?= $quotationId ?>" class="avatar avatar-sm rounded-circle me-2 flex-shrink-0">
+                                                <img src="<?= $clientImg ?>" onerror="this.src='assets/img/users/user-16.jpg';">
                                             </a>
-                                        </li>
-                                        <?php } ?>
-
-                                        <?php if (check_is_access_new("edit_quotation") == 1) { ?>
-                                        <li>
-                                            <a href="edit-quotation.php?id=<?= $quotationId ?>" class="dropdown-item d-flex align-items-center"><i class="isax isax-edit me-2"></i>Edit</a>
-                                        </li>
+                                            <div>
+                                                <h6 class="fs-14 fw-medium mb-0"><a href="view-quotation.php?id=<?= $quotationId ?>"><?= htmlspecialchars($row['first_name']) ?></a></h6>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td><?= date('d M Y', strtotime($row['quotation_date'])) ?></td>
+                                    <td>
+                                        <span class="badge badge-soft-success d-inline-flex align-items-center"><?= htmlspecialchars($row['status']) ?><i class="isax isax-tick-circle ms-1"></i></span>
+                                    </td>
+                                    <td class="action-item">
+                                        <a href="javascript:void(0);" data-bs-toggle="dropdown" class="custom-elipse">
+                                            <i class="isax isax-more"></i>
+                                        </a>
+                                        <ul class="dropdown-menu">
+                                            <?php if (check_is_access_new("view_quotation") == 1) { ?>
+                                            <li>
+                                                <a href="view-quotation.php?id=<?= $quotationId ?>" class="dropdown-item d-flex align-items-center">
+                                                    <i class="isax isax-eye me-2"></i>View
+                                                </a>
+                                            </li>
                                             <?php } ?>
 
-                                        <?php if (check_is_access_new("delete_quotation") == 1) { ?>
-                                        <li>
-                                            <a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#delete_modal<?= $quotationId ?>"><i class="isax isax-trash me-2"></i>Delete</a>
-                                        </li>
-                                         <?php } ?>
+                                            <?php if (check_is_access_new("edit_quotation") == 1) { ?>
+                                            <li>
+                                                <a href="edit-quotation.php?id=<?= $quotationId ?>" class="dropdown-item d-flex align-items-center"><i class="isax isax-edit me-2"></i>Edit</a>
+                                            </li>
+                                                <?php } ?>
 
-                                    </ul>
-                                </td>
-							</tr>
-                     <div class="modal fade" id="delete_modal<?= $quotationId ?>" tabindex="-1" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered modal-m">
-                            <div class="modal-content">
-                                <form method="POST" action="process/action_delete_quotation.php">
-                                    <input type="hidden" name="id" value="<?= $quotationId ?>">
-                                    <div class="modal-body text-center">
-                                        <div class="mb-3">
-                                            <img src="assets/img/icons/delete.svg" alt="img">
-                                        </div>
-                                        <h6 class="mb-1">Delete Quotation</h6>
-                                        <p class="mb-3">Are you sure, you want to delete this quotation?</p>
-                                        <div class="d-flex justify-content-center">
-                                            <button type="button" class="btn btn-outline-white me-3" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-primary">Yes, Delete</button>
+                                            <?php if (check_is_access_new("delete_quotation") == 1) { ?>
+                                            <li>
+                                                <a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#delete_modal<?= $quotationId ?>"><i class="isax isax-trash me-2"></i>Delete</a>
+                                            </li>
+                                            <?php } ?>
+                                        </ul>
+                                    </td>
+                                </tr>
+                                <!-- Delete Modal -->
+                                <div class="modal fade" id="delete_modal<?= $quotationId ?>" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered modal-m">
+                                        <div class="modal-content">
+                                            <form method="POST" action="process/action_delete_quotation.php">
+                                                <input type="hidden" name="id" value="<?= $quotationId ?>">
+                                                <div class="modal-body text-center">
+                                                    <div class="mb-3">
+                                                        <img src="assets/img/icons/delete.svg" alt="img">
+                                                    </div>
+                                                    <h6 class="mb-1">Delete Quotation</h6>
+                                                    <p class="mb-3">Are you sure, you want to delete this quotation?</p>
+                                                    <div class="d-flex justify-content-center">
+                                                        <button type="button" class="btn btn-outline-white me-3" data-bs-dismiss="modal">Cancel</button>
+                                                        <button type="submit" class="btn btn-primary">Yes, Delete</button>
+                                                    </div>
+                                                </div>
+                                            </form>
                                         </div>
                                     </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-							   <?php } 
-                            } else { ?>
+                                </div>
+                                <?php endwhile; ?>
+                            <?php else: ?>
+                                <!-- FIX: When no data, create 6 empty cells to match the header -->
                                 <tr>
-                                    <td colspan="6" class="text-center py-4">
+                                    <td></td>
+                                    <td></td>
+                                    <td colspan="4" class="text-center py-4">
                                         <div class="d-flex flex-column align-items-center">
-                                            <img src="assets/img/icons/empty.svg" alt="Empty" class="mb-3" width="80">
+                                            <!-- <img src="assets/img/icons/empty.svg" alt="Empty" class="mb-3" width="80"> -->
                                             <h6 class="text-muted">No quotations found</h6>
                                             <p class="text-muted mb-0">No quotations match your current filters.</p>
                                         </div>
                                     </td>
                                 </tr>
-                            <?php } ?>
+                            <?php endif; ?>
 						</tbody>
 					</table>
 				</div>
