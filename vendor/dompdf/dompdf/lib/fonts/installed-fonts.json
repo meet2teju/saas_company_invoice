@@ -1,0 +1,12 @@
+{
+    "instrument sans": {
+        "italic": "D:\\xampp8.2\\htdocs\\saas_company_invoice\\vendor\\dompdf\\dompdf\/lib\/fonts\/instrument_sans_italic_605964b4c8f1be1c5f7723fbb077c738",
+        "500_italic": "D:\\xampp8.2\\htdocs\\saas_company_invoice\\vendor\\dompdf\\dompdf\/lib\/fonts\/instrument_sans_500_italic_bc4ed97b8d5d445047d4404b978350c7",
+        "600_italic": "D:\\xampp8.2\\htdocs\\saas_company_invoice\\vendor\\dompdf\\dompdf\/lib\/fonts\/instrument_sans_600_italic_6cb8308314c981f07f79de11b006a96d",
+        "bold_italic": "D:\\xampp8.2\\htdocs\\saas_company_invoice\\vendor\\dompdf\\dompdf\/lib\/fonts\/instrument_sans_bold_italic_1e451c07bb31be258ef6c82005130140",
+        "normal": "D:\\xampp8.2\\htdocs\\saas_company_invoice\\vendor\\dompdf\\dompdf\/lib\/fonts\/instrument_sans_normal_22c100969a9970a0dde319d7acfbedd3",
+        "500": "D:\\xampp8.2\\htdocs\\saas_company_invoice\\vendor\\dompdf\\dompdf\/lib\/fonts\/instrument_sans_500_8970773d51e3d55b517318fd896d6f12",
+        "600": "D:\\xampp8.2\\htdocs\\saas_company_invoice\\vendor\\dompdf\\dompdf\/lib\/fonts\/instrument_sans_600_93431f6eedd562ffaefa4ad00cde751d",
+        "bold": "instrument_sans_bold_e0d70ceaad059b7d3bded38fc49efcbc"
+    }
+}

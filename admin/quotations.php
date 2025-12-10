@@ -206,7 +206,10 @@ $quotation_ids_result = mysqli_query($conn, $quotation_ids_query);
 								</li>
 							</ul>
 						</div> -->
-
+  <!-- Multiple Delete Button -->
+            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                <i class="fa-regular fa-trash-can me-1"></i>Delete
+            </a>
                         <div>
                              <?php if (check_is_access_new("add_quotation") == 1) { ?>
 							<a href="add-quotation.php" class="btn btn-primary d-flex align-items-center">
@@ -284,10 +287,7 @@ $quotation_ids_result = mysqli_query($conn, $quotation_ids_query);
                 </div>
             <?php endif; ?>
 
-            <!-- Multiple Delete Button -->
-            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                <i class="fa-regular fa-trash-can me-1"></i>Delete
-            </a>
+          
         </div>
     </div>
 </div>
