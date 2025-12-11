@@ -176,7 +176,7 @@ $projectList = mysqli_query($conn, $projectList_query);
                         <i class="isax isax-filter me-1"></i>Filter
                     </a>
                     <!-- Export Dropdown -->
-                    <div class="dropdown d-inline-block me-2">
+                    <!-- <div class="dropdown d-inline-block me-2">
                         <a href="#" class="btn btn-outline-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
                             <i class="isax isax-export-1 me-1"></i> Export
                         </a>
@@ -203,10 +203,10 @@ $projectList = mysqli_query($conn, $projectList_query);
                                 </ul>
                             </li>
                         </ul>
-                    </div>
+                    </div> -->
 
                     <!-- Import Dropdown -->
-                    <div class="dropdown d-inline-block">
+                    <!-- <div class="dropdown d-inline-block">
                         <a href="javascript:void(0);" class="btn btn-outline-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
                             <i class="isax isax-import me-1"></i> Import
                         </a>
@@ -214,7 +214,11 @@ $projectList = mysqli_query($conn, $projectList_query);
                             <li><a class="dropdown-item" href="import_client_excel.php">Import Clients</a></li>
                             <li><a class="dropdown-item" href="import_contact_excel.php">Import Contacts</a></li>
                         </ul>
-                    </div>
+                    </div> -->
+                     <!-- Multiple Delete Button -->
+            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                <i class="fa-regular fa-trash-can me-1"></i>Delete
+            </a>
                 <?php if (check_is_access_new("add_project") == 1) { ?> 
                     <div>
                         <a href="add-projects.php" class="btn btn-primary d-flex align-items-center">
@@ -299,10 +303,7 @@ $projectList = mysqli_query($conn, $projectList_query);
                 </div>
             <?php endif; ?>
 
-            <!-- Multiple Delete Button -->
-            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                <i class="fa-regular fa-trash-can me-1"></i>Delete
-            </a>
+           
         </div>
     </div>
 </div>

@@ -35,6 +35,9 @@
                                 </a>
                             </div>
                         </div>
+                        <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                                <i class="fa-regular fa-trash-can me-1"></i>Delete
+                            </a>
                         <a href="#" class="btn btn-primary d-flex align-items-center" data-bs-toggle="modal" data-bs-target="#add_modal">
                             <i class="isax isax-add-circle5 me-1"></i>New Expense Category
                         </a>
@@ -45,9 +48,7 @@
                 <div class="mb-3">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                         <div class="d-flex align-items-center flex-wrap gap-2">
-                            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                                <i class="fa-regular fa-trash-can me-1"></i>Delete
-                            </a>
+                            
                         </div>
                     </div>
                 </div>

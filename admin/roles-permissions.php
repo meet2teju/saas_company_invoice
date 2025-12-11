@@ -29,10 +29,11 @@
                                 <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
                             </div>
                             
-                            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                            
+                        </div>
+                        <a href="#" class="btn btn-outline-danger delete-multiple d-none">
                                 <i class="fa-regular fa-trash-can me-1"></i>Delete
                             </a>
-                        </div>
                         <div class="dropdown">
                             <a href="javascript:void(0);" class="btn btn-outline-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
                                 <i class="isax isax-export-1 me-1"></i>Export

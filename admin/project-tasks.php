@@ -156,6 +156,10 @@ $statusOptions = [
                     <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
                         <i class="isax isax-filter me-1"></i>Filter
                     </a>
+                     <!-- Multiple Delete Button -->
+            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                <i class="fa-regular fa-trash-can me-1"></i>Delete
+            </a>
                     <div>
                         <a href="add-task.php" class="btn btn-primary d-flex align-items-center">
                             <i class="isax isax-add-circle5 me-1"></i>New Task
@@ -259,10 +263,7 @@ $statusOptions = [
                 </div>
             <?php endif; ?>
 
-            <!-- Multiple Delete Button -->
-            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                <i class="fa-regular fa-trash-can me-1"></i>Delete
-            </a>
+           
         </div>
     </div>
 </div>

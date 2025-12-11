@@ -87,11 +87,13 @@ $result = mysqli_query($conn, $query);
 
                             <div class="d-flex align-items-center flex-wrap gap-4">
                                 
-                                <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                               
+                            </div>
+                          
+                        </div>
+                           <a href="#" class="btn btn-outline-danger delete-multiple d-none">
                                     <i class="fa-regular fa-trash-can me-1"></i>Delete
                                 </a>
-                            </div>
-                        </div>
                         <?php if (check_is_access_new("add_tax") == 1) { ?>
                         <div class="d-flex align-items-center flex-wrap gap-2">
                             <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#add_tax_rates" class="btn btn-primary d-flex align-items-center">

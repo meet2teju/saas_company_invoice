@@ -102,10 +102,11 @@ $result = mysqli_query($conn, $query);
                             <div class="search-input">
                                 <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
                             </div>
-                            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                          
+                        </div>
+                          <a href="#" class="btn btn-outline-danger delete-multiple d-none">
                                 <i class="fa-regular fa-trash-can me-1"></i>Delete
                             </a>
-                        </div>
                         <a href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#add_bank_modal" class="btn btn-primary">
                             <i class="isax isax-add-circle5 me-2"></i>New Bank
                         </a>

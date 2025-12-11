@@ -163,7 +163,7 @@ $users = mysqli_query($conn, $query);
                         <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
                             <i class="isax isax-filter me-1"></i>Filter
                         </a>
-                        <div class="dropdown">
+                        <!-- <div class="dropdown">
                             <a href="javascript:void(0);" class="btn btn-outline-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
                                 <i class="isax isax-export-1 me-1"></i>Export
                             </a>
@@ -172,7 +172,11 @@ $users = mysqli_query($conn, $query);
                                     <a class="dropdown-item" href="process/export_excle_users.php?<?php echo http_build_query($_GET); ?>">Download as Excel</a>
                                 </li>
                             </ul>
-                        </div>
+                        </div> -->
+                             <!-- Multiple Delete Button -->
+            <a href="#" class="btn btn-outline-danger d-inline-flex align-items-center delete-multiple d-none">
+                <i class="fa-regular fa-trash-can me-1"></i>Delete
+            </a>
                         <?php if (check_is_access_new("add_user") == 1) { ?> 
                         <div>
                             <a href="javascript:void(0);" class="btn btn-primary d-flex align-items-center" data-bs-toggle="modal" data-bs-target="#add_modal">
@@ -248,10 +252,7 @@ $users = mysqli_query($conn, $query);
                 </div>
             <?php endif; ?>
 
-            <!-- Multiple Delete Button -->
-            <a href="#" class="btn btn-outline-danger d-inline-flex align-items-center delete-multiple d-none">
-                <i class="fa-regular fa-trash-can me-1"></i>Delete
-            </a>
+       
         </div>
     </div>
 </div>

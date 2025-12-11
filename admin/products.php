@@ -60,6 +60,10 @@
                                 </li>
 							</ul>
 						</div>
+                          <!-- Multiple Delete Button -->
+            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                <i class="fa-regular fa-trash-can me-1"></i>Delete
+            </a>
                         <?php if (check_is_access_new("add_product") == 1) { ?> 
                         <div>
 							<a href="add-product.php" class="btn btn-primary d-flex align-items-center"><i class="isax isax-add-circle5 me-1"></i>New Product</a>
@@ -154,10 +158,7 @@
                 </div>
             <?php endif; ?>
 
-            <!-- Multiple Delete Button -->
-            <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                <i class="fa-regular fa-trash-can me-1"></i>Delete
-            </a>
+          
         </div>
     </div>
 </div>

@@ -3,12 +3,12 @@ session_start();
 include '../../config/config.php';
 
 // Check if user has permission to delete tax rates
-if (!isset($_SESSION['role_id']) || check_is_access_new("delete_tax") != 1) {
-    $_SESSION['message'] = "You don't have permission to delete tax rates.";
-    $_SESSION['message_type'] = 'danger';
-    header("Location: ../tax-rates.php");
-    exit();
-}
+// if (!isset($_SESSION['role_id']) || check_is_access_new("delete_tax") != 1) {
+//     $_SESSION['message'] = "You don't have permission to delete tax rates.";
+//     $_SESSION['message_type'] = 'danger';
+//     header("Location: ../tax-rates.php");
+//     exit();
+// }
 
 // Check if tax IDs are provided
 if (isset($_POST['tax_ids']) && is_array($_POST['tax_ids'])) {

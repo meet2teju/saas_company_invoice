@@ -152,6 +152,10 @@ $categoriesResult = mysqli_query($conn, "SELECT id, name FROM expense_category W
                     <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
                         <i class="isax isax-filter me-1"></i>Filter
                     </a>
+                     <!-- Multiple Delete Button -->
+                        <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                            <i class="fa-regular fa-trash-can me-1"></i>Delete
+                        </a>
                     <?php if (check_is_access_new("add_expense") == 1) { ?> 
                     <div>
                         <a href="add-expense.php" class="btn btn-primary d-flex align-items-center">
@@ -227,10 +231,7 @@ $categoriesResult = mysqli_query($conn, "SELECT id, name FROM expense_category W
                             </div>
                         <?php endif; ?>
 
-                        <!-- Multiple Delete Button -->
-                        <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                            <i class="fa-regular fa-trash-can me-1"></i>Delete
-                        </a>
+                       
                     </div>
                 </div>
             </div>
