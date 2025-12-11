@@ -1,7 +1,7 @@
 <?php
 include '../../config/config.php';
 
-session_start(); // Add this at the very top
+session_start();
 
 function uploadFile($file, $uploadDir) {
     if (!file_exists($uploadDir)) {
@@ -48,7 +48,6 @@ if (isset($_POST['submit'])) {
         $company_name = $_POST['company_name'];
         $first_name = $_POST['first_name'];
         $last_name = $_POST['last_name'];
-        $display_name = $_POST['display_name'];
         $client_type = isset($_POST['client_type']) ? (int)$_POST['client_type'] : 0;
         $phone_number = $_POST['phone_number'];
         $business_number = $_POST['business_number'];
@@ -58,7 +57,7 @@ if (isset($_POST['submit'])) {
 
         $currency = $_POST['currency'];
         $pan = $_POST['pan_number'];
-        $vat_gst = $_POST['vat_gst_number'] ?? ''; // Add this line
+        $vat_gst = $_POST['gst_number'] ?? '';
 
         $website_url = $_POST['website_url'];
         $department = $_POST['department'];
@@ -67,14 +66,14 @@ if (isset($_POST['submit'])) {
         $skype_name_number = $_POST['skype_name_number'];
         $facebook = $_POST['facebook'];
 
-        // FIXED: Corrected column order in INSERT query
+        // Client INSERT query
         $query = "INSERT INTO client (
-            customer_image, salutation, company_name, first_name, last_name, display_name, client_type,
-            phone_number, business_number, email, enable_portal, remark, pan_number, vat_gst_number,
+            customer_image, salutation, company_name, first_name, last_name, client_type,
+            phone_number, business_number, email, enable_portal, remark, pan_number, gst_number,
             website_url, department, designation, twitter, skype_name_number, facebook,
             currency, status, org_id, user_id, is_deleted, created_by, updated_by
         ) VALUES (
-            '$imageName', '$salutation', '$company_name', '$first_name', '$last_name', '$display_name', '$client_type',
+            '$imageName', '$salutation', '$company_name', '$first_name', '$last_name', '$client_type',
             '$phone_number', '$business_number', '$email', '$enable_portal', '$remark', '$pan', '$vat_gst',
             '$website_url', '$department', '$designation', '$twitter', '$skype_name_number', '$facebook',
             '$currency', 1, '$orgId', '$currentUserId', 0, '$currentUserId', '$currentUserId'
@@ -84,31 +83,31 @@ if (isset($_POST['submit'])) {
             throw new Exception("Client insert failed: " . mysqli_error($conn));
         }
 
-        $clientId = mysqli_insert_id($conn); // Get inserted ID
+        $clientId = mysqli_insert_id($conn);
 
-        // Insert billing and shipping address into client_address
-        // $billing_name = $_POST['billing_name'];
-        $billing_address1 = $_POST['billing_address1'];
-        $billing_address2 = $_POST['billing_address2'];
-        $billing_country = $_POST['billing_country'];
-        $billing_state = $_POST['billing_state'];
-        $billing_city = $_POST['billing_city'];
-        $billing_pincode = mysqli_real_escape_string($conn, $_POST['billing_pincode']);
+        // Insert billing and shipping address with NULL handling like reference code
+        $billing_address1 = $_POST['billing_address1'] ?? '';
+        $billing_address2 = $_POST['billing_address2'] ?? '';
+        $billing_country = !empty($_POST['billing_country']) ? (int)$_POST['billing_country'] : 'NULL';
+        $billing_state = !empty($_POST['billing_state']) ? (int)$_POST['billing_state'] : 'NULL';
+        $billing_city = !empty($_POST['billing_city']) ? (int)$_POST['billing_city'] : 'NULL';
+        $billing_pincode = mysqli_real_escape_string($conn, $_POST['billing_pincode'] ?? '');
 
-        // $shipping_name = $_POST['shipping_name'];
-        $shipping_address1 = $_POST['shipping_address1'];
-        $shipping_address2 = $_POST['shipping_address2'];
-        $shipping_country = $_POST['shipping_country'];
-        $shipping_state = $_POST['shipping_state'];
-        $shipping_city = $_POST['shipping_city'];
-        $shipping_pincode = mysqli_real_escape_string($conn, $_POST['shipping_pincode']);
+        $shipping_address1 = $_POST['shipping_address1'] ?? '';
+        $shipping_address2 = $_POST['shipping_address2'] ?? '';
+        $shipping_country = !empty($_POST['shipping_country']) ? (int)$_POST['shipping_country'] : 'NULL';
+        $shipping_state = !empty($_POST['shipping_state']) ? (int)$_POST['shipping_state'] : 'NULL';
+        $shipping_city = !empty($_POST['shipping_city']) ? (int)$_POST['shipping_city'] : 'NULL';
+        $shipping_pincode = mysqli_real_escape_string($conn, $_POST['shipping_pincode'] ?? '');
+
+        // Build address query with NULL for empty values
         $addressQuery = "INSERT INTO client_address (
-            client_id,billing_address1, billing_address2, billing_country, billing_state, billing_city, billing_pincode,
+            client_id, billing_address1, billing_address2, billing_country, billing_state, billing_city, billing_pincode,
             shipping_address1, shipping_address2, shipping_country, shipping_state, shipping_city, shipping_pincode,
             status, org_id, is_deleted, created_by, updated_by
         ) VALUES (
-            '$clientId','$billing_address1', '$billing_address2', '$billing_country', '$billing_state', '$billing_city', '$billing_pincode',
-            '$shipping_address1', '$shipping_address2', '$shipping_country', '$shipping_state', '$shipping_city', '$shipping_pincode',
+            '$clientId', '$billing_address1', '$billing_address2', $billing_country, $billing_state, $billing_city, '$billing_pincode',
+            '$shipping_address1', '$shipping_address2', $shipping_country, $shipping_state, $shipping_city, '$shipping_pincode',
             1, '$orgId', 0, '$currentUserId', '$currentUserId'
         )";
 
@@ -126,13 +125,13 @@ if (isset($_POST['submit'])) {
 
         // Only insert if at least one banking field has a value
         if (!empty($bank_name) || !empty($bank_branch) || !empty($account_holder) || 
-            !empty($account_number) || !empty($ifsc)) {
+            !empty($account_number) || !empty($ifsc) || !empty($routing_number)) {
             
             $bankQuery = "INSERT INTO client_bank (
-                client_id, bank_name, bank_branch, account_holder, account_number,routing_number,IFSC_code, status,
+                client_id, bank_name, bank_branch, account_holder, account_number, routing_number, IFSC_code, status,
                 org_id, is_deleted, created_by, updated_by
             ) VALUES (
-                '$clientId', '$bank_name', '$bank_branch', '$account_holder', '$account_number','$routing_number','$ifsc', 1,
+                '$clientId', '$bank_name', '$bank_branch', '$account_holder', '$account_number', '$routing_number', '$ifsc', 1,
                 '$orgId', 0, '$currentUserId', '$currentUserId'
             )";
 

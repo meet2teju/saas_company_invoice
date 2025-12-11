@@ -164,13 +164,13 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                     <span id="company_name_error" class="text-danger error-text"></span>
                                                 </div>
                                             </div>
-                                            <div class="col-lg-4 col-md-6">
+                                            <!-- <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">Display Name </label>
                                                     <input type="text" class="form-control" name="display_name" id="display_name" value="<?php echo htmlspecialchars($row['display_name']); ?>">
                                                     <span id="display_name_error" class="text-danger error-text"></span>
                                                 </div>
-                                            </div>
+                                            </div> -->
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">Email </label>
@@ -230,7 +230,7 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                         </select>
                                                     </div>
                                                     
-                                                    <div class="col-md-6 mb-3">
+                                                    <!-- <div class="col-md-6 mb-3">
                                                         <label class="form-label">Enable Portal?</label><br>
                                                         <div class="form-check">
                                                             <input type="checkbox" class="form-check-input" id="enablePortalCheckbox" name="enable_portal" <?php echo $row['enable_portal'] ? 'checked' : ''; ?>>
@@ -239,9 +239,13 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                             </label>
                                                         </div>
                                                         <span id="emailRequiredNote" class="text-muted ms-1 <?php echo !$row['enable_portal'] ? 'd-none' : ''; ?>">( Email address is mandatory )</span>
-                                                    </div>
+                                                    </div> -->
 
-                                                    
+                                                    <div class="col-md-6 mb-3">
+                                                        <label class="form-label">VAT/GST Number</label>
+                                                        <input type="text" class="form-control" name="gst_number" id="gst_number" value="<?php echo htmlspecialchars($row['gst_number']); ?>">
+                                                        <span id="gst_number_error" class="text-danger error-text"></span>
+                                                    </div>
                                                     <div class="col-md-6 mb-3">
                                                             <label class="form-label">Documents</label>
                                                             <input type="file" class="form-control" name="documents[]" multiple>
@@ -399,8 +403,8 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                     <div class="col-md-6">
                                                         <div class="d-flex align-items-center justify-content-between mb-3">
                                                             <h6>Shipping Address</h6>
-                                                     <a href="javascript:void(0);" onclick="copyBillingToShipping()" class="text-primary text-decoration-underline fs-13">
-                                                     <i class="isax isax-document-copy me-1"></i>Copy From Billing</a>
+                                                     <!-- <a href="javascript:void(0);" onclick="copyBillingToShipping()" class="text-primary text-decoration-underline fs-13">
+                                                     <i class="isax isax-document-copy me-1"></i>Copy From Billing</a> -->
                                                         </div>
                                                         <div class="row">
                                                             <!-- <div class="col-12 mb-3">
@@ -873,37 +877,37 @@ function getCities(stateId, targetDropdown) {
 }
 
 // Copy Billing Address to Shipping Address
-function copyBillingToShipping() {
-    try {
-        $('#shipping_name').val($('#billing_name').val());
-        $('#shipping_address1').val($('#billing_address1').val());
-        $('#shipping_address2').val($('#billing_address2').val());
-        $('#shipping_pincode').val($('#billing_pincode').val());
+// function copyBillingToShipping() {
+//     try {
+//         $('#shipping_name').val($('#billing_name').val());
+//         $('#shipping_address1').val($('#billing_address1').val());
+//         $('#shipping_address2').val($('#billing_address2').val());
+//         $('#shipping_pincode').val($('#billing_pincode').val());
 
-        const countryVal = $('#billing_country').val();
-        if (!countryVal) return;
+//         const countryVal = $('#billing_country').val();
+//         if (!countryVal) return;
 
-        $('#shipping_country').val(countryVal).trigger('change');
+//         $('#shipping_country').val(countryVal).trigger('change');
 
-        // Delay for state loading
-        setTimeout(function () {
-            const stateVal = $('#billing_state').val();
-            if (!stateVal) return;
+//         // Delay for state loading
+//         setTimeout(function () {
+//             const stateVal = $('#billing_state').val();
+//             if (!stateVal) return;
 
-            $('#shipping_state').val(stateVal).trigger('change');
+//             $('#shipping_state').val(stateVal).trigger('change');
 
-            // Delay for city loading
-            setTimeout(function () {
-                const cityVal = $('#billing_city').val();
-                if (cityVal) {
-                    $('#shipping_city').val(cityVal).trigger('change');
-                }
-            }, 500);
-        }, 500);
-    } catch (error) {
-        console.error("Error copying billing to shipping:", error);
-    }
-}
+//             // Delay for city loading
+//             setTimeout(function () {
+//                 const cityVal = $('#billing_city').val();
+//                 if (cityVal) {
+//                     $('#shipping_city').val(cityVal).trigger('change');
+//                 }
+//             }, 500);
+//         }, 500);
+//     } catch (error) {
+//         console.error("Error copying billing to shipping:", error);
+//     }
+// }
 </script>
 <script>
 $(document).ready(function () {
@@ -1182,7 +1186,7 @@ $(document).ready(function() {
             {name: 'first_name', errorId: 'first_name_error', message: 'First name is required', tab: 'otherTab'},
             {name: 'last_name', errorId: 'last_name_error', message: 'Last name is required', tab: 'otherTab'},
             // {name: 'company_name', errorId: 'company_name_error', message: 'Company name is required', tab: 'otherTab'},
-            {name: 'display_name', errorId: 'display_name_error', message: 'Display name is required', tab: 'otherTab'},
+            // {name: 'display_name', errorId: 'display_name_error', message: 'Display name is required', tab: 'otherTab'},
             // {name: 'email', errorId: 'email_error', message: 'Email is required', tab: 'otherTab'},
             // {name: 'phone_number', errorId: 'phone_number_error', message: 'Work number is required', tab: 'otherTab'},
             // {name: 'business_number', errorId: 'business_number_error', message: 'Mobile number is required', tab: 'otherTab'},
@@ -1249,12 +1253,12 @@ $(document).ready(function() {
             }
         });
 
-        // Check if portal is enabled and email is provided
-        if ($('#enablePortalCheckbox').is(':checked') && !email) {
-            $('#email_error').text('Email is required when portal access is enabled');
-            isValid = false;
-            $(`[data-bs-target="#otherTab"]`).addClass('has-error');
-        }
+        // // Check if portal is enabled and email is provided
+        // if ($('#enablePortalCheckbox').is(':checked') && !email) {
+        //     $('#email_error').text('Email is required when portal access is enabled');
+        //     isValid = false;
+        //     $(`[data-bs-target="#otherTab"]`).addClass('has-error');
+        // }
 
         // Document type check
         $('#documents_error').text('');
@@ -1447,13 +1451,13 @@ $(document).ready(function () {
     $('.select').select2();
     addContactRow();
     
-    $('#enablePortalCheckbox').change(function() {
-        if (this.checked) {
-            $('#emailRequiredNote').removeClass('d-none');
-        } else {
-            $('#emailRequiredNote').addClass('d-none');
-        }
-    });
+    // $('#enablePortalCheckbox').change(function() {
+    //     if (this.checked) {
+    //         $('#emailRequiredNote').removeClass('d-none');
+    //     } else {
+    //         $('#emailRequiredNote').addClass('d-none');
+    //     }
+    // });
 });
 
 // Function to validate a specific tab
@@ -1552,41 +1556,41 @@ function getCities(stateId, targetDropdown) {
     });
 }
 
-function copyBillingToShipping() {
-    try {
-        // Copy basic fields
-        $('#shipping_name').val($('#billing_name').val());
-        $('#shipping_address1').val($('#billing_address1').val());
-        $('#shipping_address2').val($('#billing_address2').val());
-        $('#shipping_pincode').val($('#billing_pincode').val());
+// function copyBillingToShipping() {
+//     try {
+//         // Copy basic fields
+//         $('#shipping_name').val($('#billing_name').val());
+//         $('#shipping_address1').val($('#billing_address1').val());
+//         $('#shipping_address2').val($('#billing_address2').val());
+//         $('#shipping_pincode').val($('#billing_pincode').val());
         
-        // Copy country
-        const countryVal = $('#billing_country').val();
-        if (!countryVal) return;
+//         // Copy country
+//         const countryVal = $('#billing_country').val();
+//         if (!countryVal) return;
         
-        $('#shipping_country').val(countryVal).trigger('change');
+//         $('#shipping_country').val(countryVal).trigger('change');
         
-        // Wait for states to load
-        setTimeout(function() {
-            // Copy state
-            const stateVal = $('#billing_state').val();
-            if (!stateVal) return;
+//         // Wait for states to load
+//         setTimeout(function() {
+//             // Copy state
+//             const stateVal = $('#billing_state').val();
+//             if (!stateVal) return;
             
-            $('#shipping_state').val(stateVal).trigger('change');
+//             $('#shipping_state').val(stateVal).trigger('change');
             
-            // Wait for cities to load
-            setTimeout(function() {
-                // Copy city
-                const cityVal = $('#billing_city').val();
-                if (cityVal) {
-                    $('#shipping_city').val(cityVal).trigger('change');
-                }
-            }, 500);
-        }, 500);
-    } catch (error) {
-        console.error("Error copying billing to shipping:", error);
-    }
-}
+//             // Wait for cities to load
+//             setTimeout(function() {
+//                 // Copy city
+//                 const cityVal = $('#billing_city').val();
+//                 if (cityVal) {
+//                     $('#shipping_city').val(cityVal).trigger('change');
+//                 }
+//             }, 500);
+//         }, 500);
+//     } catch (error) {
+//         console.error("Error copying billing to shipping:", error);
+//     }
+// }
 
 // Contact persons functions
 function addContactRow() {
@@ -1734,23 +1738,23 @@ function removeRow(button) {
 }
 
 // Display name function
-function updateDisplayName() {
-    const salutation = document.getElementById('salutation').value;
-    let displayName = '';
+// function updateDisplayName() {
+//     const salutation = document.getElementById('salutation').value;
+//     let displayName = '';
 
-    if (salutation === 'Mr') displayName = 'Mr';
-    else if (salutation === 'Mrs') displayName = 'Mrs';
-    else if (salutation === 'Ms') displayName = 'Ms';
-    else if (salutation === 'Miss') displayName = 'Miss';
-    else if (salutation === 'Dr') displayName = 'Dr';
+//     if (salutation === 'Mr') displayName = 'Mr';
+//     else if (salutation === 'Mrs') displayName = 'Mrs';
+//     else if (salutation === 'Ms') displayName = 'Ms';
+//     else if (salutation === 'Miss') displayName = 'Miss';
+//     else if (salutation === 'Dr') displayName = 'Dr';
 
-    document.getElementById('display_name').value = displayName;
-}
+//     document.getElementById('display_name').value = displayName;
+// }
 
-// Initialize display name when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    updateDisplayName();
-});
+// // Initialize display name when page loads
+// document.addEventListener('DOMContentLoaded', function() {
+//     updateDisplayName();
+// });
 </script>
 <!-- <script>
 $(document).ready(function() {

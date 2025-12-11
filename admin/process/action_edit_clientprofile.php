@@ -5,8 +5,11 @@ session_start();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $client_id      = $_POST['client_id'];
     $first_name     = $_POST['first_name'];
+    $last_name     = $_POST['last_name'];
+      $salutation     = $_POST['salutation'];
     $email          = $_POST['email'];
     $phone_number   = $_POST['phone_number'];
+    $business_number   = $_POST['business_number'];
     $company_name   = $_POST['company_name'];
     $website_url    = $_POST['website_url'];
     $old_image      = $_POST['old_image'];
@@ -24,8 +27,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Update query
     $query = "UPDATE client SET 
         first_name = '$first_name',
+         last_name = '$last_name',
+          salutation = '$salutation',
         email = '$email',
         phone_number = '$phone_number',
+         business_number = '$business_number',
         company_name = '$company_name',
         website_url = '$website_url',
         customer_image = '$image_name'

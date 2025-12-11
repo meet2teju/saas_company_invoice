@@ -540,72 +540,103 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
 		========================= -->
         <!-- Edit Client Modal -->
        <!-- Edit Client Modal -->
-        <div class="modal fade" id="editClientModal" tabindex="-1" aria-labelledby="editClientModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <form action="process/action_edit_clientprofile.php" method="POST" enctype="multipart/form-data" id="editClientForm">
+       <div class="modal fade" id="editClientModal" tabindex="-1" aria-labelledby="editClientModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <form action="process/action_edit_clientprofile.php" method="POST" enctype="multipart/form-data" id="editClientForm">
             <input type="hidden" name="client_id" value="<?= $client['id'] ?>">
             <input type="hidden" name="old_image" value="<?= $client['customer_image'] ?>">
             <div class="modal-content">
                 <div class="modal-header">
-                <h5 class="modal-title" id="editClientModalLabel">Edit Client Profile</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    <h5 class="modal-title" id="editClientModalLabel">Edit Client Profile</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
 
                 <div class="modal-body row">
-                <!-- Image Preview -->
-                <div class="mb-3 col-md-12 d-flex align-items-center">
-                    <div id="add_image_preview" class="avatar avatar-xxl border border-dashed bg-light me-3 flex-shrink-0">
-                    <?php if (!empty($client['customer_image'])): ?>
-                        <img src="../uploads/<?= htmlspecialchars($client['customer_image']) ?>" class="avatar avatar-xl rounded-circle" alt="Customer Image">
-                    <?php else: ?>
-                        <i class="isax isax-image text-primary fs-24"></i>
-                    <?php endif; ?>
+                    <!-- Image Preview -->
+                    <div class="mb-3 col-md-12 d-flex align-items-center">
+                        <div id="add_image_preview" class="avatar avatar-xxl border border-dashed bg-light me-3 flex-shrink-0">
+                            <?php if (!empty($client['customer_image'])): ?>
+                                <img src="../uploads/<?= htmlspecialchars($client['customer_image']) ?>" class="avatar avatar-xl rounded-circle" alt="Customer Image">
+                            <?php else: ?>
+                                <i class="isax isax-image text-primary fs-24"></i>
+                            <?php endif; ?>
+                        </div>
+                        <div class="flex-grow-1">
+                            <label for="clientImage" class="form-label">Upload Image<span class="text-danger ms-1">*</span></label>
+                            <input type="file" class="form-control" name="image" id="clientImage">
+                            <span class="text-danger small" id="imageError"></span>
+                        </div>
                     </div>
-                    <div class="flex-grow-1">
-                    <label for="clientImage" class="form-label">Upload Image<span class="text-danger ms-1">*</span></label>
-                    <input type="file" class="form-control" name="image" id="clientImage">
-                    <span class="text-danger small" id="imageError"></span>
+
+                    <!-- Salutation -->
+                    <div class="mb-3 col-md-6">
+                        <label for="clientSalutation" class="form-label">Salutation<span class="text-danger ms-1">*</span></label>
+                       <select class="select" name="salutation" id="salutation" onchange="updateDisplayName()">
+                                                        <option value="Mr" <?php echo $client['salutation'] == 'Mr' ? 'selected' : ''; ?>>Mr</option>
+                                                        <option value="Mrs" <?php echo $client['salutation'] == 'Mrs' ? 'selected' : ''; ?>>Mrs</option>
+                                                        <option value="Ms" <?php echo $client['salutation'] == 'Ms' ? 'selected' : ''; ?>>Ms</option>
+                                                        <option value="Miss" <?php echo $client['salutation'] == 'Miss' ? 'selected' : ''; ?>>Miss</option>
+                                                        <option value="Dr" <?php echo $client['salutation'] == 'Dr' ? 'selected' : ''; ?>>Dr</option>
+                                                    </select>
+                        <span class="text-danger small" id="salutationError"></span>
                     </div>
-                </div>
 
-                <!-- Client Info -->
-                <div class="mb-3 col-md-6">
-                    <label for="clientName" class="form-label">Client Name<span class="text-danger ms-1">*</span></label>
-                    <input type="text" class="form-control" id="clientName" name="first_name" value="<?= htmlspecialchars($client['first_name']) ?>" >
-                    <span class="text-danger small" id="nameError"></span>
-                </div>
+                    <!-- First Name -->
+                    <div class="mb-3 col-md-6">
+                        <label for="clientFirstName" class="form-label">First Name<span class="text-danger ms-1">*</span></label>
+                        <input type="text" class="form-control" id="clientFirstName" name="first_name" value="<?= htmlspecialchars($client['first_name'] ?? '') ?>">
+                        <span class="text-danger small" id="firstNameError"></span>
+                    </div>
 
-                <div class="mb-3 col-md-6">
-                    <label for="clientEmail" class="form-label">Email<span class="text-danger ms-1">*</span></label>
-                    <input type="email" class="form-control" id="clientEmail" name="email" value="<?= htmlspecialchars($client['email']) ?>">
-                    <span class="text-danger small" id="emailError"></span>
-                </div>
+                    <!-- Last Name -->
+                    <div class="mb-3 col-md-6">
+                        <label for="clientLastName" class="form-label">Last Name<span class="text-danger ms-1">*</span></label>
+                        <input type="text" class="form-control" id="clientLastName" name="last_name" value="<?= htmlspecialchars($client['last_name'] ?? '') ?>">
+                        <span class="text-danger small" id="lastNameError"></span>
+                    </div>
 
-                <div class="mb-3 col-md-6">
-                    <label for="clientPhone" class="form-label">Phone</label>
-                    <input type="text" class="form-control" id="clientPhone" name="phone_number" value="<?= htmlspecialchars($client['phone_number']) ?>">
-                </div>
+                    <!-- Company Name -->
+                    <div class="mb-3 col-md-6">
+                        <label for="clientCompany" class="form-label">Company Name</label>
+                        <input type="text" class="form-control" id="clientCompany" name="company_name" value="<?= htmlspecialchars($client['company_name'] ?? '') ?>">
+                        <span class="text-danger small" id="companyError"></span>
+                    </div>
 
-                <div class="mb-3 col-md-6">
-                    <label for="clientCompany" class="form-label">Company Name<span class="text-danger ms-1">*</span></label>
-                    <input type="text" class="form-control" id="clientCompany" name="company_name" value="<?= htmlspecialchars($client['company_name']) ?>">
-                    <span class="text-danger small" id="companyError"></span>
-                </div>
+                    <!-- Email -->
+                    <div class="mb-3 col-md-6">
+                        <label for="clientEmail" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="clientEmail" name="email" value="<?= htmlspecialchars($client['email'] ?? '') ?>">
+                        <span class="text-danger small" id="emailError"></span>
+                    </div>
 
-                <div class="mb-3 col-md-12">
-                    <label for="clientWebsite" class="form-label">Website</label>
-                    <input type="text" class="form-control" id="clientWebsite" name="website_url" value="<?= htmlspecialchars($client['website_url']) ?>">
-                </div>
+                    <!-- Work Number -->
+                    <div class="mb-3 col-md-6">
+                        <label for="clientWorkNumber" class="form-label">Work Number</label>
+                        <input type="text" class="form-control" id="clientWorkNumber" name="business_number" value="<?= htmlspecialchars($client['business_number'] ?? '') ?>">
+                    </div>
+
+                    <!-- Mobile Number -->
+                    <div class="mb-3 col-md-6">
+                        <label for="clientMobileNumber" class="form-label">Mobile Number</label>
+                        <input type="text" class="form-control" id="clientMobileNumber" name="phone_number" value="<?= htmlspecialchars($client['phone_number'] ?? '') ?>">
+                        <span class="text-danger small" id="mobileError"></span>
+                    </div>
+
+                    <!-- Website -->
+                    <div class="mb-3 col-md-12">
+                        <label for="clientWebsite" class="form-label">Website</label>
+                        <input type="text" class="form-control" id="clientWebsite" name="website_url" value="<?= htmlspecialchars($client['website_url'] ?? '') ?>">
+                    </div>
                 </div>
 
                 <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary">Update</button>
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update</button>
                 </div>
             </div>
-            </form>
-        </div>
-        </div>
+        </form>
+    </div>
+</div>
 
 
         <!-- Delete Modal Start -->
