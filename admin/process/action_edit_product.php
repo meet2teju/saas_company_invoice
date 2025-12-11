@@ -111,13 +111,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         }
 
+        // ---------------------------
+        // ✅ Set success message and redirect to SAME edit page
+        // ---------------------------
         $_SESSION['message'] = 'Product updated successfully';
         $_SESSION['message_type'] = 'success';
-        header("Location: ../products.php");
+        header("Location: ../edit-product.php?id=$id");
         exit();
     } else {
-   
-        echo "Error updating product: " . mysqli_error($conn);
+        // ---------------------------
+        // ✅ Set error message and redirect to SAME edit page
+        // ---------------------------
+        $_SESSION['message'] = 'Error updating product: ' . mysqli_error($conn);
+        $_SESSION['message_type'] = 'error';
+        header("Location: ../edit-product.php?id=$id");
         exit();
     }
 } else {

@@ -62,6 +62,16 @@ while ($row = mysqli_fetch_assoc($client_result)) {
             Start Page Content
         ========================= -->
         <div class="page-wrapper">
+             <?php if (isset($_SESSION['message'])): ?>
+                    <?php 
+                        $alertClass = ($_SESSION['message_type'] === 'success') ? 'alert-success' : 'alert-danger';
+                    ?>
+                    <div class="alert <?= $alertClass ?> alert-dismissible fade show" role="alert">
+                        <?= $_SESSION['message']; ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
+                <?php endif; ?>
             <div class="content content-two">
                 <!-- Page Header -->
             <div class="d-flex align-items-center justify-content-between mb-3">

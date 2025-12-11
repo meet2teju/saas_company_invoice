@@ -33,34 +33,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             WHERE id = $project_id";
 
     if (!mysqli_query($conn, $sql)) {
-        echo "<pre>Project Update Error: " . mysqli_error($conn) . "</pre>";
+        // Set error message and redirect back to edit page
+        $_SESSION['message'] = 'Project Update Error: ' . mysqli_error($conn);
+        $_SESSION['message_type'] = 'error';
+        header("Location: ../edit-project.php?id=$project_id");
         exit;
     }
 
     // Update project_users table
-   // Update project_users table
-mysqli_query($conn, "DELETE FROM project_users WHERE project_id = $project_id");
-if (!empty($_POST['user_id'])) {
-    foreach ($_POST['user_id'] as $uid) {
-        $uid = (int)$uid;
+    mysqli_query($conn, "DELETE FROM project_users WHERE project_id = $project_id");
+    if (!empty($_POST['user_id'])) {
+        foreach ($_POST['user_id'] as $uid) {
+            $uid = (int)$uid;
 
-        // Fetch email from login table
-        $email = '';
-        $res = mysqli_query($conn, "SELECT email FROM login WHERE id = $uid");
-        if ($res && mysqli_num_rows($res) > 0) {
-            $row = mysqli_fetch_assoc($res);
-            $email = mysqli_real_escape_string($conn, $row['email']);
-        }
+            // Fetch email from login table
+            $email = '';
+            $res = mysqli_query($conn, "SELECT email FROM login WHERE id = $uid");
+            if ($res && mysqli_num_rows($res) > 0) {
+                $row = mysqli_fetch_assoc($res);
+                $email = mysqli_real_escape_string($conn, $row['email']);
+            }
 
-        if ($uid && $email) {
-            mysqli_query($conn, "
-                INSERT INTO project_users (project_id, user_id, email)
-                VALUES ($project_id, $uid, '$email')
-            ");
+            if ($uid && $email) {
+                mysqli_query($conn, "
+                    INSERT INTO project_users (project_id, user_id, email)
+                    VALUES ($project_id, $uid, '$email')
+                ");
+            }
         }
     }
-}
-
 
     // Update project_task table
     mysqli_query($conn, "DELETE FROM project_task WHERE project_id = $project_id");
@@ -68,29 +69,33 @@ if (!empty($_POST['user_id'])) {
         foreach ($_POST['task_name'] as $index => $task_name) {
             $task_name = mysqli_real_escape_string($conn, $task_name);
             $task_desc = mysqli_real_escape_string($conn, $_POST['task_description'][$index] ?? '');
-              $start_date = mysqli_real_escape_string($conn, $_POST['start_date'][$index] ?? '');
-        $end_date   = mysqli_real_escape_string($conn, $_POST['end_date'][$index] ?? '');
+            $start_date = mysqli_real_escape_string($conn, $_POST['start_date'][$index] ?? '');
+            $end_date   = mysqli_real_escape_string($conn, $_POST['end_date'][$index] ?? '');
 
-                $start_date = !empty($start_date) ? "'$start_date'" : "NULL";
-        $end_date   = !empty($end_date)   ? "'$end_date'"   : "NULL";
- $hour = mysqli_real_escape_string($conn, $_POST['hour'][$index] ?? '');
-  $status_id = mysqli_real_escape_string($conn, $_POST['status_id'][$index] ?? '');
-           $task_sql = "
-            INSERT INTO project_task (project_id, task_name, task_description, start_date, end_date, hour, status_id) 
-            VALUES ($project_id, '$task_name', '$task_desc', $start_date, $end_date, '$hour', '$status_id')
-        ";
+            $start_date = !empty($start_date) ? "'$start_date'" : "NULL";
+            $end_date   = !empty($end_date)   ? "'$end_date'"   : "NULL";
+            $hour = mysqli_real_escape_string($conn, $_POST['hour'][$index] ?? '');
+            $status_id = mysqli_real_escape_string($conn, $_POST['status_id'][$index] ?? '');
+            
+            $task_sql = "
+                INSERT INTO project_task (project_id, task_name, task_description, start_date, end_date, hour, status_id) 
+                VALUES ($project_id, '$task_name', '$task_desc', $start_date, $end_date, '$hour', '$status_id')
+            ";
+            
             if (!mysqli_query($conn, $task_sql)) {
-                echo "<pre>Task Insert Error: " . mysqli_error($conn) . "</pre>";
+                // Set error message and redirect back to edit page
+                $_SESSION['message'] = 'Task Insert Error: ' . mysqli_error($conn);
+                $_SESSION['message_type'] = 'error';
+                header("Location: ../edit-project.php?id=$project_id");
                 exit;
             }
         }
     }
 
-
-    // On success
+    // On success - REDIRECT TO SAME EDIT PAGE
     $_SESSION['message'] = 'Project updated successfully';
     $_SESSION['message_type'] = 'success';
-    header("Location: ../projects.php");
+    header("Location: ../edit-project.php?id=$project_id");
     exit();
 }
 ?>
