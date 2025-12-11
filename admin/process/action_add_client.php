@@ -87,7 +87,7 @@ if (isset($_POST['submit'])) {
         $clientId = mysqli_insert_id($conn); // Get inserted ID
 
         // Insert billing and shipping address into client_address
-        $billing_name = $_POST['billing_name'];
+        // $billing_name = $_POST['billing_name'];
         $billing_address1 = $_POST['billing_address1'];
         $billing_address2 = $_POST['billing_address2'];
         $billing_country = $_POST['billing_country'];
@@ -95,7 +95,7 @@ if (isset($_POST['submit'])) {
         $billing_city = $_POST['billing_city'];
         $billing_pincode = mysqli_real_escape_string($conn, $_POST['billing_pincode']);
 
-        $shipping_name = $_POST['shipping_name'];
+        // $shipping_name = $_POST['shipping_name'];
         $shipping_address1 = $_POST['shipping_address1'];
         $shipping_address2 = $_POST['shipping_address2'];
         $shipping_country = $_POST['shipping_country'];
@@ -103,12 +103,12 @@ if (isset($_POST['submit'])) {
         $shipping_city = $_POST['shipping_city'];
         $shipping_pincode = mysqli_real_escape_string($conn, $_POST['shipping_pincode']);
         $addressQuery = "INSERT INTO client_address (
-            client_id, billing_name, billing_address1, billing_address2, billing_country, billing_state, billing_city, billing_pincode,
-            shipping_name, shipping_address1, shipping_address2, shipping_country, shipping_state, shipping_city, shipping_pincode,
+            client_id,billing_address1, billing_address2, billing_country, billing_state, billing_city, billing_pincode,
+            shipping_address1, shipping_address2, shipping_country, shipping_state, shipping_city, shipping_pincode,
             status, org_id, is_deleted, created_by, updated_by
         ) VALUES (
-            '$clientId', '$billing_name', '$billing_address1', '$billing_address2', '$billing_country', '$billing_state', '$billing_city', '$billing_pincode',
-            '$shipping_name', '$shipping_address1', '$shipping_address2', '$shipping_country', '$shipping_state', '$shipping_city', '$shipping_pincode',
+            '$clientId','$billing_address1', '$billing_address2', '$billing_country', '$billing_state', '$billing_city', '$billing_pincode',
+            '$shipping_address1', '$shipping_address2', '$shipping_country', '$shipping_state', '$shipping_city', '$shipping_pincode',
             1, '$orgId', 0, '$currentUserId', '$currentUserId'
         )";
 

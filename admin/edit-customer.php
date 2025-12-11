@@ -329,10 +329,10 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                     <div class="col-md-6">
                                                         <h6 class="mb-3">Billing Address</h6>
                                                         <div class="row">
-                                                            <div class="col-12 mb-3">
+                                                            <!-- <div class="col-12 mb-3">
                                                                 <label class="form-label">Name</label>
                                                                 <input type="text" id="billing_name" class="form-control" name="billing_name" value="<?php echo htmlspecialchars($addressrow['billing_name']); ?>">
-                                                            </div>
+                                                            </div> -->
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 1</label>
                                                                 <input type="text" id="billing_address1" class="form-control" name="billing_address1" value="<?php echo htmlspecialchars($addressrow['billing_address1']); ?>">
@@ -342,7 +342,7 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                                 <input type="text" id="billing_address2" class="form-control" name="billing_address2" value="<?php echo htmlspecialchars($addressrow['billing_address2']); ?>">
                                                             </div>
                                                             <div class="col-md-6 mb-3">
-                                                                <label class="form-label">Country<span class="text-danger ms-1">*</span></label>
+                                                                <label class="form-label">Country</label>
                                                                 <select class="select" id="billing_country" name="billing_country" onchange="getStates(this.value, 'billing_state')">
                                                                      <option value="">Select Country</option>
                                                                     <?php 
@@ -352,10 +352,10 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                                         echo "<option value='{$country['id']}' $selected>{$country['name']}</option>";
                                                                     } ?>
                                                                 </select>
-                                                                <span id="billing_country_error" class="text-danger error-text"></span>
+                                                                <!-- <span id="billing_country_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
-                                                                <label class="form-label">State<span class="text-danger ms-1">*</span></label>
+                                                                <label class="form-label">State</label>
                                                                 <select class="select2" id="billing_state" name="billing_state" onchange="getCities(this.value, 'billing_city')">
                                                                     <option value="">Select State</option>
                                                                     <?php if (!empty($addressrow['billing_state'])): ?>
@@ -369,10 +369,10 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                                         ?>
                                                                     <?php endif; ?>
                                                                 </select>
-                                                                <span id="billing_state_error" class="text-danger error-text"></span>
+                                                                <!-- <span id="billing_state_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
-                                                                <label class="form-label">City<span class="text-danger ms-1">*</span></label>
+                                                                <label class="form-label">City</label>
                                                                 <select class="select" id="billing_city" name="billing_city">
                                                                     <option value="">Select City</option>
                                                                     <?php if (!empty($addressrow['billing_city'])): ?>
@@ -386,7 +386,7 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                                         ?>
                                                                     <?php endif; ?>
                                                                 </select>
-                                                                <span id="billing_city_error" class="text-danger error-text"></span>
+                                                                <!-- <span id="billing_city_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Pincode</label>
@@ -403,10 +403,10 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                      <i class="isax isax-document-copy me-1"></i>Copy From Billing</a>
                                                         </div>
                                                         <div class="row">
-                                                            <div class="col-12 mb-3">
+                                                            <!-- <div class="col-12 mb-3">
                                                                 <label class="form-label">Name</label>
                                                                 <input type="text" class="form-control" id="shipping_name" name="shipping_name" value="<?php echo htmlspecialchars($addressrow['shipping_name']); ?>">
-                                                            </div>
+                                                            </div> -->
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 1</label>
                                                                 <input type="text" class="form-control" id="shipping_address1" name="shipping_address1" value="<?php echo htmlspecialchars($addressrow['shipping_address1']); ?>">
@@ -416,7 +416,7 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                                 <input type="text" class="form-control" id="shipping_address2" name="shipping_address2" value="<?php echo htmlspecialchars($addressrow['shipping_address2']); ?>">
                                                             </div>
                                                           <div class="col-md-6 mb-3">
-    <label class="form-label">Country<span class="text-danger ms-1">*</span></label>
+    <label class="form-label">Country</label>
     <select class="select" id="shipping_country" name="shipping_country" onchange="getStates(this.value, 'shipping_state')">
         <option value="">Select Country</option>
         <?php 
@@ -427,10 +427,10 @@ $contacts_result = mysqli_query($conn, $contacts_query);
             echo "<option value='{$country['id']}' $selected>{$country['name']}</option>";
         } ?>
     </select>
-    <span id="shipping_country_error" class="text-danger error-text"></span>
+    <!-- <span id="shipping_country_error" class="text-danger error-text"></span> -->
 </div>
                                                             <div class="col-md-6 mb-3">
-                                                                <label class="form-label">State<span class="text-danger ms-1">*</span></label>
+                                                                <label class="form-label">State</label>
                                                                 <select class="select" id="shipping_state" name="shipping_state" onchange="getCities(this.value, 'shipping_city')">
                                                                     <option value="">Select State</option>
                                                                     <?php if (!empty($addressrow['shipping_state'])): ?>
@@ -444,10 +444,10 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                                         ?>
                                                                     <?php endif; ?>
                                                                 </select>
-                                                                 <span id="shipping_state_error" class="text-danger error-text"></span>
+                                                                 <!-- <span id="shipping_state_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
-                                                                <label class="form-label">City<span class="text-danger ms-1">*</span></label>
+                                                                <label class="form-label">City</label>
                                                                 <select class="select" id="shipping_city" name="shipping_city">
                                                                     <option value="">Select City</option>
                                                                     <?php if (!empty($addressrow['shipping_city'])): ?>
@@ -461,7 +461,7 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                                         ?>
                                                                     <?php endif; ?>
                                                                 </select>
-                                                                <span id="shipping_city_error" class="text-danger error-text"></span>
+                                                                <!-- <span id="shipping_city_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Pincode</label>
@@ -1187,12 +1187,12 @@ $(document).ready(function() {
             // {name: 'phone_number', errorId: 'phone_number_error', message: 'Work number is required', tab: 'otherTab'},
             // {name: 'business_number', errorId: 'business_number_error', message: 'Mobile number is required', tab: 'otherTab'},
             // {name: 'pan_number', errorId: 'pan_number_error', message: 'PAN number is required', tab: 'otherTab'},
-            {name: 'billing_city', errorId: 'billing_city_error', message: 'Billing city is required', tab: 'addressTab'},
-            {name: 'shipping_city', errorId: 'shipping_city_error', message: 'Shipping city is required', tab: 'addressTab'},
-            {name: 'billing_country', errorId: 'billing_country_error', message: 'Billing country is required', tab: 'addressTab'},
-            {name: 'shipping_country', errorId: 'shipping_country_error', message: 'Shipping country is required', tab: 'addressTab'},
-            {name: 'billing_state', errorId: 'billing_state_error', message: 'Billing state is required', tab: 'addressTab'},
-            {name: 'shipping_state', errorId: 'shipping_state_error', message: 'Shipping state is required', tab: 'addressTab'},
+            // {name: 'billing_city', errorId: 'billing_city_error', message: 'Billing city is required', tab: 'addressTab'},
+            // {name: 'shipping_city', errorId: 'shipping_city_error', message: 'Shipping city is required', tab: 'addressTab'},
+            // {name: 'billing_country', errorId: 'billing_country_error', message: 'Billing country is required', tab: 'addressTab'},
+            // {name: 'shipping_country', errorId: 'shipping_country_error', message: 'Shipping country is required', tab: 'addressTab'},
+            // {name: 'billing_state', errorId: 'billing_state_error', message: 'Billing state is required', tab: 'addressTab'},
+            // {name: 'shipping_state', errorId: 'shipping_state_error', message: 'Shipping state is required', tab: 'addressTab'},
             {name: 'salutation', errorId: 'salutation_error', message: 'Salutation is required', tab: 'otherTab'}
         ];
 

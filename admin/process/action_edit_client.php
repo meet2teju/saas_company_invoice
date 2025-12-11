@@ -136,7 +136,7 @@ if (isset($_POST['submit'])) {
         $billing_state = isset($_POST['billing_state']) && $_POST['billing_state'] !== '' ? (int)$_POST['billing_state'] : 0;
         $billing_city = isset($_POST['billing_city']) && $_POST['billing_city'] !== '' ? (int)$_POST['billing_city'] : 0;
         $billing_pincode = mysqli_real_escape_string($conn, $_POST['billing_pincode'] ?? '');
-        $shipping_name = mysqli_real_escape_string($conn, $_POST['shipping_name'] ?? '');
+        // $shipping_name = mysqli_real_escape_string($conn, $_POST['shipping_name'] ?? '');
         $shipping_address1 = mysqli_real_escape_string($conn, $_POST['shipping_address1'] ?? '');
         $shipping_address2 = mysqli_real_escape_string($conn, $_POST['shipping_address2'] ?? '');
         $shipping_country = isset($_POST['shipping_country']) && $_POST['shipping_country'] !== '' ? (int)$_POST['shipping_country'] : 0;
@@ -160,7 +160,7 @@ if (isset($_POST['submit'])) {
                 billing_state = '$billing_state',
                 billing_city = '$billing_city',
                 billing_pincode = '$billing_pincode',
-                shipping_name = '$shipping_name',
+                -- shipping_name = '$shipping_name',
                 shipping_address1 = '$shipping_address1',
                 shipping_address2 = '$shipping_address2',
                 shipping_country = '$shipping_country',
@@ -181,7 +181,7 @@ if (isset($_POST['submit'])) {
                 billing_state = '$billing_state',
                 billing_city = '$billing_city',
                 billing_pincode = '$billing_pincode',
-                shipping_name = '$shipping_name',
+                -- shipping_name = '$shipping_name',
                 shipping_address1 = '$shipping_address1',
                 shipping_address2 = '$shipping_address2',
                 shipping_country = '$shipping_country',

@@ -393,7 +393,9 @@ $balance_query = mysqli_query($conn, $balance_query_sql);
                                             <img src="<?= $clientImg ?>" onerror="this.src='assets/img/users/user-16.jpg';">
                                         </a>
                                         <div>
-                                            <h6 class="fs-14 fw-medium mb-0"><?= htmlspecialchars($row['first_name']) ?></h6>
+                                              <h6 class="fs-14 fw-medium mb-0">
+    <?= htmlspecialchars(trim($row['first_name'] . ' ' . ($row['last_name'] ?? ''))) ?>
+</h6>
                                         </div>
                                     </div>
                                 </td>

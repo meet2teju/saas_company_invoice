@@ -10,7 +10,10 @@ if (isset($_POST['client_id'])) {
     $client_id = intval($_POST['client_id']);
 
     // --- Billing info from client_address ---
+    // Modified query to get client details from client table
     $query = "SELECT 
+        c.company_name,
+        CONCAT(c.first_name, ' ', c.last_name) as client_full_name,
         ca.billing_name,
         ca.billing_address1,
         ca.billing_address2,
@@ -35,9 +38,23 @@ if (isset($_POST['client_id'])) {
         // Build billing HTML dynamically - only show non-empty fields
         $billing_parts = [];
         
-        // Name
-        if (!empty($row['billing_name'])) {
-            $billing_parts[] = '<h6 class="fs-14 fw-semibold mb-1">' . htmlspecialchars($row['billing_name']) . '</h6>';
+        // 1. Company Name (from client table)
+        if (!empty($row['company_name'])) {
+            $billing_parts[] = '<h6 class="fs-14 fw-semibold mb-1">' . htmlspecialchars($row['company_name']) . '</h6>';
+        }
+        
+        // 2. Client Name (from client table - use first_name + last_name)
+        // You can also use display_name if preferred
+        $client_name = '';
+        if (!empty($row['client_full_name']) && trim($row['client_full_name']) !== '') {
+            $client_name = trim($row['client_full_name']);
+        } elseif (!empty($row['billing_name'])) {
+            // Fallback to billing_name if client name not available
+            $client_name = trim($row['billing_name']);
+        }
+        
+        if (!empty($client_name)) {
+            $billing_parts[] = '<p class="mb-1 fs-13"><span class="text-dark">Client:</span> ' . htmlspecialchars($client_name) . '</p>';
         }
         
         // Phone
@@ -177,3 +194,4 @@ if (isset($_POST['client_id'])) {
 }
 
 echo json_encode($response);
+?>
