@@ -100,10 +100,10 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                             </a>
                             <ul class="dropdown-menu  dropdown-menu-end">
                                 <li>
-                                    <a href="javascript:void(0);" class="dropdown-item"> <i class="isax isax-document-text fs-14 me-2"></i>Invoice </a>
+                                    <a href="add-invoice.php" class="dropdown-item"> <i class="isax isax-document-text fs-14 me-2"></i>Invoice </a>
                                 </li>
                                 <li>
-                                    <a href="javascript:void(0);" class="dropdown-item"> <i class="isax isax-money-send fs-14 me-2"></i> Expense</a>
+                                    <a href="add-expense.php" class="dropdown-item"> <i class="isax isax-money-send fs-14 me-2"></i> Expense</a>
                                 </li>
                                 <!-- <li>
                                     <a href="javascript:void(0);" class="dropdown-item"> <i class="isax isax-money-add fs-14 me-2"></i> Credit Notes</a>
@@ -115,7 +115,7 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                                     <a href="javascript:void(0);" class="dropdown-item"> <i class="isax isax-document fs-14 me-2"></i> Purchase Order</a>
                                 </li> -->
                                 <li>
-                                    <a href="javascript:void(0);" class="dropdown-item"> <i class="isax isax-document-download fs-14 me-2"></i> Quotation</a>
+                                    <a href="add-quotation.php" class="dropdown-item"> <i class="isax isax-document-download fs-14 me-2"></i> Quotation</a>
                                 </li>
                                 <!-- <li>
                                     <a href="javascript:void(0);" class="dropdown-item"> <i class="isax isax-document-forward fs-14 me-2"></i> Delivery Challan</a>

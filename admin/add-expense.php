@@ -65,7 +65,7 @@ include '../config/config.php';
                                             </div>
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
-                                                    <label class="form-label">Title</label>
+                                                    <label class="form-label">Expense Title</label>
                                                     <input type="text" class="form-control" name="title" id="title">
                                                     <span class="text-danger error-text" id="title_error"></span>
                                                 </div>

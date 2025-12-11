@@ -27,6 +27,28 @@ if (!$task) {
     exit();
 }
 
+// Fetch statuses from project_status table
+$statuses = [];
+$status_query = "SELECT id, status_name FROM project_status WHERE is_deleted = 0 ORDER BY id";
+$status_result = mysqli_query($conn, $status_query);
+while ($row = mysqli_fetch_assoc($status_result)) {
+    $statuses[$row['id']] = $row['status_name'];
+}
+
+// Define status colors (you can modify these as needed)
+$statusColors = [
+    1 => '#ffc107', // Pending
+    2 => '#17a2b8', // In Progress
+    3 => '#28a745', // Completed
+    4 => '#6c757d', // On Hold
+    5 => '#dc3545'  // Cancelled
+];
+
+// Get current status info
+$status_id = $task['status_id'] ?? 1;
+$status_name = $statuses[$status_id] ?? 'Pending';
+$status_color = $statusColors[$status_id] ?? '#6c757d';
+
 // Fetch task attachments
 $attachments_query = "SELECT * FROM project_task_doc WHERE task_id = $task_id ORDER BY created_at DESC";
 $attachments_result = mysqli_query($conn, $attachments_query);
@@ -48,20 +70,6 @@ $assigned_users = [];
 while ($row = mysqli_fetch_assoc($assigned_users_result)) {
     $assigned_users[] = $row;
 }
-
-// Define status options (same as in your add/edit forms)
-$statusOptions = [
-    1 => ['name' => 'Pending', 'color' => '#ffc107'],
-    2 => ['name' => 'In Progress', 'color' => '#17a2b8'],
-    3 => ['name' => 'Completed', 'color' => '#28a745'],
-    4 => ['name' => 'On Hold', 'color' => '#6c757d'],
-    5 => ['name' => 'Cancelled', 'color' => '#dc3545']
-];
-
-// Get status info
-$status_id = $task['status_id'] ?? 1;
-$status_name = $statusOptions[$status_id]['name'] ?? 'Pending';
-$status_color = $statusOptions[$status_id]['color'] ?? '#6c757d';
 
 // Format dates
 $start_date = !empty($task['start_date']) ? date('d-m-Y', strtotime($task['start_date'])) : 'Not set';
@@ -1106,9 +1114,9 @@ $created_date = !empty($task['created_at']) ? date('d-m-Y', strtotime($task['cre
                     <div class="mb-3">
                         <label class="form-label">Select New Status</label>
                         <select class="form-select" name="status_id" required>
-                            <?php foreach ($statusOptions as $id => $status): ?>
+                            <?php foreach ($statuses as $id => $status_name): ?>
                                 <option value="<?= $id ?>" <?= $id == $status_id ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($status['name']) ?>
+                                    <?= htmlspecialchars($status_name) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>

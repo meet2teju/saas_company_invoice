@@ -36,7 +36,7 @@ while ($row = mysqli_fetch_assoc($task_result)) {
 }
 
 $clients = [];
-$client_result = mysqli_query($conn, "SELECT id, first_name FROM client WHERE is_deleted = 0 ORDER BY first_name ASC");
+$client_result = mysqli_query($conn, "SELECT id, salutation,first_name,last_name FROM client WHERE is_deleted = 0 ORDER BY first_name ASC");
 while ($row = mysqli_fetch_assoc($client_result)) {
     $clients[] = $row;
 }
@@ -104,10 +104,15 @@ while ($row = mysqli_fetch_assoc($client_result)) {
                                    <div class="col-md-6 mb-3">
                                     <label class="form-label">Client Name <span class="text-danger">*</span></label>
                                         <select class="form-select select2" name="client_id[]" multiple="multiple" id="client_id">
-                                            <?php foreach ($clients as $client): ?>
-                                            <option value="<?= $client['id'] ?>" <?= in_array($client['id'], explode(',', $project['client_id'])) ? 'selected' : '' ?>><?=$client['first_name']?></option>
-                                            <?php endforeach; ?>
-                                        </select>
+    <?php foreach ($clients as $client): 
+        // Build full name with salutation
+        $fullName = trim($client['salutation'] . ' ' . $client['first_name'] . ' ' . $client['last_name']);
+    ?>
+        <option value="<?= $client['id'] ?>" <?= in_array($client['id'], explode(',', $project['client_id'])) ? 'selected' : '' ?>>
+            <?= htmlspecialchars($fullName) ?>
+        </option>
+    <?php endforeach; ?>
+</select>
                                     <span class="text-danger error-text" id="clientname_error"></span>
                                     </div>
                                     

@@ -80,10 +80,10 @@ mysqli_data_seek($country_result, 0);
                                     <label class="form-label">Client Name <span class="text-danger">*</span></label>
                                         <select class="form-select select2" name="client_id[]" multiple="multiple" id="client_id">
                                             <?php
-                                            $query = "SELECT * FROM client WHERE is_deleted = 0 ORDER BY first_name ASC";
+                                            $query = "SELECT * FROM client WHERE is_deleted = 0 ORDER BY first_name ,last_name,salutation ASC";
                                             $result = mysqli_query($conn, $query);
                                             while ($row = mysqli_fetch_assoc($result)) {
-                                                echo '<option value="' . $row['id'] . '">' . htmlspecialchars($row['first_name']) . '</option>';
+                                                echo '<option value="' . $row['id'] . '">' . htmlspecialchars($row['salutation'].' '.$row['first_name'].' '.$row['last_name']) . '</option>';
                                             }
                                             ?>
                                             <!-- <option value="add_new_client" id="add_new_client" class="text-primary">+ Add New Client</option> -->

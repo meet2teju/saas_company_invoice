@@ -80,46 +80,45 @@ $lastChanged = ($row['password_updated_at']) ? date("M d, Y", strtotime($row['pa
                     <form id="passwordForm" method="POST">
                         <div class="modal-body">
                           <div class="mb-3">
-								<label class="form-label">Current Password<span class="text-danger ms-1">*</span></label>
-								<div class="pass-group input-group">
-									<span class="input-group-text border-end-0">
-										<i class="isax isax-lock"></i>
-									</span>
-									<span class="isax toggle-password isax-eye-slash"cdata-target="#password"></span>
-									<input type="password" name="password" id="password" class="pass-input form-control border-start-0 ps-0" placeholder="****************">
-								</div>
-                                    <span class="text-danger error-message" id="passwordError"></span>
-
-
-							</div>
-							<div class="mb-3">
-								<label class="form-label">New Password<span class="text-danger ms-1">*</span></label>
-								<div class="pass-group input-group mb-3">
-									<span class="input-group-text border-end-0">
-										<i class="isax isax-lock"></i>
-									</span>
-									<span class="isax toggle-passwords isax-eye-slash" data-target="#newpassword"></span>
-								
-                                <input type="password" name="newpassword" id="newpassword" class="pass-inputs form-control border-start-0 ps-0" placeholder="****************">
-							
+                                <label class="form-label">Current Password<span class="text-danger ms-1">*</span></label>
+                                <div class="pass-group input-group">
+                                    <span class="input-group-text border-end-0">
+                                        <i class="isax isax-lock"></i>
+                                    </span>
+                                    <input type="password" name="password" id="password" class="form-control border-start-0 ps-0" placeholder="****************">
+                                    <button type="button" class="input-group-text toggle-eye" data-target="password">
+                                        <i class="isax isax-eye-slash"></i>
+                                    </button>
+                                </div>
+                                <span class="text-danger error-message" id="passwordError"></span>
                             </div>
-								    
-<span class="text-danger" id="newpasswordError"></span>
-								<div id="passwordInfo" class="mb-2"></div>
-								<!-- <p class="text-gray-5">Use 8 or more characters with a mix of letters, numbers & symbols.</p> -->
-							</div>
-							<div>
-								<label class="form-label">Confirm Password<span class="text-danger ms-1">*</span></label>
-								<div class="pass-group input-group">
-									<span class="input-group-text border-end-0">
-										<i class="isax isax-lock"></i>
-									</span>
-									<span class="isax toggle-passworda isax-eye-slash" data-target="#renewpassword"></span>
-									<input type="password" name="renewpassword"  name="renewpassword" class="pass-inputa form-control border-start-0 ps-0" placeholder="****************">
-								</div>
-                                    <span class="text-danger" id="renewpasswordError"></span>
-
-							</div>
+                            <div class="mb-3">
+                                <label class="form-label">New Password<span class="text-danger ms-1">*</span></label>
+                                <div class="pass-group input-group mb-3">
+                                    <span class="input-group-text border-end-0">
+                                        <i class="isax isax-lock"></i>
+                                    </span>
+                                    <input type="password" name="newpassword" id="newpassword" class="form-control border-start-0 ps-0" placeholder="****************">
+                                    <button type="button" class="input-group-text toggle-eye" data-target="newpassword">
+                                        <i class="isax isax-eye-slash"></i>
+                                    </button>
+                                </div>
+                                <span class="text-danger" id="newpasswordError"></span>
+                                <div id="passwordInfo" class="mb-2"></div>
+                            </div>
+                            <div>
+                                <label class="form-label">Confirm Password<span class="text-danger ms-1">*</span></label>
+                                <div class="pass-group input-group">
+                                    <span class="input-group-text border-end-0">
+                                        <i class="isax isax-lock"></i>
+                                    </span>
+                                    <input type="password" name="renewpassword" id="renewpassword" class="form-control border-start-0 ps-0" placeholder="****************">
+                                    <button type="button" class="input-group-text toggle-eye" data-target="renewpassword">
+                                        <i class="isax isax-eye-slash"></i>
+                                    </button>
+                                </div>
+                                <span class="text-danger" id="renewpasswordError"></span>
+                            </div>
                         </div>
                         <div class="modal-footer d-flex align-items-center justify-content-between gap-1">
                             <button type="button" class="btn btn-outline-white" data-bs-dismiss="modal">Cancel</button>
@@ -134,7 +133,6 @@ $lastChanged = ($row['password_updated_at']) ? date("M d, Y", strtotime($row['pa
     <?php include 'layouts/vendor-scripts.php'; ?>
     
 
-
     <script>
 $(document).ready(function() {
     // Open modal
@@ -142,23 +140,19 @@ $(document).ready(function() {
         $('#change_password').modal('show');
     });
 
-    // Toggle password visibility
-    $('.toggle-password').click(function() {
-        $(this).toggleClass('isax-eye isax-eye-slash');
-        var input = $('#password');
-        input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
-    });
-
-    $('.toggle-passwords').click(function() {
-        $(this).toggleClass('isax-eye isax-eye-slash');
-        var input = $('#newpassword');
-        input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
-    });
-
-    $('.toggle-passworda').click(function() {
-        $(this).toggleClass('isax-eye isax-eye-slash');
-        var input = $('#renewpassword');
-        input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
+    // SIMPLE AND RELIABLE EYE ICON TOGGLE
+    $(document).on('click', '.toggle-eye', function() {
+        var targetId = $(this).data('target');
+        var input = $('#' + targetId);
+        var icon = $(this).find('i');
+        
+        if (input.attr('type') === 'password') {
+            input.attr('type', 'text');
+            icon.removeClass('isax-eye-slash').addClass('isax-eye');
+        } else {
+            input.attr('type', 'password');
+            icon.removeClass('isax-eye').addClass('isax-eye-slash');
+        }
     });
 
     // Form submission with AJAX
@@ -222,10 +216,13 @@ $(document).ready(function() {
         $('#passwordError, #newpasswordError, #renewpasswordError').empty();
         $('#generalError').remove();
         $('#passwordForm')[0].reset();
+        
+        // Reset all eye icons to closed state
+        $('.toggle-eye i').removeClass('isax-eye').addClass('isax-eye-slash');
+        $('#password, #newpassword, #renewpassword').attr('type', 'password');
     });
 });
 </script>
-
 
 </body>
 </html>

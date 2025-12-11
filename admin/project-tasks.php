@@ -75,13 +75,21 @@ $result = mysqli_query($conn, $sql);
 // Fetch projects for filter
 $projectList = mysqli_query($conn, "SELECT id, project_name FROM project WHERE is_deleted = 0");
 
-// Define status options manually since task_status table doesn't exist
-$statusOptions = [
-    1 => ['name' => 'Pending', 'color' => '#ffc107'],
-    2 => ['name' => 'In Progress', 'color' => '#17a2b8'],
-    3 => ['name' => 'Completed', 'color' => '#28a745'],
-    4 => ['name' => 'On Hold', 'color' => '#6c757d'],
-    5 => ['name' => 'Cancelled', 'color' => '#dc3545']
+// --- Fetch statuses from project_status table ---
+$statuses = [];
+$status_query = "SELECT id, status_name FROM project_status WHERE is_deleted = 0 ORDER BY id";
+$status_result = mysqli_query($conn, $status_query);
+while ($row = mysqli_fetch_assoc($status_result)) {
+    $statuses[$row['id']] = $row['status_name'];
+}
+
+// Define status colors (you can modify these as needed)
+$statusColors = [
+    1 => '#ffc107', // Pending
+    2 => '#17a2b8', // In Progress
+    3 => '#28a745', // Completed
+    4 => '#6c757d', // On Hold
+    5 => '#dc3545'  // Cancelled
 ];
 ?>
 <!DOCTYPE html>
@@ -480,12 +488,12 @@ while ($row = mysqli_fetch_assoc($result)):
             <!-- Status -->
             <div class="mb-3">
                 <label class="form-label">Status</label>
-                <?php
+              <?php
                 $selectedStatusNames = [];
                 if (!empty($selected_statuses)) {
                     foreach ($selected_statuses as $statusId) {
-                        if (isset($statusOptions[$statusId])) {
-                            $selectedStatusNames[] = $statusOptions[$statusId]['name'];
+                        if (isset($statuses[$statusId])) {
+                            $selectedStatusNames[] = $statuses[$statusId];
                         }
                     }
                 }

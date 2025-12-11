@@ -307,7 +307,7 @@ if (!empty($company_info['state_id'])) {
                                             <div class="col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">
-                                                        Country <span class="text-danger">*</span>
+                                                        Country 
                                                     </label>
                                                    <select class="select2" id="country" name="country_id" onchange="getStates(this.value, 'state')">
                                                         <option value="">Select Country</option>
@@ -318,14 +318,14 @@ if (!empty($company_info['state_id'])) {
                                                             echo "<option value='{$country['id']}' $selected>{$country['name']}</option>";
                                                         } ?>
                                                     </select>
-                                                        <span id="country_name_error" class="text-danger error-text"></span>
+                                                        <!-- <span id="country_name_error" class="text-danger error-text"></span> -->
 
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">
-                                                        State <span class="text-danger">*</span>
+                                                        State 
                                                     </label>
                                                     <select class="select2" id="state" name="state_id" onchange="getCities(this.value, 'city')">
                                                         <option value="">Select State</option>
@@ -334,14 +334,14 @@ if (!empty($company_info['state_id'])) {
                                                             <option value="<?= $state['id'] ?>" <?= $selected ?>><?= $state['name'] ?></option>
                                                         <?php endforeach; ?>
                                                     </select>
-                                                    <span id="state_name_error" class="text-danger error-text"></span>
+                                                    <!-- <span id="state_name_error" class="text-danger error-text"></span> -->
 
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">
-                                                        City <span class="text-danger">*</span>
+                                                        City 
                                                     </label>
                                                     <select class="select2" id="city" name="city_id">
                                                         <option value="">Select City</option>
@@ -350,17 +350,17 @@ if (!empty($company_info['state_id'])) {
                                                             <option value="<?= $city['id'] ?>" <?= $selected ?>><?= $city['name'] ?></option>
                                                         <?php endforeach; ?>
                                                     </select>
-                                                    <span id="city_name_error" class="text-danger error-text"></span>
+                                                    <!-- <span id="city_name_error" class="text-danger error-text"></span> -->
 
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">
-                                                        Postal Code <span class="text-danger">*</span>
+                                                        Postal Code
                                                     </label>
                                                     <input type="text" class="form-control" name="zipcode" value="<?= !empty($company_info['zipcode']) ? $company_info['zipcode'] : '' ?>">
-                                                    <span id="zipcode_name_error" class="text-danger error-text"></span>
+                                                    <!-- <span id="zipcode_name_error" class="text-danger error-text"></span> -->
                      
                                                 </div>
                                             </div><!-- end col -->
@@ -369,7 +369,7 @@ if (!empty($company_info['state_id'])) {
                                     </div>
                                     
                                     <div class="d-flex align-items-center justify-content-between settings-bottom-btn mt-0">
-                                        <button type="button" class="btn btn-outline-white me-2">Cancel</button>
+                                        <button type="button" class="btn btn-outline-white me-2" id="cancelBtn">Cancel</button>
                                         <button type="submit" name="submit" class="btn btn-primary">Save Changes</button>
                                     </div>
                                 </form>
@@ -397,7 +397,13 @@ if (!empty($company_info['state_id'])) {
 
     <?php include 'layouts/vendor-scripts.php'; ?>
     <script>
+
+        
 $(document).ready(function () {
+    // Cancel button functionality - redirect to dashboard
+    $("#cancelBtn").on("click", function () {
+        window.location.href = 'admin-dashboard.php';
+    });
     $("#companyForm").on("submit", function (e) {
         let isValid = true;
 
@@ -444,16 +450,16 @@ $(document).ready(function () {
         isValid = validateElement("currency", "currency_error", "Currency is required") && isValid;
 
         // Country
-        isValid = validateElement("country", "country_name_error", "Country is required") && isValid;
+        // isValid = validateElement("country", "country_name_error", "Country is required") && isValid;
 
         // State
-        isValid = validateElement("state", "state_name_error", "State is required") && isValid;
+        // isValid = validateElement("state", "state_name_error", "State is required") && isValid;
 
         // City
-        isValid = validateElement("city", "city_name_error", "City is required") && isValid;
+        // isValid = validateElement("city", "city_name_error", "City is required") && isValid;
 
         // Postal Code
-        isValid = validateElement("zipcode", "zipcode_name_error", "Postal code is required", /^[0-9]{6}$/) && isValid;
+        // isValid = validateElement("zipcode", "zipcode_name_error", "Postal code is required", /^[0-9]{6}$/) && isValid;
 
         // Prevent submit if not valid
         if (!isValid) {
