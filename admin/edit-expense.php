@@ -41,6 +41,16 @@ $documents = mysqli_query($conn, "SELECT * FROM expense_document WHERE expense_i
     <?php include 'layouts/menu.php'; ?>
     <div class="page-wrapper">
         <div class="content">
+             <?php if (isset($_SESSION['message'])): ?>
+                    <?php 
+                        $alertClass = ($_SESSION['message_type'] === 'success') ? 'alert-success' : 'alert-danger';
+                    ?>
+                    <div class="alert <?= $alertClass ?> alert-dismissible fade show" role="alert">
+                        <?= $_SESSION['message']; ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
+                <?php endif; ?>
             <div class="row">
                 <div class="col-md-12 mx-auto">
                     <div>

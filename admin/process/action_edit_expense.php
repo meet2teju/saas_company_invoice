@@ -39,24 +39,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $currentUserId = $_SESSION['user_id'] ?? 0;
 
     // -------- 1. Update expense --------
- $invoice_id   = dbString($conn, $_POST['invoice_id'] ?? '');
+    $invoice_id   = dbString($conn, $_POST['invoice_id'] ?? '');
 
-$update = "
-    UPDATE expenses SET
-        ecategory_id = " . ($category_id ?: "NULL") . ",
-        title        = '$title',
-        client_id    = " . ($client_id ?: "NULL") . ",
-        invoice_id   = " . ($invoice_id !== '' ? "'$invoice_id'" : "NULL") . ",
-        date         = " . ($expense_date ? "'$expense_date'" : "NULL") . ",
-        amount       = $amount,
-        description  = '$description',
-        updated_by   = $currentUserId,
-        updated_at   = NOW()
-    WHERE id = $expense_id
-";
+    $update = "
+        UPDATE expenses SET
+            ecategory_id = " . ($category_id ?: "NULL") . ",
+            title        = '$title',
+            client_id    = " . ($client_id ?: "NULL") . ",
+            invoice_id   = " . ($invoice_id !== '' ? "'$invoice_id'" : "NULL") . ",
+            date         = " . ($expense_date ? "'$expense_date'" : "NULL") . ",
+            amount       = $amount,
+            description  = '$description',
+            updated_by   = $currentUserId,
+            updated_at   = NOW()
+        WHERE id = $expense_id
+    ";
 
-// print_R($update);
-// exit();
+    // print_R($update);
+    // exit();
     if (!mysqli_query($conn, $update)) {
         $_SESSION['message'] = "Error updating expense: " . mysqli_error($conn);
         $_SESSION['message_type'] = "danger";
@@ -85,7 +85,8 @@ $update = "
     // -------- 3. Success Message --------
     $_SESSION['message'] = "Expense updated successfully.";
     $_SESSION['message_type'] = "success";
-    header("Location: ../expense.php");
+    // Redirect to same edit page (CHANGED FROM expense.php TO edit-expense.php)
+    header("Location: ../edit-expense.php?id=$expense_id");
     exit();
 
 } else {
@@ -94,3 +95,4 @@ $update = "
     header("Location: ../edit-expense.php");
     exit();
 }
+?>

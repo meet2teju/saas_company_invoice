@@ -514,9 +514,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 															<?php if ($showQuantityColumn): ?>
 																<th><?= $item_type == 1 ? 'Quantity' : 'Hours' ?></th>
 															<?php endif; ?>
-															<?php if ($item_type == 1): ?>
-																<th>Unit</th>
-															<?php endif; ?>
+															
 															<th><?= $item_type == 1 ? 'Selling Price' : 'Hourly Price' ?></th>
 															<th>Tax</th>
 															<th>Amount</th>
@@ -546,9 +544,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 															<?php if ($showQuantityColumn): ?>
 																<td><?= $item['quantity'] ?></td>
 															<?php endif; ?>
-															<?php if ($item_type == 1): ?>
-																<td><?= htmlspecialchars($item['unit_name'] ?? '') ?></td>
-															<?php endif; ?>
+													
 															<td>$<?= $item['selling_price'] ?></td>
 															<td>
 																<?php if (($invoice['gst_type'] ?? 'gst') === 'non_gst'): ?>

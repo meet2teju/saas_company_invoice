@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insert_invoice_sql = "INSERT INTO invoice (
                 client_id, project_id, invoice_id, reference_name, invoice_date, due_date, 
                 user_id, item_type, gst_type, description, amount, shipping_charge, tax_amount, 
-                total_amount, status, org_id, created_by, created_at, updated_at
+                total_amount, status, org_id, created_at, updated_at
             ) VALUES (
                 '{$quotation['client_id']}', 
                 '{$quotation['project_id']}', 
@@ -47,7 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 '{$quotation['total_amount']}', 
                 'unpaid', 
                 '{$quotation['org_id']}', 
-                '{$quotation['created_by']}', 
                 NOW(), 
                 NOW()
             )";
@@ -58,12 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Copy quotation items to invoice items - match your table structure
                 $copy_items_sql = "INSERT INTO invoice_item (
                     invoice_id, product_id, service_id, service_name, quantity, unit_id, 
-                    selling_price, tax_id, rate, amount, org_id, created_by, updated_by, 
+                    selling_price, tax_id, rate, amount, org_id,updated_by, 
                     created_at, updated_at
                 ) 
                 SELECT 
                     $new_invoice_id, product_id, service_id, service_name, quantity, unit_id, 
-                    selling_price, tax_id, rate, amount, org_id, created_by, updated_by, 
+                    selling_price, tax_id, rate, amount, org_id, updated_by, 
                     NOW(), NOW()
                 FROM quotation_item 
                 WHERE quotation_id = $quotation_id AND is_deleted = 0";
