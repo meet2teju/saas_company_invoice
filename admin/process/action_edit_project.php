@@ -75,11 +75,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $start_date = !empty($start_date) ? "'$start_date'" : "NULL";
             $end_date   = !empty($end_date)   ? "'$end_date'"   : "NULL";
             $hour = mysqli_real_escape_string($conn, $_POST['hour'][$index] ?? '');
-            $status_id = mysqli_real_escape_string($conn, $_POST['status_id'][$index] ?? '');
+            
+            // FIXED: Handle status_id properly - convert to integer or use NULL
+            $status_id_raw = $_POST['status_id'][$index] ?? '';
+            if (is_numeric($status_id_raw) && $status_id_raw != '') {
+                $status_id = (int)$status_id_raw;
+                $status_id_sql = $status_id;
+            } else {
+                $status_id_sql = "NULL";
+            }
             
             $task_sql = "
                 INSERT INTO project_task (project_id, task_name, task_description, start_date, end_date, hour, status_id) 
-                VALUES ($project_id, '$task_name', '$task_desc', $start_date, $end_date, '$hour', '$status_id')
+                VALUES ($project_id, '$task_name', '$task_desc', $start_date, $end_date, '$hour', $status_id_sql)
             ";
             
             if (!mysqli_query($conn, $task_sql)) {
