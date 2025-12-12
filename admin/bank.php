@@ -240,6 +240,8 @@ $result = mysqli_query($conn, $query);
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <form id="add-bank-form" method="POST" action="process/action_add_bank.php">
+                         <input type="hidden" name="org_id" value="<?php echo $currentOrgId; ?>">
+    <input type="hidden" name="created_by" value="<?php echo $currentUserId; ?>">
                         <div class="modal-body">
                             <div class="mb-2">
                                 <label class="form-label">Bank Name<span class="text-danger">*</span></label>
