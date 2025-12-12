@@ -2,6 +2,24 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
+// Get current user info (same as reference code)
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
 // $project_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $project_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -9,15 +27,34 @@ $project = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM project WHERE i
 $statuses = mysqli_query($conn, "SELECT id, status_name FROM project_status WHERE is_deleted = 0 ORDER BY id ASC");
 
 $users = [];
-// $user_result = mysqli_query($conn, "SELECT id, name, email FROM login WHERE role_id = (SELECT id FROM user_role WHERE name = 'user') AND is_deleted = 0 ORDER BY name ASC");
-$user_result = mysqli_query($conn, "
+// Build the users query with organization filtering
+$user_query = "
     SELECT l.id, l.name, l.email
     FROM login l
     INNER JOIN user_role ur ON l.role_id = ur.id
-    WHERE ur.is_deleted = 0 
-      AND l.is_deleted = 0
-    ORDER BY l.name ASC
-");
+    WHERE l.is_deleted = 0
+    AND ur.is_deleted = 0
+";
+
+// Add organization filter
+if ($currentOrgId > 0) {
+    $user_query .= " AND l.org_id = $currentOrgId";
+}
+
+// For non-admin users: Can see themselves, users they created, and admin users
+if ($userRoleId != 1) {
+    $user_query .= " AND (
+        l.id = $currentUserId 
+        OR 
+        l.created_by = $currentUserId
+        OR
+        l.role_id = 1
+    )";
+}
+
+$user_query .= " ORDER BY l.name ASC";
+
+$user_result = mysqli_query($conn, $user_query);
 
 while ($row = mysqli_fetch_assoc($user_result)) {
     $users[] = $row;
@@ -36,7 +73,18 @@ while ($row = mysqli_fetch_assoc($task_result)) {
 }
 
 $clients = [];
-$client_result = mysqli_query($conn, "SELECT id, salutation,first_name,last_name FROM client WHERE is_deleted = 0 ORDER BY first_name ASC");
+// Apply same organization filter to clients
+$client_query = "SELECT id, salutation, first_name, last_name FROM client WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $client_query .= " AND org_id = $currentOrgId";
+}
+// For non-admin users, also filter by user_id
+if ($userRoleId != 1) {
+    $client_query .= " AND user_id = $currentUserId";
+}
+$client_query .= " ORDER BY first_name ASC";
+
+$client_result = mysqli_query($conn, $client_query);
 while ($row = mysqli_fetch_assoc($client_result)) {
     $clients[] = $row;
 }
