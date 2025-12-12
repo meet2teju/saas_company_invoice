@@ -43,7 +43,7 @@ if (isset($_POST['submit'])) {
             $imageName = uploadFile($_FILES['customer_image'], '../../uploads/');
         }
 
-        // Get client form data
+        // Get client form data - ADDED COUNTRY CODE FIELDS
         $salutation = $_POST['salutation'];
         $company_name = $_POST['company_name'];
         $first_name = $_POST['first_name'];
@@ -54,6 +54,10 @@ if (isset($_POST['submit'])) {
         $email = $_POST['email'];
         $enable_portal = isset($_POST['enable_portal']) ? 1 : 0;
         $remark = mysqli_real_escape_string($conn, $_POST['remark']);
+        
+        // Get country codes from form
+        $work_country_code = mysqli_real_escape_string($conn, $_POST['work_country_code'] ?? '+91');
+        $mobile_country_code = mysqli_real_escape_string($conn, $_POST['mobile_country_code'] ?? '+91');
 
         $currency = $_POST['currency'];
         $pan = $_POST['pan_number'];
@@ -66,17 +70,19 @@ if (isset($_POST['submit'])) {
         $skype_name_number = $_POST['skype_name_number'];
         $facebook = $_POST['facebook'];
 
-        // Client INSERT query
+        // Updated Client INSERT query with country codes
         $query = "INSERT INTO client (
             customer_image, salutation, company_name, first_name, last_name, client_type,
             phone_number, business_number, email, enable_portal, remark, pan_number, gst_number,
             website_url, department, designation, twitter, skype_name_number, facebook,
-            currency, status, org_id, user_id, is_deleted, created_by, updated_by
+            currency, status, org_id, user_id, is_deleted, created_by, updated_by,
+            work_country_code, mobile_country_code
         ) VALUES (
             '$imageName', '$salutation', '$company_name', '$first_name', '$last_name', '$client_type',
             '$phone_number', '$business_number', '$email', '$enable_portal', '$remark', '$pan', '$vat_gst',
             '$website_url', '$department', '$designation', '$twitter', '$skype_name_number', '$facebook',
-            '$currency', 1, '$orgId', '$currentUserId', 0, '$currentUserId', '$currentUserId'
+            '$currency', 1, '$orgId', '$currentUserId', 0, '$currentUserId', '$currentUserId',
+            '$work_country_code', '$mobile_country_code'
         )";
 
         if (!mysqli_query($conn, $query)) {
@@ -164,7 +170,7 @@ if (isset($_POST['submit'])) {
             }
         }
 
-        // Insert multiple contact persons
+        // Insert multiple contact persons - UPDATED WITH COUNTRY CODES
         if (!empty($_POST['contact_first_name'])) {
             foreach ($_POST['contact_first_name'] as $index => $firstName) {
                 $salutation = $_POST['contact_salutation'][$index] ?? '';
@@ -175,6 +181,10 @@ if (isset($_POST['submit'])) {
                 $skype = $_POST['contact_skype'][$index] ?? '';
                 $designation = $_POST['contact_designation'][$index] ?? '';
                 $department = $_POST['contact_department'][$index] ?? '';
+                
+                // Get contact country codes if they exist in your form
+                $contact_work_country_code = mysqli_real_escape_string($conn, $_POST['contact_work_country_code'][$index] ?? '+91');
+                $contact_mobile_country_code = mysqli_real_escape_string($conn, $_POST['contact_mobile_country_code'][$index] ?? '+91');
 
                 // Only insert if at least one main field has data
                 if (!empty($firstName) || !empty($lastName) || !empty($email) || 
@@ -193,14 +203,18 @@ if (isset($_POST['submit'])) {
                             exit();
                         }
                     }
+                    
+                    // Updated contact insert query with country codes
                     $contactInsertQuery = "INSERT INTO client_contact_persons (
                         client_id, contact_salutation, contact_first_name, contact_last_name, contact_email,
                         contact_work_phone, contact_mobile, contact_skype, contact_designation, contact_department,
-                        status, org_id, is_deleted, created_by, updated_by
+                        status, org_id, is_deleted, created_by, updated_by,
+                        contact_work_country_code, contact_mobile_country_code
                     ) VALUES (
                         '$clientId', '$salutation', '$firstName', '$lastName', '$email',
                         '$workPhone', '$mobile', '$skype', '$designation', '$department',
-                        1, '$orgId', 0, '$currentUserId', '$currentUserId'
+                        1, '$orgId', 0, '$currentUserId', '$currentUserId',
+                        '$contact_work_country_code', '$contact_mobile_country_code'
                     )";
 
                     if (!mysqli_query($conn, $contactInsertQuery)) {

@@ -2,19 +2,53 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
-$login_id = $_SESSION['crm_user_id'];
-$role_id  = $_SESSION['role_id'];
+// Get current user info - SAME AS CLIENTS PAGE
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
 
-// Get role name from user_role
-$role_query = mysqli_query($conn, "SELECT name FROM user_role WHERE id = $role_id LIMIT 1");
-$role_row   = mysqli_fetch_assoc($role_query);
-$role_name  = strtolower(trim($role_row['name'] ?? ''));
+// Get the correct org_id from database if session org_id is 0 - SAME AS CLIENTS PAGE
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
 
 // --- FILTER LOGIC ---
 $filters = [];
 $selected_projects = $_POST['project'] ?? [];
 $selected_statuses = $_POST['status'] ?? [];
 $date_range        = $_POST['date_range'] ?? '';
+
+// --- ORGANIZATION ISOLATION: NO ONE can see tasks from other organizations ---
+if ($currentOrgId > 0) {
+    $filters[] = "p.org_id = $currentOrgId";
+}
+
+// --- ROLE-BASED ACCESS CONTROL - Same as clients page ---
+if ($userRoleId == 1) {
+    // Admin users: Can see all tasks from their organization
+    // No additional filters needed as organization filter already applied
+} else {
+    // Non-admin users: Can see tasks from projects they're assigned to 
+    // AND tasks from projects created by admin users
+    $filters[] = "(pt.user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = pt.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ) OR EXISTS (
+        SELECT 1 FROM project_users pu
+        WHERE pu.project_id = pt.project_id 
+        AND pu.user_id = $currentUserId
+    ))";
+}
 
 // Project Filter
 if (!empty($selected_projects)) {
@@ -46,16 +80,6 @@ if (!empty($filters)) {
     $where .= " AND " . implode(" AND ", $filters);
 }
 
-// ROLE-BASED ACCESS CONTROL - Same as expenses.php
-// Check if user has admin role (role_id = 1) 
-if ($role_id != 1) {
-    // For non-admin users (role_id != 1), show only tasks from projects they're assigned to
-    $where .= " AND EXISTS (
-        SELECT 1 FROM project_users pu
-        WHERE pu.project_id = pt.project_id AND pu.user_id = $login_id
-    )";
-}
-
 // Final Query - removed task_status join
 $sql = "
 SELECT pt.*, 
@@ -72,8 +96,31 @@ ORDER BY pt.created_at DESC
 
 $result = mysqli_query($conn, $sql);
 
-// Fetch projects for filter
-$projectList = mysqli_query($conn, "SELECT id, project_name FROM project WHERE is_deleted = 0");
+// Check for SQL errors
+if (!$result) {
+    die("Database query failed: " . mysqli_error($conn));
+}
+
+// Fetch projects for filter WITH ORGANIZATION FILTERING
+$projectListQuery = "SELECT id, project_name FROM project WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $projectListQuery .= " AND org_id = $currentOrgId";
+}
+// Add role-based filtering for non-admin users in project query
+if ($userRoleId != 1) {
+    $projectListQuery .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = project.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ) OR EXISTS (
+        SELECT 1 FROM project_users pu
+        WHERE pu.project_id = project.id 
+        AND pu.user_id = $currentUserId
+    ))";
+}
+$projectListQuery .= " ORDER BY project_name";
+$projectList = mysqli_query($conn, $projectListQuery);
 
 // --- Fetch statuses from project_status table ---
 $statuses = [];
@@ -91,6 +138,15 @@ $statusColors = [
     4 => '#6c757d', // On Hold
     5 => '#dc3545'  // Cancelled
 ];
+
+// Create status options array for easier access
+$statusOptions = [];
+foreach ($statuses as $id => $name) {
+    $statusOptions[$id] = [
+        'name' => $name,
+        'color' => $statusColors[$id] ?? '#6c757d'
+    ];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -152,10 +208,6 @@ $statusColors = [
                         </ul>
                     </div> -->
                     
-                    
-                    
-
-                    
                     <div class="table-search d-flex align-items-center mb-0">
                         <div class="search-input">
                             <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
@@ -178,103 +230,73 @@ $statusColors = [
             </div>
 
             <!-- Search & Actions -->
-            <!-- <div class="mb-3">
+            <div class="mb-3">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
                     <div class="d-flex align-items-center flex-wrap gap-2">
-                        <div class="table-search d-flex align-items-center mb-0">
-                            <div class="search-input">
-                                <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
+                        
+                        <!-- Display Active Filters -->
+                        <?php 
+                        $active_filters = [];
+                        
+                        // Project filters
+                        if (!empty($selected_projects)) {
+                            $project_names = [];
+                            $ids = implode(",", array_map('intval', $selected_projects));
+                            $res = mysqli_query($conn, "SELECT project_name FROM project WHERE id IN ($ids)");
+                            while ($row = mysqli_fetch_assoc($res)) {
+                                $project_names[] = htmlspecialchars($row['project_name']);
+                            }
+                            if (!empty($project_names)) {
+                                $active_filters[] = "Project: " . (count($project_names) > 2 ? 
+                                    implode(", ", array_slice($project_names, 0, 2)) . " +" . (count($project_names) - 2) : 
+                                    implode(", ", $project_names));
+                            }
+                        }
+                        
+                        // Status filters
+                        if (!empty($selected_statuses)) {
+                            $status_names = [];
+                            foreach ($selected_statuses as $statusId) {
+                                if (isset($statusOptions[$statusId])) {
+                                    $status_names[] = $statusOptions[$statusId]['name'];
+                                }
+                            }
+                            if (!empty($status_names)) {
+                                $active_filters[] = "Status: " . (count($status_names) > 2 ? 
+                                    implode(", ", array_slice($status_names, 0, 2)) . " +" . (count($status_names) - 2) : 
+                                    implode(", ", $status_names));
+                            }
+                        }
+                        
+                        // Date range filter
+                        if (!empty($date_range)) {
+                            $active_filters[] = "Date: " . htmlspecialchars($date_range);
+                        }
+                        ?>
+                        
+                        <!-- Display active filters and clear button -->
+                        <?php if (!empty($active_filters)): ?>
+                            <div class="d-flex align-items-center gap-2">
+                                <!-- Active Filters Display -->
+                                <div class="active-filters bg-light px-3 py-2 rounded d-flex align-items-center gap-2">
+                                    <small class="text-muted fw-bold">Active Filters:</small>
+                                    <?php foreach ($active_filters as $filter): ?>
+                                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                                            <?= $filter ?>
+                                        </span>
+                                    <?php endforeach; ?>
+                                </div>
+                                
+                                <!-- Clear Filter Button -->
+                                <a href="project-tasks.php" class="btn btn-outline-secondary">
+                                    <i class="fa-solid fa-xmark me-1"></i> Clear Filters
+                                </a>
                             </div>
-                        </div>
-                        <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                            <i class="isax isax-filter me-1"></i>Filter
-                        </a>
-                        <?php if (!empty($selected_projects) || !empty($selected_statuses) || !empty($date_range)): ?>
-                            <a href="project-tasks.php" class="btn btn-outline-secondary">
-                                <i class="fa-solid fa-xmark me-1"></i> Clear Filters
-                            </a>
                         <?php endif; ?>
-
-                        <!-- Multiple Delete Button - Added here --
-                        <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                            <i class="fa-regular fa-trash-can me-1"></i>Delete
-                        </a>
                     </div>
-                </div>
-            </div> -->
-<!-- Search & Actions -->
-<div class="mb-3">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-        <div class="d-flex align-items-center flex-wrap gap-2">
-            <!-- <div class="table-search d-flex align-items-center mb-0">
-                <div class="search-input">
-                    <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
                 </div>
             </div>
-            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                <i class="isax isax-filter me-1"></i>Filter
-            </a> -->
-            
-            <!-- Display Active Filters -->
-            <?php 
-            $active_filters = [];
-            
-            // Project filters
-            if (!empty($selected_projects)) {
-                $project_names = [];
-                $ids = implode(",", array_map('intval', $selected_projects));
-                $res = mysqli_query($conn, "SELECT project_name FROM project WHERE id IN ($ids)");
-                while ($row = mysqli_fetch_assoc($res)) {
-                    $project_names[] = htmlspecialchars($row['project_name']);
-                }
-                if (!empty($project_names)) {
-                    $active_filters[] = "Project: " . implode(", ", $project_names);
-                }
-            }
-            
-            // Status filters
-            if (!empty($selected_statuses)) {
-                $status_names = [];
-                foreach ($selected_statuses as $statusId) {
-                    if (isset($statusOptions[$statusId])) {
-                        $status_names[] = $statusOptions[$statusId]['name'];
-                    }
-                }
-                if (!empty($status_names)) {
-                    $active_filters[] = "Status: " . implode(", ", $status_names);
-                }
-            }
-            
-            // Date range filter
-            if (!empty($date_range)) {
-                $active_filters[] = "Date: " . htmlspecialchars($date_range);
-            }
-            ?>
-            
-            <!-- Display active filters and clear button -->
-            <?php if (!empty($active_filters)): ?>
-                <div class="d-flex align-items-center gap-2">
-                    <!-- Active Filters Display -->
-                    <div class="active-filters bg-light px-3 py-2 rounded d-flex align-items-center gap-2">
-                        <small class="text-muted fw-bold">Active Filters:</small>
-                        <?php foreach ($active_filters as $filter): ?>
-                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
-                                <?= $filter ?>
-                            </span>
-                        <?php endforeach; ?>
-                    </div>
-                    
-                    <!-- Clear Filter Button -->
-                    <a href="project-tasks.php" class="btn btn-outline-secondary">
-                        <i class="fa-solid fa-xmark me-1"></i> Clear Filters
-                    </a>
-                </div>
-            <?php endif; ?>
 
-           
-        </div>
-    </div>
-</div>
             <!-- Table -->
             <div class="table-responsive">
                 <table class="table table-nowrap datatable">
@@ -488,12 +510,12 @@ while ($row = mysqli_fetch_assoc($result)):
             <!-- Status -->
             <div class="mb-3">
                 <label class="form-label">Status</label>
-              <?php
+                <?php
                 $selectedStatusNames = [];
                 if (!empty($selected_statuses)) {
                     foreach ($selected_statuses as $statusId) {
-                        if (isset($statuses[$statusId])) {
-                            $selectedStatusNames[] = $statuses[$statusId];
+                        if (isset($statusOptions[$statusId])) {
+                            $selectedStatusNames[] = $statusOptions[$statusId]['name'];
                         }
                     }
                 }
@@ -635,7 +657,7 @@ checkboxes.forEach(checkbox => {
     checkbox.addEventListener('change', toggleDeleteBtn);
 });
 
-// Filter functionality
+// Filter functionality - SAME AS CLIENTS PAGE
 $(document).ready(function() {
     // Initialize date range picker
     if ($('.bookingrange').length > 0) {
@@ -681,90 +703,86 @@ $(document).ready(function() {
         });
     }
 
-    // Update dropdown labels
-    function updateDropdownLabels() {
-        // Projects
-        let projectLabels = [];
-        $('.project-checkbox:checked').each(function() {
-            projectLabels.push($(this).closest('label').text().trim());
-        });
-        if (projectLabels.length > 3) {
-            $('.project-toggle').text(projectLabels.slice(0, 3).join(', ') + ' +' + (projectLabels.length - 3));
-        } else {
-            $('.project-toggle').text(projectLabels.length > 0 ? projectLabels.join(', ') : 'Select');
-        }
+    // --- Update dropdown labels function (like clients page) ---
+    function updateDropdownLabel(type, limit = 3) {
+        // Get all checked checkboxes (excluding "Select All")
+        const checked = $(`.${type}-list input[type='checkbox']:checked`).not(".select-all");
 
-        // Status
-        let statusLabels = [];
-        $('.status-checkbox:checked').each(function() {
-            statusLabels.push($(this).closest('label').text().trim());
+        // Collect their label texts
+        const names = [];
+        checked.each(function () {
+            const label = $(this).closest("label").text().trim();
+            if (label) names.push(label);
         });
-        if (statusLabels.length > 3) {
-            $('.status-toggle').text(statusLabels.slice(0, 3).join(', ') + ' +' + (statusLabels.length - 3));
+
+        // Find the toggle button
+        const toggle = $(`.${type}-toggle`);
+
+        // Set display text
+        if (names.length === 0) {
+            toggle.text("Select");
+        } else if (names.length > limit) {
+            let visible = names.slice(0, limit).join(", ");
+            let extra = names.length - limit;
+            toggle.text(`${visible} +${extra}`);
         } else {
-            $('.status-toggle').text(statusLabels.length > 0 ? statusLabels.join(', ') : 'Select');
+            toggle.text(names.join(", "));
         }
     }
 
-    // Initialize dropdown labels
-    updateDropdownLabels();
-
-    // Update dropdown labels when checkboxes change
-    $('.project-checkbox, .status-checkbox').change(function() {
-        updateDropdownLabels();
-        
-        // Update "Select All" checkbox for each section
-        if ($(this).hasClass('project-checkbox')) {
-            const allChecked = $('.project-checkbox:not(:checked)').length === 0;
-            $('.project-list .select-all').prop('checked', allChecked);
-        }
-        
-        if ($(this).hasClass('status-checkbox')) {
-            const allChecked = $('.status-checkbox:not(:checked)').length === 0;
-            $('.status-list .select-all').prop('checked', allChecked);
-        }
+    // Bind change event for dropdowns
+    $(document).on("change", ".project-list input[type=checkbox]", function () {
+        updateDropdownLabel("project");
     });
 
-    // Select All functionality
-    $('.project-list .select-all').change(function() {
-        $('.project-checkbox').prop('checked', this.checked);
-        updateDropdownLabels();
+    $(document).on("change", ".status-list input[type=checkbox]", function () {
+        updateDropdownLabel("status");
     });
 
-    $('.status-list .select-all').change(function() {
-        $('.status-checkbox').prop('checked', this.checked);
-        updateDropdownLabels();
-    });
+    // --- Initialize dropdown (search, select all, reset) ---
+    function initDropdown(type) {
+        const container = `.${type}-list`;
 
-    // Reset functionality
-    $('.reset-project').click(function() {
-        $('.project-checkbox, .project-list .select-all').prop('checked', false);
-        updateDropdownLabels();
-    });
-
-    $('.reset-status').click(function() {
-        $('.status-checkbox, .status-list .select-all').prop('checked', false);
-        updateDropdownLabels();
-    });
-
-    // Search functionality
-    $(".search-project").on("keyup", function() {
-        const value = $(this).val().toLowerCase();
-        $(".project-list li").each(function() {
-            if ($(this).find('.select-all').length > 0) return;
-            const text = $(this).text().toLowerCase();
-            $(this).toggle(text.indexOf(value) > -1);
+        // Search functionality
+        $(`.search-${type}`).on("keyup", function() {
+            const value = $(this).val().toLowerCase();
+            $(container).find("li").each(function() {
+                if ($(this).find('.select-all').length > 0) return; // skip Select All / Reset
+                const text = $(this).text().toLowerCase();
+                $(this).toggle(text.indexOf(value) > -1);
+            });
         });
-    });
 
-    $(".search-status").on("keyup", function() {
-        const value = $(this).val().toLowerCase();
-        $(".status-list li").each(function() {
-            if ($(this).find('.select-all').length > 0) return;
-            const text = $(this).text().toLowerCase();
-            $(this).toggle(text.indexOf(value) > -1);
+        // Select All
+        $(`${container} .select-all`).on("change", function() {
+            const checked = $(this).is(":checked");
+            $(container).find("input[type='checkbox']").not(this).prop("checked", checked);
+            updateDropdownLabel(type);
         });
-    });
+
+        // Individual checkbox change
+        $(`${container} input[type='checkbox']`).not(".select-all").on("change", function() {
+            const allChecked = $(container).find("input[type='checkbox']").not(".select-all").length ===
+                               $(container).find("input[type='checkbox']:checked").not(".select-all").length;
+            $(container).find(".select-all").prop("checked", allChecked);
+            updateDropdownLabel(type);
+        });
+
+        // Reset button
+        $(`.reset-${type}`).on("click", function() {
+            $(container).find("input[type='checkbox']").prop("checked", false);
+            $(container).find(".select-all").prop("checked", false);
+            updateDropdownLabel(type);
+        });
+    }
+
+    // --- Initialize all dropdowns ---
+    initDropdown("project");
+    initDropdown("status");
+
+    // --- Initialize labels on page load ---
+    updateDropdownLabel("project");
+    updateDropdownLabel("status");
 });
 </script>
 </body>

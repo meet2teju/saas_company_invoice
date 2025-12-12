@@ -43,6 +43,16 @@ mysqli_data_seek($country_result, 0);
 $client_id = $_GET['id'];
 $contacts_query = "SELECT * FROM client_contact_persons WHERE client_id = $clientid";
 $contacts_result = mysqli_query($conn, $contacts_query);
+
+$country_codes = [
+    'US' => '+1', 'IN' => '+91', 'GB' => '+44', 'CA' => '+1', 'AU' => '+61',
+    'DE' => '+49', 'FR' => '+33', 'IT' => '+39', 'ES' => '+34', 'BR' => '+55',
+    'CN' => '+86', 'JP' => '+81', 'KR' => '+82', 'SG' => '+65', 'MY' => '+60',
+    'AE' => '+971', 'SA' => '+966', 'QA' => '+974', 'KW' => '+965', 'BH' => '+973',
+    'OM' => '+968', 'ZA' => '+27', 'NG' => '+234', 'KE' => '+254', 'EG' => '+20',
+    'RU' => '+7', 'TR' => '+90', 'NL' => '+31', 'BE' => '+32', 'CH' => '+41',
+    'SE' => '+46', 'NO' => '+47', 'DK' => '+45', 'FI' => '+358', 'PL' => '+48'
+];
 ?>
 
 <!DOCTYPE html>
@@ -53,6 +63,82 @@ $contacts_result = mysqli_query($conn, $contacts_query);
 
     <?php include 'layouts/title-meta.php'; ?> 
     <?php include 'layouts/head-css.php'; ?>
+      <style>
+    .phone-input-group {
+        display: flex;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        overflow: hidden;
+        background: white;
+        width: 100%;
+    }
+    .phone-input-group:focus-within {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Country code select container */
+    .country-code-select {
+        width: 120px !important;
+        min-width: 120px;
+        border: none;
+        border-right: 1px solid #dee2e6;
+        border-radius: 0;
+        background: #f8f9fa;
+        flex-shrink: 0;
+    }
+    
+    /* Select2 customization for country code */
+    .country-code-select + .select2 {
+        width: 120px !important;
+        min-width: 120px;
+        flex-shrink: 0;
+    }
+    
+    .country-code-select + .select2 .select2-selection {
+        border: none !important;
+        background: #f8f9fa !important;
+        height: 100% !important;
+        border-radius: 0 !important;
+        border-right: 1px solid #dee2e6 !important;
+    }
+    
+    .country-code-select + .select2 .select2-selection__rendered {
+        line-height: 38px !important;
+        padding-left: 12px !important;
+        padding-right: 25px !important;
+        color: #495057 !important;
+    }
+    
+    .country-code-select + .select2 .select2-selection__arrow {
+        height: 38px !important;
+        right: 5px !important;
+    }
+    
+    /* Phone number input */
+    .phone-number-input {
+        border: none;
+        border-radius: 0;
+        flex: 1;
+        min-width: 0; /* Important for flexbox shrinking */
+        padding-left: 12px;
+    }
+    
+    .phone-number-input:focus {
+        outline: none;
+        box-shadow: none;
+        border-color: transparent;
+    }
+    
+    .select2-container--open .select2-dropdown {
+        z-index: 1060;
+    }
+    
+    /* Ensure proper alignment */
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+    }
+</style>
 </head>
 
 <body>
@@ -179,20 +265,43 @@ $contacts_result = mysqli_query($conn, $contacts_query);
                                                 </div>
                                             </div>
                                             <div class="col-lg-4 col-md-6">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Work Number</label>
-                                                    <input type="text" class="form-control" name="phone_number" id="phone_number" value="<?php echo htmlspecialchars($row['phone_number']); ?>">
-                                                    <!-- <span id="phone_number_error" class="text-danger error-text"></span> -->
-                                                </div>
-                                            </div>
-                                            <div class="col-lg-4 col-md-6">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Mobile Number </label>
-                                                    <input type="text" class="form-control" name="business_number" id="business_number" value="<?php echo htmlspecialchars($row['business_number']); ?>">
-                                                    <!-- <span id="business_number_error" class="text-danger error-text"></span> -->
-                                                </div>
-                                            </div>
-                                        </div>
+    <div class="mb-3">
+        <label class="form-label">Work Number</label>
+        <div class="phone-input-group">
+            <select class="country-code-select select" name="work_country_code" id="work_country_code">
+                <?php 
+                $work_country_code = $row['work_country_code'] ?? '+91';
+                foreach ($country_codes as $country => $code): 
+                ?>
+                    <option value="<?= $code ?>" <?= $code == $work_country_code ? 'selected' : '' ?> data-country="<?= $country ?>">
+                        <?= $code ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <input type="text" class="form-control phone-number-input" name="phone_number" id="phone_number" value="<?= htmlspecialchars($row['phone_number']); ?>" placeholder="Phone Number">
+        </div>
+        <!-- <span id="phone_number_error" class="text-danger error-text"></span> -->
+    </div>
+</div>
+<div class="col-lg-4 col-md-6">
+    <div class="mb-3">
+        <label class="form-label">Mobile Number</label>
+        <div class="phone-input-group">
+            <select class="country-code-select select" name="mobile_country_code" id="mobile_country_code">
+                <?php 
+                $mobile_country_code = $row['mobile_country_code'] ?? '+91';
+                foreach ($country_codes as $country => $code): 
+                ?>
+                    <option value="<?= $code ?>" <?= $code == $mobile_country_code ? 'selected' : '' ?> data-country="<?= $country ?>">
+                        <?= $code ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <input type="text" class="form-control phone-number-input" name="business_number" id="business_number" value="<?= htmlspecialchars($row['business_number']); ?>" placeholder="Mobile Number">
+        </div>
+        <!-- <span id="business_number_error" class="text-danger error-text"></span> -->
+    </div>
+</div>
 
                                         <!-- Tabs Start -->
                                         <ul class="nav nav-tabs mb-3" id="customerTab" role="tablist">

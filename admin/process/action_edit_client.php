@@ -86,6 +86,11 @@ if (isset($_POST['submit'])) {
         $client_type = (int)($_POST['client_type'] ?? 0);
         $phone_number = mysqli_real_escape_string($conn, $_POST['phone_number']);
         $business_number = mysqli_real_escape_string($conn, $_POST['business_number']);
+        
+        // Get country codes from form
+        $work_country_code = mysqli_real_escape_string($conn, $_POST['work_country_code'] ?? '+91');
+        $mobile_country_code = mysqli_real_escape_string($conn, $_POST['mobile_country_code'] ?? '+91');
+        
         // $enable_portal = isset($_POST['enable_portal']) ? 1 : 0;
         $remark = mysqli_real_escape_string($conn, $_POST['remark']);
         $currency = mysqli_real_escape_string($conn, $_POST['currency']);
@@ -98,7 +103,7 @@ if (isset($_POST['submit'])) {
         $skype_name_number = mysqli_real_escape_string($conn, $_POST['skype_name_number']);
         $facebook = mysqli_real_escape_string($conn, $_POST['facebook']);
 
-        // === Update client ===
+        // === Update client with country codes ===
         $query = "UPDATE client SET 
             customer_image = '$imageName',
             salutation = '$salutation',
@@ -110,6 +115,8 @@ if (isset($_POST['submit'])) {
             phone_number = '$phone_number',
             business_number = '$business_number',
             email = '$email',
+            work_country_code = '$work_country_code',
+            mobile_country_code = '$mobile_country_code',
             -- enable_portal = '$enable_portal',
             remark = '$remark',
             pan_number = '$pan',
@@ -283,6 +290,10 @@ if (isset($_POST['submit'])) {
                 $skype = mysqli_real_escape_string($conn, $_POST['contact_skype'][$index] ?? '');
                 $designation = mysqli_real_escape_string($conn, $_POST['contact_designation'][$index] ?? '');
                 $department = mysqli_real_escape_string($conn, $_POST['contact_department'][$index] ?? '');
+                
+                // Get contact country codes if available (you'll need to add these fields to your form)
+                // $contact_work_country_code = mysqli_real_escape_string($conn, $_POST['contact_work_country_code'][$index] ?? '+91');
+                // $contact_mobile_country_code = mysqli_real_escape_string($conn, $_POST['contact_mobile_country_code'][$index] ?? '+91');
 
                 $contactInsertQuery = "INSERT INTO client_contact_persons (
                     client_id, contact_salutation, contact_first_name, contact_last_name, contact_email,

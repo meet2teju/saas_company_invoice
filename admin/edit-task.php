@@ -2,6 +2,24 @@
 <?php
 include '../config/config.php';
 
+// Get current user info (same as reference code)
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
 // Get task ID from URL
 $task_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
@@ -24,22 +42,67 @@ if (!$task) {
     exit();
 }
 
-// Fetch available projects
+// Fetch available projects with organization filtering
 $projects = [];
-$project_query = "SELECT id, project_name FROM project WHERE is_deleted = 0 ORDER BY project_name ASC";
+$project_query = "SELECT id, project_name FROM project WHERE is_deleted = 0";
+
+// Add organization filter
+if ($currentOrgId > 0) {
+    $project_query .= " AND org_id = $currentOrgId";
+}
+
+// Apply project visibility rules
+if ($userRoleId == 1) {
+    // Admin users (role_id = 1): Can see all projects from their organization
+    // No additional conditions needed as org_where already handles organization isolation
+} else {
+    // Non-admin users: Can see their own projects AND projects created by admin users
+    $project_query .= " AND (
+        created_by = $currentUserId 
+        OR 
+        EXISTS (
+            SELECT 1 FROM project_users pu 
+            WHERE pu.project_id = project.id AND pu.user_id = $currentUserId
+        )
+        OR
+        created_by IN (
+            SELECT id FROM login 
+            WHERE org_id = $currentOrgId AND role_id = 1
+        )
+    )";
+}
+
+$project_query .= " ORDER BY project_name ASC";
 $project_result = mysqli_query($conn, $project_query);
 while ($row = mysqli_fetch_assoc($project_result)) {
     $projects[] = $row;
 }
 
-// Fetch all users from login table for assignment
+// Fetch all users from login table for assignment with organization filtering
 $users = [];
 $user_query = "
     SELECT id, name, email, profile_img 
     FROM login 
-    WHERE is_deleted = 0 
-    ORDER BY name ASC
+    WHERE is_deleted = 0
 ";
+
+// Add organization filter
+if ($currentOrgId > 0) {
+    $user_query .= " AND org_id = $currentOrgId";
+}
+
+// For non-admin users: Can see themselves, users they created, and admin users
+if ($userRoleId != 1) {
+    $user_query .= " AND (
+        id = $currentUserId 
+        OR 
+        created_by = $currentUserId
+        OR
+        role_id = 1
+    )";
+}
+
+$user_query .= " ORDER BY name ASC";
 $user_result = mysqli_query($conn, $user_query);
 while ($row = mysqli_fetch_assoc($user_result)) {
     $users[] = $row;
