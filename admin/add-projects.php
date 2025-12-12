@@ -1,26 +1,67 @@
 <?php include 'layouts/session.php'; ?>
 <?php include '../config/config.php'; ?>
+
 <?php
+// Get current user info (same as reference code)
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
+// Build the users query with organization filtering
 $users = [];
 
+// Base query with organization filtering
 $query = "
     SELECT login.id, login.name, login.email 
     FROM login
     JOIN user_role ON login.role_id = user_role.id
-    WHERE  login.is_deleted = 0
-    ORDER BY login.name ASC
+    WHERE login.is_deleted = 0
 ";
+
+// Add organization filter
+if ($currentOrgId > 0) {
+    $query .= " AND login.org_id = $currentOrgId";
+}
+
+// For non-admin users: Can see themselves, users they created, and admin users
+if ($userRoleId != 1) {
+    $query .= " AND (
+        login.id = $currentUserId 
+        OR 
+        login.created_by = $currentUserId
+        OR
+        login.role_id = 1
+    )";
+}
+
+$query .= " ORDER BY login.name ASC";
 
 $result = mysqli_query($conn, $query);
 
 while ($row = mysqli_fetch_assoc($result)) {
     $users[] = $row;
 }
+
+// Get project statuses
 $statuses = [];
 $result = mysqli_query($conn, "SELECT id, status_name FROM project_status WHERE is_deleted = 0");
 while ($row = mysqli_fetch_assoc($result)) {
     $statuses[] = $row;
 }
+
 // Get all countries for dropdown
 $country_query = "SELECT * FROM countries ORDER BY name";
 $country_result = mysqli_query($conn, $country_query);
@@ -80,9 +121,18 @@ mysqli_data_seek($country_result, 0);
                                     <label class="form-label">Client Name <span class="text-danger">*</span></label>
                                         <select class="form-select select2" name="client_id[]" multiple="multiple" id="client_id">
                                             <?php
-                                            $query = "SELECT * FROM client WHERE is_deleted = 0 ORDER BY first_name ,last_name,salutation ASC";
-                                            $result = mysqli_query($conn, $query);
-                                            while ($row = mysqli_fetch_assoc($result)) {
+                                            // Apply same organization filter to clients
+                                            $client_query = "SELECT * FROM client WHERE is_deleted = 0";
+                                            if ($currentOrgId > 0) {
+                                                $client_query .= " AND org_id = $currentOrgId";
+                                            }
+                                            // For non-admin users, also filter by user_id
+                                            if ($userRoleId != 1) {
+                                                $client_query .= " AND user_id = $currentUserId";
+                                            }
+                                            $client_query .= " ORDER BY first_name, last_name, salutation ASC";
+                                            $client_result = mysqli_query($conn, $client_query);
+                                            while ($row = mysqli_fetch_assoc($client_result)) {
                                                 echo '<option value="' . $row['id'] . '">' . htmlspecialchars($row['salutation'].' '.$row['first_name'].' '.$row['last_name']) . '</option>';
                                             }
                                             ?>
