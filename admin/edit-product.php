@@ -6,7 +6,26 @@ $query = "SELECT * FROM product WHERE id = $product_id";
 $result = mysqli_query($conn, $query);
 $row = mysqli_fetch_assoc($result);
 
+// Get current user info (same as reference code)
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
 
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
+// Get category type from product for initial load
+$category_type = $row['item_type'] ?? 1;
 ?>
 
 <!DOCTYPE html>
@@ -186,7 +205,29 @@ $row = mysqli_fetch_assoc($result);
                                                     <select class="form-select" name="category_id" id="category_id">
                                                         <option value="">Select</option>
                                                         <?php
-                                                        $cat_query = mysqli_query($conn, "SELECT * FROM category WHERE is_deleted = 0");
+                                                        // Build query for categories with organization filtering
+                                                        $catQuery = "SELECT * FROM category WHERE category_type = $category_type AND is_deleted = 0 AND status = 1";
+                                                        
+                                                        // Add organization filter
+                                                        if ($currentOrgId > 0) {
+                                                            $catQuery .= " AND org_id = $currentOrgId";
+                                                        }
+                                                        
+                                                        // For non-admin users: Can see their own categories AND categories created by admin users
+                                                        if ($userRoleId != 1 && $currentOrgId > 0) {
+                                                            $catQuery .= " AND (
+                                                                created_by = $currentUserId 
+                                                                OR 
+                                                                created_by IN (
+                                                                    SELECT id FROM login 
+                                                                    WHERE org_id = $currentOrgId AND role_id = 1
+                                                                )
+                                                            )";
+                                                        }
+                                                        
+                                                        $catQuery .= " ORDER BY name ASC";
+                                                        
+                                                        $cat_query = mysqli_query($conn, $catQuery);
                                                         while ($cat = mysqli_fetch_assoc($cat_query)) {
                                                             $selected = ($cat['id'] == $row['category_id']) ? 'selected' : '';
                                                             echo "<option value='{$cat['id']}' $selected>{$cat['name']}</option>";
@@ -230,7 +271,29 @@ $row = mysqli_fetch_assoc($result);
                                                     <select class="form-select" name="unit_id" id="unit_id">
                                                         <option value="">Select</option>
                                                         <?php
-                                                        $unit_query = mysqli_query($conn, "SELECT * FROM units WHERE is_deleted = 0");
+                                                        // Build query for units with organization filtering
+                                                        $unitQuery = "SELECT * FROM units WHERE status = 1";
+                                                        
+                                                        // Add organization filter
+                                                        if ($currentOrgId > 0) {
+                                                            $unitQuery .= " AND org_id = $currentOrgId";
+                                                        }
+                                                        
+                                                        // For non-admin users: Can see their own units AND units created by admin users
+                                                        if ($userRoleId != 1 && $currentOrgId > 0) {
+                                                            $unitQuery .= " AND (
+                                                                created_by = $currentUserId 
+                                                                OR 
+                                                                created_by IN (
+                                                                    SELECT id FROM login 
+                                                                    WHERE org_id = $currentOrgId AND role_id = 1
+                                                                )
+                                                            )";
+                                                        }
+                                                        
+                                                        $unitQuery .= " ORDER BY name ASC";
+                                                        
+                                                        $unit_query = mysqli_query($conn, $unitQuery);
                                                         while ($unit = mysqli_fetch_assoc($unit_query)) {
                                                             $selected = ($unit['id'] == $row['unit_id']) ? 'selected' : '';
                                                             echo "<option value='{$unit['id']}' $selected>{$unit['name']}</option>";
@@ -270,16 +333,37 @@ $row = mysqli_fetch_assoc($result);
                                                     <label class="form-label">Tax </label>
                                                     <select class="form-select" name="tax_id" id="tax_id" >
                                                         <option value="">Select</option>
-                                                       <?php
-                                                    $tax_query = mysqli_query($conn, "SELECT * FROM tax WHERE status = 1");
-                                                    while ($tax = mysqli_fetch_assoc($tax_query)) {
-                                                        $selected = ($tax['id'] == $row['tax_id']) ? 'selected' : '';
-                                                        echo "<option value='{$tax['id']}' data-rate='{$tax['rate']}' $selected>
-                                                                {$tax['name']} ({$tax['rate']}%)
-                                                            </option>";
-                                                    }
-                                                    ?>
-
+                                                        <?php
+                                                        // Build query for tax with organization filtering
+                                                        $taxQuery = "SELECT * FROM tax WHERE status = 1";
+                                                        
+                                                        // Add organization filter
+                                                        if ($currentOrgId > 0) {
+                                                            $taxQuery .= " AND org_id = $currentOrgId";
+                                                        }
+                                                        
+                                                        // For non-admin users: Can see their own tax AND tax created by admin users
+                                                        if ($userRoleId != 1 && $currentOrgId > 0) {
+                                                            $taxQuery .= " AND (
+                                                                created_by = $currentUserId 
+                                                                OR 
+                                                                created_by IN (
+                                                                    SELECT id FROM login 
+                                                                    WHERE org_id = $currentOrgId AND role_id = 1
+                                                                )
+                                                            )";
+                                                        }
+                                                        
+                                                        $taxQuery .= " ORDER BY name ASC";
+                                                        
+                                                        $tax_query = mysqli_query($conn, $taxQuery);
+                                                        while ($tax = mysqli_fetch_assoc($tax_query)) {
+                                                            $selected = ($tax['id'] == $row['tax_id']) ? 'selected' : '';
+                                                            echo "<option value='{$tax['id']}' data-rate='{$tax['rate']}' $selected>
+                                                                    {$tax['name']} ({$tax['rate']}%)
+                                                                </option>";
+                                                        }
+                                                        ?>
                                                     </select>
                                                     <!-- <span id="tax_error" class="error-message text-danger"></span> -->
                                                 </div>
@@ -728,8 +812,51 @@ $(document).ready(function() {
         const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
         previewModal.show();
     });
+    
+    // Toggle fields based on item type
+    function toggleStockFields() {
+        const itemType = $('input[name="item_type"]:checked').val();
+        if (itemType === '1') {
+            $('.stock-only').show();   // Product → show
+        } else {
+            $('.stock-only').hide();   // Service → hide
+        }
+    }
+
+    // Run on page load
+    toggleStockFields();
+
+    // Run when item_type changes
+    $('input[name="item_type"]').on('change', toggleStockFields);
+    
+    // Load category based on item type
+    $('input[name="item_type"]').on('change', function() {
+        let itemType = $(this).val();
+        loadCategory(itemType);
+    });
+    
+    function loadCategory(type) {
+        $.ajax({
+            url: 'process/get_categories_by_type.php',
+            type: 'POST',
+            data: { 
+                category_type: type,
+                user_id: <?php echo $_SESSION['crm_user_id'] ?? 0; ?>,
+                org_id: <?php echo $_SESSION['org_id'] ?? 0; ?>,
+                role_id: <?php echo $_SESSION['role_id'] ?? 0; ?>
+            },
+            success: function (response) {
+                $('#category_id').html(response);
+                // Reselect the current category if it exists in the new list
+                const currentCategoryId = '<?php echo $row["category_id"]; ?>';
+                if (currentCategoryId) {
+                    $('#category_id').val(currentCategoryId);
+                }
+            }
+        });
+    }
 });
-    </script>
+</script>
     <script>
         // Function to handle gallery image deletion
 function deleteGalleryImage(imageId, element) {
@@ -766,24 +893,6 @@ $(document).on('click', '#remove_image', function() {
     // Clear any selected file but keep the input element
     $('#image_upload').val('').removeClass('is-invalid');
     $('#image_error').text('');
-});
-</script>
-<script>
-$(document).ready(function () {
-    function toggleStockFields() {
-        const itemType = $('input[name="item_type"]:checked').val();
-        if (itemType === '1') {
-            $('.stock-only').show();   // Product → show
-        } else {
-            $('.stock-only').hide();   // Service → hide
-        }
-    }
-
-    // Run on page load
-    toggleStockFields();
-
-    // Run when item_type changes
-    $('input[name="item_type"]').on('change', toggleStockFields);
 });
 </script>
 

@@ -7,7 +7,7 @@
     <?php include 'layouts/title-meta.php'; ?>
     <?php include 'layouts/head-css.php'; ?>
     <!-- Preview Modal CSS -->
-    <!-- <style>
+    <style>
         .preview-modal .modal-dialog {
             max-width: 900px;
         }
@@ -35,11 +35,21 @@
             padding: 8px 12px;
             min-height: 38px;
         }
-        .preview-image {
-            max-width: 150px;
-            max-height: 150px;
+        .preview-image-container {
+            width: 120px;
+            height: 120px;
+            border: 1px dashed #dee2e6;
             border-radius: 8px;
-            border: 1px solid #dee2e6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f8f9fa;
+            overflow: hidden;
+        }
+        .preview-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
         }
         .preview-quill {
             background-color: #f8f9fa;
@@ -58,70 +68,7 @@
         .preview-radio-label {
             margin-right: 20px;
         }
-    </style> -->
-<!-- Preview Modal CSS -->
-<style>
-    .preview-modal .modal-dialog {
-        max-width: 900px;
-    }
-    .preview-modal .modal-content {
-        border-radius: 12px;
-        box-shadow: 0 5px 25px rgba(0,0,0,0.15);
-    }
-    .preview-modal .modal-header {
-        border-bottom: 1px solid #e9ecef;
-        padding: 1rem 1.5rem;
-    }
-    .preview-modal .modal-body {
-        padding: 1.5rem;
-        max-height: 70vh;
-        overflow-y: auto;
-    }
-    .preview-modal .modal-footer {
-        border-top: 1px solid #e9ecef;
-        padding: 1rem 1.5rem;
-    }
-    .preview-field {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        padding: 8px 12px;
-        min-height: 38px;
-    }
-    .preview-image-container {
-        width: 120px;
-        height: 120px;
-        border: 1px dashed #dee2e6;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #f8f9fa;
-        overflow: hidden;
-    }
-    .preview-image {
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
-    }
-    .preview-quill {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 4px;
-        padding: 12px;
-        min-height: 200px;
-    }
-    .form-label.preview-label {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-    }
-    .preview-radio {
-        margin-right: 10px;
-    }
-    .preview-radio-label {
-        margin-right: 20px;
-    }
-</style>
+    </style>
 </head>
 
 <body>
@@ -195,10 +142,53 @@
                                                     <label class="form-label">Category<span class="text-danger ms-1">*</span></label>
                                                     <select class="form-select" name="category_id" id="category_id">
                                                         <option value="">Select Category</option>
-                                                        <?php $result = mysqli_query($conn, "SELECT * FROM category WHERE status=1");
+                                                        <?php 
+                                                        // Get current user info (same as reference code)
+                                                        $currentUserId = $_SESSION['crm_user_id'] ?? 0;
+                                                        $currentOrgId = $_SESSION['org_id'] ?? 0;
+                                                        $userRoleId = $_SESSION['role_id'] ?? 0;
+                                                        
+                                                        // Get the correct org_id from database if session org_id is 0
+                                                        if ($currentOrgId == 0 && $currentUserId > 0) {
+                                                            $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+                                                            $fixResult = mysqli_query($conn, $fixQuery);
+                                                            if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+                                                                $userData = mysqli_fetch_assoc($fixResult);
+                                                                $_SESSION['org_id'] = $userData['org_id'];
+                                                                $_SESSION['role_id'] = $userData['role_id'];
+                                                                $currentOrgId = $userData['org_id'];
+                                                                $userRoleId = $userData['role_id'];
+                                                            }
+                                                        }
+                                                        
+                                                        // Load initial categories (default is product type = 1)
+                                                        $category_type = 1;
+                                                        $categoryQuery = "SELECT * FROM category WHERE category_type = $category_type AND is_deleted = 0 AND status = 1";
+                                                        
+                                                        // Add organization filter
+                                                        if ($currentOrgId > 0) {
+                                                            $categoryQuery .= " AND org_id = $currentOrgId";
+                                                        }
+                                                        
+                                                        // For non-admin users: Can see their own categories AND categories created by admin users
+                                                        if ($userRoleId != 1 && $currentOrgId > 0) {
+                                                            $categoryQuery .= " AND (
+                                                                created_by = $currentUserId 
+                                                                OR 
+                                                                created_by IN (
+                                                                    SELECT id FROM login 
+                                                                    WHERE org_id = $currentOrgId AND role_id = 1
+                                                                )
+                                                            )";
+                                                        }
+                                                        
+                                                        $categoryQuery .= " ORDER BY name ASC";
+                                                        
+                                                        $result = mysqli_query($conn, $categoryQuery);
                                                         while ($row = mysqli_fetch_assoc($result)) {
-                                                            echo '<option value="' . $row['id'] . '">' . $row['name'] . '</option>';
-                                                        } ?>
+                                                            echo '<option value="' . $row['id'] . '">' . htmlspecialchars($row['name']) . '</option>';
+                                                        } 
+                                                        ?>
                                                     </select>
                                                     <span class="text-danger error-text" id="category_error"></span>
                                                 </div>
@@ -229,10 +219,34 @@
                                                     <label class="form-label">Units</label>
                                                     <select class="form-select" name="unit_id" id="unit_id">
                                                         <option value="">Select unit</option>
-                                                        <?php $unit = mysqli_query($conn, "SELECT * FROM units WHERE status=1");
-                                                        while ($row = mysqli_fetch_assoc($unit)) {
+                                                        <?php 
+                                                        // Build query for units with organization filtering
+                                                        $unitQuery = "SELECT * FROM units WHERE status = 1";
+                                                        
+                                                        // Add organization filter
+                                                        if ($currentOrgId > 0) {
+                                                            $unitQuery .= " AND org_id = $currentOrgId";
+                                                        }
+                                                        
+                                                        // For non-admin users: Can see their own units AND units created by admin users
+                                                        if ($userRoleId != 1 && $currentOrgId > 0) {
+                                                            $unitQuery .= " AND (
+                                                                created_by = $currentUserId 
+                                                                OR 
+                                                                created_by IN (
+                                                                    SELECT id FROM login 
+                                                                    WHERE org_id = $currentOrgId AND role_id = 1
+                                                                )
+                                                            )";
+                                                        }
+                                                        
+                                                        $unitQuery .= " ORDER BY name ASC";
+                                                        
+                                                        $unitResult = mysqli_query($conn, $unitQuery);
+                                                        while ($row = mysqli_fetch_assoc($unitResult)) {
                                                             echo '<option value="' . $row['id'] . '">' . $row['name'] . '</option>';
-                                                        } ?>
+                                                        } 
+                                                        ?>
                                                     </select>
                                                     <span class="text-danger error-text" id="unit_error"></span>
                                                 </div>
@@ -251,16 +265,37 @@
                                             <div class="col-lg-4 col-md-6 product-only">
                                                 <div class="mb-3">
                                                     <label class="form-label">Tax</label>
-                                                    <select class="form-select" name="tax_id"  id="tax_id">
+                                                    <select class="form-select" name="tax_id" id="tax_id">
                                                         <option value="">Select</option>
                                                         <?php 
-                                                        $tax = mysqli_query($conn, "SELECT * FROM tax WHERE status=1");
-                                                        while ($row = mysqli_fetch_assoc($tax)) {
+                                                        // Build query for tax with organization filtering
+                                                        $taxQuery = "SELECT * FROM tax WHERE status = 1";
+                                                        
+                                                        // Add organization filter
+                                                        if ($currentOrgId > 0) {
+                                                            $taxQuery .= " AND org_id = $currentOrgId";
+                                                        }
+                                                        
+                                                        // For non-admin users: Can see their own tax AND tax created by admin users
+                                                        if ($userRoleId != 1 && $currentOrgId > 0) {
+                                                            $taxQuery .= " AND (
+                                                                created_by = $currentUserId 
+                                                                OR 
+                                                                created_by IN (
+                                                                    SELECT id FROM login 
+                                                                    WHERE org_id = $currentOrgId AND role_id = 1
+                                                                )
+                                                            )";
+                                                        }
+                                                        
+                                                        $taxQuery .= " ORDER BY name ASC";
+                                                        
+                                                        $taxResult = mysqli_query($conn, $taxQuery);
+                                                        while ($row = mysqli_fetch_assoc($taxResult)) {
                                                             echo '<option value="' . $row['id'] . '" data-rate="' . $row['rate'] . '">'
                                                                 . $row['name'] . ' (' . $row['rate'] . '%)</option>';
                                                         }
                                                         ?>
-
                                                     </select>
                                                     <span class="text-danger error-text" id="tax_error"></span>
                                                 </div>
@@ -273,17 +308,14 @@
                                                 </div>
                                             </div>
                                             <div class="col-lg-12 product-only">
-                                        <div class="mb-3">
-                                            <label class="form-label">Product Description</label>
-
-                                            <!-- Quill Editor Container -->
-                                            <div id="editorContainer" style="height: 200px; background-color: #fff;"></div>
-
-                                            <!-- Hidden Textarea to store HTML content on submit -->
-                                            <textarea name="description" id="productDescription" class="form-control d-none"></textarea>
-                                        </div>
-                                    </div>
-
+                                                <div class="mb-3">
+                                                    <label class="form-label">Product Description</label>
+                                                    <!-- Quill Editor Container -->
+                                                    <div id="editorContainer" style="height: 200px; background-color: #fff;"></div>
+                                                    <!-- Hidden Textarea to store HTML content on submit -->
+                                                    <textarea name="description" id="productDescription" class="form-control d-none"></textarea>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div class="d-flex align-items-center justify-content-between">
                                             <button type="button" class="btn btn-outline-white" onclick="window.location.href='products.php'">Cancel</button>
@@ -407,7 +439,6 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <!-- <button type="button" class="btn btn-primary" onclick="document.getElementById('form').submit()">Create Product</button> -->
                 </div>
             </div>
         </div>
@@ -428,7 +459,6 @@ $('#form').on('submit', function (e) {
     $('#productDescription').val(html);
 });
 
-// Preview functionality
 // Preview functionality
 document.getElementById('previewBtn').addEventListener('click', function() {
     // Get form values
@@ -608,7 +638,12 @@ $(document).ready(function () {
         $.ajax({
             url: 'process/get_categories_by_type.php',
             type: 'POST',
-            data: { category_type: type },
+            data: { 
+                category_type: type,
+                user_id: <?php echo $_SESSION['crm_user_id'] ?? 0; ?>,
+                org_id: <?php echo $_SESSION['org_id'] ?? 0; ?>,
+                role_id: <?php echo $_SESSION['role_id'] ?? 0; ?>
+            },
             success: function (response) {
                 $('#category_id').html(response);
             }

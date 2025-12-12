@@ -176,6 +176,7 @@
                         </th>
                         <th >HSN Code</th>
                         <th >Product</th>
+                           <th >Type</th>
                         <th >Category</th>
                         <th >Unit</th>
                         <th>Quantity</th>
@@ -286,6 +287,7 @@
                                     </div>
                                 </div>
                             </td>
+                             <td><?= htmlspecialchars($row['item_type'] == 1 ? 'Product' : 'Service') ?></td>
                             <td><?= htmlspecialchars($row['category_name']) ?></td>
                             <td><?= htmlspecialchars($row['unit_name']) ?></td>
                             <td><?= htmlspecialchars($row['quantity']) ?></td>

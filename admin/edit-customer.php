@@ -29,7 +29,7 @@ mysqli_data_seek($country_result, 0);
 
 // Fetch contact persons
 $client_id = $_GET['id'];
-$contacts_query = "SELECT * FROM client_contact_persons WHERE client_id = $clientid";
+$contacts_query = "SELECT * FROM client_contact_persons WHERE client_id = $clientid AND is_deleted = 0";
 $contacts_result = mysqli_query($conn, $contacts_query);
 
 $country_codes = [
@@ -156,7 +156,7 @@ $country_codes = [
 
                         <div class="card">
                             <div class="card-body">
-                                <form id="form" action="process/action_edit_client.php" method="POST" enctype="multipart/form-data" id="form">
+                                <form id="form" action="process/action_edit_client.php" method="POST" enctype="multipart/form-data">
                                     <input type="hidden" name="client_id" value="<?php echo $clientid; ?>">
                                     <!-- Add this ONE LINE for active tab -->
                                     <input type="hidden" name="active_tab" id="activeTabField" value="other-tab">
@@ -234,13 +234,6 @@ $country_codes = [
                                                     <span id="company_name_error" class="text-danger error-text"></span>
                                                 </div>
                                             </div>
-                                            <!-- <div class="col-lg-4 col-md-6">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Display Name </label>
-                                                    <input type="text" class="form-control" name="display_name" id="display_name" value="<?php echo htmlspecialchars($row['display_name']); ?>">
-                                                    <span id="display_name_error" class="text-danger error-text"></span>
-                                                </div>
-                                            </div> -->
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">Email </label>
@@ -264,7 +257,6 @@ $country_codes = [
             </select>
             <input type="text" class="form-control phone-number-input" name="phone_number" id="phone_number" value="<?= htmlspecialchars($row['phone_number']); ?>" placeholder="Phone Number">
         </div>
-        <!-- <span id="phone_number_error" class="text-danger error-text"></span> -->
     </div>
 </div>
 <div class="col-lg-4 col-md-6">
@@ -283,7 +275,6 @@ $country_codes = [
             </select>
             <input type="text" class="form-control phone-number-input" name="business_number" id="business_number" value="<?= htmlspecialchars($row['business_number']); ?>" placeholder="Mobile Number">
         </div>
-        <!-- <span id="business_number_error" class="text-danger error-text"></span> -->
     </div>
 </div>
 
@@ -323,17 +314,6 @@ $country_codes = [
                                                         </select>
                                                     </div>
                                                     
-                                                    <!-- <div class="col-md-6 mb-3">
-                                                        <label class="form-label">Enable Portal?</label><br>
-                                                        <div class="form-check">
-                                                            <input type="checkbox" class="form-check-input" id="enablePortalCheckbox" name="enable_portal" <?php echo $row['enable_portal'] ? 'checked' : ''; ?>>
-                                                            <label class="form-check-label" for="enablePortalCheckbox">
-                                                                Allow portal access for this customer                                                           
-                                                            </label>
-                                                        </div>
-                                                        <span id="emailRequiredNote" class="text-muted ms-1 <?php echo !$row['enable_portal'] ? 'd-none' : ''; ?>">( Email address is mandatory )</span>
-                                                    </div> -->
-
                                                     <div class="col-md-6 mb-3">
                                                         <label class="form-label">VAT/GST Number</label>
                                                         <input type="text" class="form-control" name="gst_number" id="gst_number" value="<?php echo htmlspecialchars($row['gst_number']); ?>">
@@ -426,10 +406,6 @@ $country_codes = [
                                                     <div class="col-md-6">
                                                         <h6 class="mb-3">Billing Address</h6>
                                                         <div class="row">
-                                                            <!-- <div class="col-12 mb-3">
-                                                                <label class="form-label">Name</label>
-                                                                <input type="text" id="billing_name" class="form-control" name="billing_name" value="<?php echo htmlspecialchars($addressrow['billing_name']); ?>">
-                                                            </div> -->
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 1</label>
                                                                 <input type="text" id="billing_address1" class="form-control" name="billing_address1" value="<?php echo htmlspecialchars($addressrow['billing_address1']); ?>">
@@ -449,7 +425,6 @@ $country_codes = [
                                                                         echo "<option value='{$country['id']}' $selected>{$country['name']}</option>";
                                                                     } ?>
                                                                 </select>
-                                                                <!-- <span id="billing_country_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">State</label>
@@ -466,7 +441,6 @@ $country_codes = [
                                                                         ?>
                                                                     <?php endif; ?>
                                                                 </select>
-                                                                <!-- <span id="billing_state_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">City</label>
@@ -483,7 +457,6 @@ $country_codes = [
                                                                         ?>
                                                                     <?php endif; ?>
                                                                 </select>
-                                                                <!-- <span id="billing_city_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Pincode</label>
@@ -496,14 +469,8 @@ $country_codes = [
                                                     <div class="col-md-6">
                                                         <div class="d-flex align-items-center justify-content-between mb-3">
                                                             <h6>Shipping Address</h6>
-                                                     <!-- <a href="javascript:void(0);" onclick="copyBillingToShipping()" class="text-primary text-decoration-underline fs-13">
-                                                     <i class="isax isax-document-copy me-1"></i>Copy From Billing</a> -->
                                                         </div>
                                                         <div class="row">
-                                                            <!-- <div class="col-12 mb-3">
-                                                                <label class="form-label">Name</label>
-                                                                <input type="text" class="form-control" id="shipping_name" name="shipping_name" value="<?php echo htmlspecialchars($addressrow['shipping_name']); ?>">
-                                                            </div> -->
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 1</label>
                                                                 <input type="text" class="form-control" id="shipping_address1" name="shipping_address1" value="<?php echo htmlspecialchars($addressrow['shipping_address1']); ?>">
@@ -519,12 +486,10 @@ $country_codes = [
         <?php 
         mysqli_data_seek($country_result, 0);
         while ($country = mysqli_fetch_assoc($country_result)) {
-            // FIX: Use $addressrow instead of $row
             $selected = ($country['id'] == $addressrow['shipping_country']) ? 'selected' : '';
             echo "<option value='{$country['id']}' $selected>{$country['name']}</option>";
         } ?>
     </select>
-    <!-- <span id="shipping_country_error" class="text-danger error-text"></span> -->
 </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">State</label>
@@ -541,7 +506,6 @@ $country_codes = [
                                                                         ?>
                                                                     <?php endif; ?>
                                                                 </select>
-                                                                 <!-- <span id="shipping_state_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">City</label>
@@ -558,7 +522,6 @@ $country_codes = [
                                                                         ?>
                                                                     <?php endif; ?>
                                                                 </select>
-                                                                <!-- <span id="shipping_city_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Pincode</label>
@@ -595,8 +558,6 @@ $country_codes = [
                                                 </button>
                                             </div>
 
-
-
                                             <!-- Bank Details Tab -->
                                             <div class="tab-pane fade" id="bankTab" role="tabpanel">
                                                 <h6 class="mb-3">Banking Details</h6>
@@ -604,23 +565,18 @@ $country_codes = [
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Bank Name</label>
                                                         <input type="text" class="form-control" name="bank_name" value="<?php echo htmlspecialchars($bankrow['bank_name']??''); ?>">
-                                                         <span id="bank_name_error" class="text-danger error-text"></span>
                                                     </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Branch</label>
                                                         <input type="text" class="form-control" name="bank_branch" value="<?php echo htmlspecialchars($bankrow['bank_branch']??''); ?>">
-                                                                <span id="bank_branch_error" class="text-danger error-text"></span>                                                   
                                                     </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Account Holder</label>
                                                         <input type="text" class="form-control" name="account_holder" value="<?php echo htmlspecialchars($bankrow['account_holder']??''); ?>">
-                                                   <span id="account_holder_error" class="text-danger error-text"></span>
                                                     </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Account Number</label>
                                                         <input type="text" class="form-control" name="account_number" value="<?php echo htmlspecialchars($bankrow['account_number']??''); ?>">
-                                                          <span id="account_number_error" class="text-danger error-text"></span>
-
                                                     </div>
                                                      <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Routing Number</label>
@@ -629,8 +585,6 @@ $country_codes = [
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">IFSC</label>
                                                         <input type="text" class="form-control" name="IFSC_code" value="<?php echo htmlspecialchars($bankrow['IFSC_code']??''); ?>">
-                                                       <span id="ifsc_code_error" class="text-danger error-text"></span>
-
                                                     </div>
                                                 </div>
                                             </div>
@@ -683,33 +637,8 @@ $(document).ready(function () {
     });
 });
 </script>
-<div class="tab-pane fade" id="contactTab" role="tabpanel">
-    <h6 class="mb-3">Contact Persons</h6>
-    <div class="table-responsive">
-        <table class="table table-bordered align-middle" id="contactTable">
-            <thead class="table-light">
-                <tr>
-                    <th>Salutation</th>
-                    <th>First Name</th>
-                    <th>Last Name</th>
-                    <th>Email Address</th>
-                    <th>Work Phone</th>
-                    <th>Mobile</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="contactTableBody">
-                <!-- Rows added dynamically -->
-            </tbody>
-        </table>
-    </div>
-    <button type="button" class="btn btn-outline-primary mt-2" onclick="addContactRow()">
-        + Add Contact Person
-    </button>
-</div>
 
 <script>
-    
 function addContactRow(
     salutation = "", 
     firstName = "", 
@@ -727,7 +656,12 @@ function addContactRow(
 
     const row = document.createElement("tr");
     row.dataset.rowId = rowId;
-    if (contactId) row.dataset.contactId = contactId;
+    
+    // Store contact ID if it exists
+    if (contactId) {
+        row.dataset.contactId = contactId;
+    }
+    
     if (tbody.children.length === 0) row.dataset.isFirst = "true";
 
     row.innerHTML = `
@@ -768,6 +702,15 @@ function addContactRow(
             </button>
         </td>
     `;
+    
+    // Add hidden input for contact ID if it exists
+    if (contactId) {
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'contact_ids[]';
+        hiddenInput.value = contactId;
+        row.appendChild(hiddenInput);
+    }
 
     const extraRow = document.createElement("tr");
     extraRow.classList.add("extra-fields-row", "d-none");
@@ -797,13 +740,18 @@ function addContactRow(
     tbody.appendChild(extraRow);
 
     // Attach real-time validation listeners
-    row.querySelector(".contact-email").addEventListener("input", validateEmail);
-    row.querySelector(".contact-workphone").addEventListener("input", validateWorkPhone);
-    row.querySelector(".contact-mobile").addEventListener("input", validateMobile);
-    row.querySelector(".contact-firstname").addEventListener("input", validateName);
-    row.querySelector(".contact-lastname").addEventListener("input", validateName);
-}
+    const emailInput = row.querySelector(".contact-email");
+    const workPhoneInput = row.querySelector(".contact-workphone");
+    const mobileInput = row.querySelector(".contact-mobile");
+    const firstNameInput = row.querySelector(".contact-firstname");
+    const lastNameInput = row.querySelector(".contact-lastname");
 
+    if (emailInput) emailInput.addEventListener("input", validateEmail);
+    if (workPhoneInput) workPhoneInput.addEventListener("input", validateWorkPhone);
+    if (mobileInput) mobileInput.addEventListener("input", validateMobile);
+    if (firstNameInput) firstNameInput.addEventListener("input", validateName);
+    if (lastNameInput) lastNameInput.addEventListener("input", validateName);
+}
 
 // ---------------- Validation Functions ----------------
 function validateEmail(e) {
@@ -818,7 +766,7 @@ function validateWorkPhone(e) {
     const errorSpan = e.target.closest("td").querySelector(".error-workphone");
     // allow only digits
     e.target.value = phone.replace(/[^0-9]/g, '');
-    errorSpan.textContent = phone === "" ? "" : (!/^[0-9]{7,10}$/.test(phone) ? "Work Phone must be 7–10 digits" : "");
+    errorSpan.textContent = phone === "" ? "" : (!/^[0-9]{7,10}$/.test(phone) ? "Work Phone must be 7-10 digits" : "");
 }
 
 function validateMobile(e) {
@@ -846,12 +794,70 @@ function toggleExtraFields(button, rowId) {
         }
     }
 }
+
+// function removeRow(button) {
+//     const row = button.closest("tr");
+//     const rowId = row.dataset.rowId;
+//     const contactId = row.dataset.contactId;
+//     const extraRow = document.querySelector(`tr.extra-fields-row[data-row-id="${rowId}"]`);
+
+//     if (!confirm("Are you sure you want to delete this contact person?")) return;
+
+//     const deleteBtn = button;
+//     deleteBtn.disabled = true;
+//     deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+//     if (contactId) {
+//         $.ajax({
+//             url: 'process/action_delete_client_contact_person.php',
+//             type: 'POST',
+//             dataType: 'json',
+//             data: { id: contactId },
+//             success: function (response) {
+//                 if (response.status === 'success') {
+//                     row.remove();
+//                     if (extraRow) extraRow.remove();
+//                     showToast("Contact person deleted", 'success');
+//                 } else {
+//                     showToast("Error: " + response.message, 'danger');
+//                     resetDeleteBtn();
+//                 }
+//             },
+//             error: function (xhr, status, error) {
+//                 showToast("AJAX Error: " + error, 'danger');
+//                 resetDeleteBtn();
+//             }
+//         });
+
+//         function resetDeleteBtn() {
+//             deleteBtn.disabled = false;
+//             deleteBtn.innerHTML = '<i class="isax isax-trash"></i>';
+//         }
+//     } else {
+//         row.remove();
+//         if (extraRow) extraRow.remove();
+//         showToast("Contact removed", 'info');
+//     }
+// }
+
+// // Helper function for toast notifications
+// function showToast(message, type = 'success') {
+//     // Implement your toast notification system here
+//     // Example with Bootstrap toasts:
+//     const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
+//     const toastBody = document.getElementById('toastBody');
+    
+//     toastBody.textContent = message;
+//     toastBody.className = `toast-body bg-${type}`;
+//     toast.show();
+// }
 function removeRow(button) {
     const row = button.closest("tr");
     const rowId = row.dataset.rowId;
     const contactId = row.dataset.contactId;
     const extraRow = document.querySelector(`tr.extra-fields-row[data-row-id="${rowId}"]`);
 
+    // REMOVED THE CONFIRMATION DIALOG
     // if (!confirm("Are you sure you want to delete this contact person?")) return;
 
     const deleteBtn = button;
@@ -859,6 +865,7 @@ function removeRow(button) {
     deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
     if (contactId) {
+        // Existing contact - delete via AJAX
         $.ajax({
             url: 'process/action_delete_client_contact_person.php',
             type: 'POST',
@@ -885,45 +892,49 @@ function removeRow(button) {
             deleteBtn.innerHTML = '<i class="isax isax-trash"></i>';
         }
     } else {
+        // New contact - just remove from DOM
         row.remove();
         if (extraRow) extraRow.remove();
         showToast("Contact removed", 'info');
     }
 }
-
-
-// Helper function for toast notifications
-function showToast(message, type = 'success') {
-    // Implement your toast notification system here
-    // Example with Bootstrap toasts:
-    const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
-    const toastBody = document.getElementById('toastBody');
-    
-    toastBody.textContent = message;
-    toastBody.className = `toast-body bg-${type}`;
-    toast.show();
-}
-</script>
-
-<script>
+// Load existing contact persons when page loads
 document.addEventListener("DOMContentLoaded", function () {
-<?php
-$contacts_result = mysqli_query($conn, "SELECT * FROM client_contact_persons WHERE client_id = $client_id");
-while ($contact = mysqli_fetch_assoc($contacts_result)) {
-?>
-    addContactRow(
-        <?= json_encode($contact['contact_salutation']) ?>,
-        <?= json_encode($contact['contact_first_name']) ?>,
-        <?= json_encode($contact['contact_last_name']) ?>,
-        <?= json_encode($contact['contact_email']) ?>,
-        <?= json_encode($contact['contact_work_phone']) ?>,
-        <?= json_encode($contact['contact_mobile']) ?>,
-        <?= json_encode($contact['contact_skype']) ?>,
-        <?= json_encode($contact['contact_designation']) ?>,
-        <?= json_encode($contact['contact_department']) ?>,
-        <?= json_encode($contact['id']) ?>
-    );
-<?php } ?>
+    // Load existing contact persons
+    <?php
+    $contacts_result = mysqli_query($conn, "SELECT * FROM client_contact_persons WHERE client_id = $client_id AND is_deleted = 0");
+    if (mysqli_num_rows($contacts_result) > 0) {
+        while ($contact = mysqli_fetch_assoc($contacts_result)) {
+            // Prepare the data for JavaScript
+            $salutation = addslashes($contact['contact_salutation'] ?? '');
+            $firstName = addslashes($contact['contact_first_name'] ?? '');
+            $lastName = addslashes($contact['contact_last_name'] ?? '');
+            $email = addslashes($contact['contact_email'] ?? '');
+            $workPhone = addslashes($contact['contact_work_phone'] ?? '');
+            $mobile = addslashes($contact['contact_mobile'] ?? '');
+            $skype = addslashes($contact['contact_skype'] ?? '');
+            $designation = addslashes($contact['contact_designation'] ?? '');
+            $department = addslashes($contact['contact_department'] ?? '');
+            $contactId = $contact['id'];
+            
+            echo "addContactRow(";
+            echo "'$salutation', ";
+            echo "'$firstName', ";
+            echo "'$lastName', ";
+            echo "'$email', ";
+            echo "'$workPhone', ";
+            echo "'$mobile', ";
+            echo "'$skype', ";
+            echo "'$designation', ";
+            echo "'$department', ";
+            echo "'$contactId'";
+            echo ");\n";
+        }
+    } else {
+        // Add one empty row if no contacts exist
+        echo "addContactRow();\n";
+    }
+    ?>
 });
 </script>
 
@@ -968,40 +979,8 @@ function getCities(stateId, targetDropdown) {
         }
     });
 }
-
-// Copy Billing Address to Shipping Address
-// function copyBillingToShipping() {
-//     try {
-//         $('#shipping_name').val($('#billing_name').val());
-//         $('#shipping_address1').val($('#billing_address1').val());
-//         $('#shipping_address2').val($('#billing_address2').val());
-//         $('#shipping_pincode').val($('#billing_pincode').val());
-
-//         const countryVal = $('#billing_country').val();
-//         if (!countryVal) return;
-
-//         $('#shipping_country').val(countryVal).trigger('change');
-
-//         // Delay for state loading
-//         setTimeout(function () {
-//             const stateVal = $('#billing_state').val();
-//             if (!stateVal) return;
-
-//             $('#shipping_state').val(stateVal).trigger('change');
-
-//             // Delay for city loading
-//             setTimeout(function () {
-//                 const cityVal = $('#billing_city').val();
-//                 if (cityVal) {
-//                     $('#shipping_city').val(cityVal).trigger('change');
-//                 }
-//             }, 500);
-//         }, 500);
-//     } catch (error) {
-//         console.error("Error copying billing to shipping:", error);
-//     }
-// }
 </script>
+
 <script>
 $(document).ready(function () {
     $('.delete-doc').on('click', function () {
@@ -1064,191 +1043,8 @@ $(document).ready(function () {
 });
 </script>
 
-<!-- <script>
-    $(document).ready(function() {
-    // Form Validation
-    $('#form').on('submit', function(e) {
-        let isValid = true;
-        $('.error-text').text('');
-        $('.is-invalid').removeClass('is-invalid');
-
-        // Required fields validation
-        const requiredFields = [
-            {name: 'first_name', errorId: 'first_name_error', message: 'First name is required'},
-            {name: 'last_name', errorId: 'last_name_error', message: 'Last name is required'},
-            // {name: 'company_name', errorId: 'company_name_error', message: 'Company name is required'},
-            {name: 'display_name', errorId: 'display_name_error', message: 'Display name is required'},
-            // {name: 'email', errorId: 'email_error', message: 'Email is required'},
-            // {name: 'phone_number', errorId: 'phone_number_error', message: 'Work number is required'},
-            // {name: 'business_number', errorId: 'business_number_error', message: 'Mobile number is required'},
-            // {name: 'pan_number', errorId: 'pan_number_error', message: 'PAN number is required'},
-            {name: 'billing_city', errorId: 'billing_city_error', message: 'Billing city is required'},
-            {name: 'shipping_city', errorId: 'shipping_city_error', message: 'Shipping city is required'},
-            {name: 'billing_country', errorId: 'billing_country_error', message: 'Billing country is required'},
-            {name: 'shipping_country', errorId: 'shipping_country_error', message: 'Shipping country is required'},
-            {name: 'billing_state', errorId: 'billing_state_error', message: 'Billing State is required'},
-            {name: 'shipping_state', errorId: 'shipping_state_error', message: 'Shipping State is required'},
-            {name: 'salutation', errorId: 'salutation_error', message: 'Salutation is required'}
-        ];
-
-        requiredFields.forEach(field => {
-            const value = $(`[name="${field.name}"]`).val();
-            if (!value) {
-                $(`#${field.errorId}`).text(field.message);
-                isValid = false;
-            }
-        });
-
-        // Email format validation
-        const email = $('[name="email"]').val().trim();
-        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            $('#email_error').text('Please enter a valid email address');
-            isValid = false;
-        }
-
-        // PAN format validation
-        const pan = $('[name="pan_number"]').val().trim();
-        if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
-            $('#pan_number_error').text('Invalid PAN format (e.g. AAAAA9999A)');
-            isValid = false;
-        }
-
-        // // Phone number validation
-        // const phone = $('[name="phone_number"]').val().trim();
-        // if (phone && !/^[0-9]{7,15}$/.test(phone)) {
-        //     $('#phone_number_error').text('Please enter a valid phone number');
-        //     isValid = false;
-        // }
-
-        // // Mobile number validation
-        // const mobile = $('[name="business_number"]').val().trim();
-        // if (mobile && !/^[0-9]{7,15}$/.test(mobile)) {
-        //     $('#business_number_error').text('Please enter a valid mobile number');
-        //     isValid = false;
-        // }
-
-        // Validate contact persons if any exist
-        $('[name="contact_email[]"]').each(function(index) {
-            const contactEmail = $(this).val().trim();
-            if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
-                $(this).next('.invalid-feedback').remove();
-                $(this).after('<div class="invalid-feedback">Please enter a valid email address</div>');
-                isValid = false;
-            }
-        });
-
-        // Check if portal is enabled and email is provided
-        // if ($('#enablePortalCheckbox').is(':checked') && !email) {
-        //     $('#email_error').text('Email is required when portal access is enabled');
-        //     isValid = false;
-        // }
-
-   // ✅ Document type check
-        $('#documents_error').text('');
-        const files = $('#documents')[0]?.files || [];
-        const allowedExtensions = ['pdf', 'xls', 'xlsx', 'csv'];
-
-        for (let i = 0; i < files.length; i++) {
-            const fileName = files[i].name.toLowerCase();
-            const ext = fileName.split('.').pop();
-            if (!allowedExtensions.includes(ext)) {
-                $('#documents_error').text('Only PDF, Excel, or CSV files are allowed.');
-                isValid = false;
-                break;
-            }
-        }
-
-        // Scroll to first error if validation fails
-        if (!isValid) {
-            e.preventDefault();
-            const firstError = $('.error-text').filter(function() {
-                return $(this).text().length > 0;
-            }).first();
-            
-            if (firstError.length) {
-                $('html, body').animate({
-                    scrollTop: firstError.offset().top - 100
-                }, 500);
-            }
-        }
-    });
-
-    // Real-time validation for PAN
-    $('[name="pan_number"]').on('input', function() {
-        const pan = $(this).val().trim();
-        if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
-            $('#pan_number_error').text('Invalid PAN format (e.g. AAAAA9999A)');
-        } else {
-            $('#pan_number_error').text('');
-        }
-    });
-
-    // Real-time validation for email
-    $('[name="email"]').on('input', function() {
-        const email = $(this).val().trim();
-        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-            $('#email_error').text('Please enter a valid email address');
-        } else {
-            $('#email_error').text('');
-        }
-    });
-$(document).ready(function () {
-    // Function to validate email
-    function validateEmail(email) {
-        const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return regex.test(email);
-    }
-
-    // Real-time validation
-    $('[name="email"]').on('input', function () {
-        const email = $(this).val().trim();
-        const errorEl = $('#email_error');
-
-        if (email === "") {
-            errorEl.text(""); // clear if empty (optional: show "required")
-        } else if (!validateEmail(email)) {
-            errorEl.text("Please enter a valid email address (e.g. user@example.com)");
-        } else {
-            errorEl.text(""); // valid email → clear error
-        }
-    });
-
-    // Final check on form submit
-    $('form').on('submit', function (e) {
-        let isValid = true;
-        const email = $('[name="email"]').val().trim();
-        const errorEl = $('#email_error');
-        errorEl.text("");
-
-        if (email === "") {
-            // errorEl.text("Email is required");
-            // isValid = false;
-        } else if (!validateEmail(email)) {
-            errorEl.text("Please enter a valid email address (e.g. user@example.com)");
-            isValid = false;
-        }
-
-        if (!isValid) e.preventDefault(); // stop submit
-    });
-});
-
-    // Real-time validation for phone numbers
-    $('[name="phone_number"], [name="business_number"]').on('input', function() {
-        const number = $(this).val().trim();
-        const fieldName = $(this).attr('name');
-        const errorId = `${fieldName}_error`;
-        
-        if (number && !/^[0-9]{7,15}$/.test(number)) {
-            $(`#${errorId}`).text('Please enter a valid number');
-        } else {
-            $(`#${errorId}`).text('');
-        }
-    });
-});
-</script> -->
-
 <script>
-$(document).ready(function() {
+    $(document).ready(function() {
     // Add CSS for error indicators
     $('head').append(`
         <style>
@@ -1278,18 +1074,6 @@ $(document).ready(function() {
         const requiredFields = [
             {name: 'first_name', errorId: 'first_name_error', message: 'First name is required', tab: 'otherTab'},
             {name: 'last_name', errorId: 'last_name_error', message: 'Last name is required', tab: 'otherTab'},
-            // {name: 'company_name', errorId: 'company_name_error', message: 'Company name is required', tab: 'otherTab'},
-            // {name: 'display_name', errorId: 'display_name_error', message: 'Display name is required', tab: 'otherTab'},
-            // {name: 'email', errorId: 'email_error', message: 'Email is required', tab: 'otherTab'},
-            // {name: 'phone_number', errorId: 'phone_number_error', message: 'Work number is required', tab: 'otherTab'},
-            // {name: 'business_number', errorId: 'business_number_error', message: 'Mobile number is required', tab: 'otherTab'},
-            // {name: 'pan_number', errorId: 'pan_number_error', message: 'PAN number is required', tab: 'otherTab'},
-            // {name: 'billing_city', errorId: 'billing_city_error', message: 'Billing city is required', tab: 'addressTab'},
-            // {name: 'shipping_city', errorId: 'shipping_city_error', message: 'Shipping city is required', tab: 'addressTab'},
-            // {name: 'billing_country', errorId: 'billing_country_error', message: 'Billing country is required', tab: 'addressTab'},
-            // {name: 'shipping_country', errorId: 'shipping_country_error', message: 'Shipping country is required', tab: 'addressTab'},
-            // {name: 'billing_state', errorId: 'billing_state_error', message: 'Billing state is required', tab: 'addressTab'},
-            // {name: 'shipping_state', errorId: 'shipping_state_error', message: 'Shipping state is required', tab: 'addressTab'},
             {name: 'salutation', errorId: 'salutation_error', message: 'Salutation is required', tab: 'otherTab'}
         ];
 
@@ -1319,22 +1103,6 @@ $(document).ready(function() {
             $(`[data-bs-target="#otherTab"]`).addClass('has-error');
         }
 
-        // Phone number validation
-        // const phone = $('[name="phone_number"]').val().trim();
-        // if (phone && !/^[0-9]{10}$/.test(phone)) {
-        //     $('#phone_number_error').text('Please enter a valid phone number');
-        //     isValid = false;
-        //     $(`[data-bs-target="#otherTab"]`).addClass('has-error');
-        // }
-
-        // // Mobile number validation
-        // const mobile = $('[name="business_number"]').val().trim();
-        // if (mobile && !/^[0-9]{10}$/.test(mobile)) {
-        //     $('#business_number_error').text('Please enter a valid mobile number');
-        //     isValid = false;
-        //     $(`[data-bs-target="#otherTab"]`).addClass('has-error');
-        // }
-
         // Validate contact persons if any exist
         $('[name="contact_email[]"]').each(function(index) {
             const contactEmail = $(this).val().trim();
@@ -1345,13 +1113,6 @@ $(document).ready(function() {
                 $(`[data-bs-target="#contactTab"]`).addClass('has-error');
             }
         });
-
-        // // Check if portal is enabled and email is provided
-        // if ($('#enablePortalCheckbox').is(':checked') && !email) {
-        //     $('#email_error').text('Email is required when portal access is enabled');
-        //     isValid = false;
-        //     $(`[data-bs-target="#otherTab"]`).addClass('has-error');
-        // }
 
         // Document type check
         $('#documents_error').text('');
@@ -1433,20 +1194,6 @@ $(document).ready(function() {
     });
 
     // Real-time validation for phone numbers
-    // $('[name="phone_number"], [name="business_number"]').on('input', function() {
-    //     const number = $(this).val().trim();
-    //     const fieldName = $(this).attr('name');
-    //     const errorId = `${fieldName}_error`;
-        
-    //     if (number && !/^[0-9]{7,15}$/.test(number)) {
-    //         $(`#${errorId}`).text('Please enter a valid number');
-    //         $(`[data-bs-target="#otherTab"]`).addClass('has-error');
-    //     } else {
-    //         $(`#${errorId}`).text('');
-    //         $(`[data-bs-target="#otherTab"]`).removeClass('has-error');
-    //     }
-    // });
-
     $('[name="phone_number"], [name="business_number"]').on('input', function() {
     let number = $(this).val().trim();
 
@@ -1456,7 +1203,7 @@ $(document).ready(function() {
     const fieldName = $(this).attr('name');
     const errorId = `${fieldName}_error`;
 
-    if (digitsOnly && !/^[0-9]{7,15}$/.test(digitsOnly)) {
+    if (digitsOnly && !/^[0-9]{10,12}$/.test(digitsOnly)) {
         $(`#${errorId}`).text('Please enter a valid number');
         $(`[data-bs-target="#otherTab"]`).addClass('has-error');
     } else {
@@ -1466,18 +1213,7 @@ $(document).ready(function() {
 });
 
     // Real-time validation for city fields
-    $('#billing_city, #shipping_city').on('change', function() {
-        const fieldId = $(this).attr('id');
-        const value = $(this).val();
-        
-        if (!value) {
-            $(`#${fieldId}_error`).text(`${fieldId.replace('_', ' ')} is required`);
-            $(`[data-bs-target="#addressTab"]`).addClass('has-error');
-        } else {
-            $(`#${fieldId}_error`).text('');
-            $(`[data-bs-target="#addressTab"]`).removeClass('has-error');
-        }
-    });
+    // Removed address field validations
 $(document).ready(function () {
     // Function to validate email
     function validateEmail(email) {
@@ -1542,15 +1278,6 @@ $(document).ready(function () {
 
     // Initialize select2 and other components
     $('.select').select2();
-    addContactRow();
-    
-    // $('#enablePortalCheckbox').change(function() {
-    //     if (this.checked) {
-    //         $('#emailRequiredNote').removeClass('d-none');
-    //     } else {
-    //         $('#emailRequiredNote').addClass('d-none');
-    //     }
-    // });
 });
 
 // Function to validate a specific tab
@@ -1559,7 +1286,7 @@ function validateTab(tabId) {
     
     if (tabId === 'otherTab') {
         // Validate other tab fields
-        const requiredFields = ['first_name', 'last_name', 'company_name', 'display_name', 'email', 'phone_number', 'business_number', 'pan_number', 'salutation'];
+        const requiredFields = ['first_name', 'last_name', 'salutation'];
         
         requiredFields.forEach(field => {
             const value = $(`[name="${field}"]`).val();
@@ -1568,43 +1295,8 @@ function validateTab(tabId) {
                 isValid = false;
             }
         });
-    } else if (tabId === 'addressTab') {
-        // Validate address tab fields
-        const billingCity = $('#billing_city').val();
-        const shippingCity = $('#shipping_city').val();
-        const billingcountry = $('#billing_country').val();
-        const shippingcountry = $('#shipping_country').val();
-        const billingstate = $('#billing_state').val();
-        const shippingstate = $('#shipping_state').val();
-
-        if (!billingCity) {
-            $('#billing_city_error').text('Billing city is required');
-            isValid = false;
-        }
-        
-        if (!shippingCity) {
-            $('#shipping_city_error').text('Shipping city is required');
-            isValid = false;
-        }
-        if (!billingcountry) {
-            $('#billing_country_error').text('Billing country is required');
-            isValid = false;
-        }
-        
-        if (!shippingcountry) {
-            $('#shipping_country_error').text('Shipping country is required');
-            isValid = false;
-        }
-        if (!billingstate) {
-            $('#billing_state_error').text('Billing state is required');
-            isValid = false;
-        }
-        
-        if (!shippingstate) {
-            $('#shipping_state_error').text('Shipping state is required');
-            isValid = false;
-        }
     }
+    // Removed address tab validation
     
     return isValid;
 }
@@ -1648,362 +1340,8 @@ function getCities(stateId, targetDropdown) {
         }
     });
 }
-
-// function copyBillingToShipping() {
-//     try {
-//         // Copy basic fields
-//         $('#shipping_name').val($('#billing_name').val());
-//         $('#shipping_address1').val($('#billing_address1').val());
-//         $('#shipping_address2').val($('#billing_address2').val());
-//         $('#shipping_pincode').val($('#billing_pincode').val());
-        
-//         // Copy country
-//         const countryVal = $('#billing_country').val();
-//         if (!countryVal) return;
-        
-//         $('#shipping_country').val(countryVal).trigger('change');
-        
-//         // Wait for states to load
-//         setTimeout(function() {
-//             // Copy state
-//             const stateVal = $('#billing_state').val();
-//             if (!stateVal) return;
-            
-//             $('#shipping_state').val(stateVal).trigger('change');
-            
-//             // Wait for cities to load
-//             setTimeout(function() {
-//                 // Copy city
-//                 const cityVal = $('#billing_city').val();
-//                 if (cityVal) {
-//                     $('#shipping_city').val(cityVal).trigger('change');
-//                 }
-//             }, 500);
-//         }, 500);
-//     } catch (error) {
-//         console.error("Error copying billing to shipping:", error);
-//     }
-// }
-
-// Contact persons functions
-function addContactRow() {
-    const tbody = document.getElementById("contactTableBody");
-    const rowId = Date.now();
-
-    const row = document.createElement("tr");
-    row.dataset.rowId = rowId;
-
-    const isFirst = tbody.children.length === 0;
-    if (isFirst) row.dataset.isFirst = "true";
-
-    row.innerHTML = `
-        <td>
-            <select class="form-select" name="contact_salutation[]">
-                <option value="Mr">Mr</option>
-                <option value="Mrs">Mrs</option>
-                <option value="Ms">Ms</option>
-                <option value="Dr">Dr</option>
-            </select>
-        </td>
-        <td><input type="text" class="form-control" name="contact_first_name[]" placeholder="First Name"></td>
-        <td><input type="text" class="form-control" name="contact_last_name[]" placeholder="Last Name"></td>
-        <td>
-            <input type="email" class="form-control contact-email" name="contact_email[]" placeholder="Email">
-            <small class="text-danger error-email"></small>
-        </td>
-        <td>
-            <input type="text" class="form-control contact-workphone" name="contact_work_phone[]" placeholder="Work Phone">
-            <small class="text-danger error-workphone"></small>
-        </td>
-        <td>
-            <input type="text" class="form-control contact-mobile" name="contact_mobile[]" placeholder="Mobile">
-            <small class="text-danger error-mobile"></small>
-        </td>
-        <td class="text-center">
-            <button type="button" class="btn btn-sm btn-light" onclick="toggleExtraFields(this, ${rowId})">
-                <i class="isax isax-more"></i>
-            </button>
-            <button type="button" class="btn btn-sm btn-light text-danger" onclick="removeRow(this)">
-                <i class="isax isax-trash"></i>
-            </button>
-        </td>
-    `;
-
-    const extraRow = document.createElement("tr");
-    extraRow.classList.add("extra-fields-row", "d-none");
-    extraRow.dataset.rowId = rowId;
-    extraRow.innerHTML = `
-        <td colspan="7">
-            <div class="p-3 bg-light rounded">
-                <div class="row gx-3">
-                    <div class="col-md-4 mb-2">
-                        <label class="form-label">Skype Name/Number</label>
-                        <input type="text" class="form-control" name="contact_skype[]">
-                    </div>
-                    <div class="col-md-4 mb-2">
-                        <label class="form-label">Designation</label>
-                        <input type="text" class="form-control" name="contact_designation[]">
-                    </div>
-                    <div class="col-md-4 mb-2">
-                        <label class="form-label">Department</label>
-                        <input type="text" class="form-control" name="contact_department[]">
-                    </div>
-                </div>
-            </div>
-        </td>
-    `;
-
-    tbody.appendChild(row);
-    tbody.appendChild(extraRow);
-
-    // ✅ Attach validation to new inputs
-    row.querySelector(".contact-email").addEventListener("input", validateEmail);
-    row.querySelector(".contact-workphone").addEventListener("input", validateWorkPhone);
-    row.querySelector(".contact-mobile").addEventListener("input", validateMobile);
-}
-
-// ---------------- VALIDATION FUNCTIONS ----------------
-
-// ✅ Email validation
-function validateEmail(e) {
-    const email = e.target.value.trim();
-    const errorSpan = e.target.closest("td").querySelector(".error-email");
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (email === "") {
-        errorSpan.textContent = "";
-    } else if (!regex.test(email)) {
-        errorSpan.textContent = "Invalid email format";
-    } else {
-        errorSpan.textContent = "";
-    }
-}
-
-// ✅ Work Phone validation
-function validateWorkPhone(e) {
-    const phone = e.target.value.trim();
-    const errorSpan = e.target.closest("td").querySelector(".error-workphone");
-
-    if (phone === "") {
-        errorSpan.textContent = "";
-    } else if (!/^[0-9]{7,10}$/.test(phone)) {
-        errorSpan.textContent = "Work Phone must be 10 digits";
-    } else {
-        errorSpan.textContent = "";
-    }
-}
-
-// ✅ Mobile validation
-function validateMobile(e) {
-    const phone = e.target.value.trim();
-    const errorSpan = e.target.closest("td").querySelector(".error-mobile");
-
-    if (phone === "") {
-        errorSpan.textContent = "";
-    } else if (!/^[0-9]{10}$/.test(phone)) { // 👈 Example: exactly 10 digits
-        errorSpan.textContent = "Mobile must be exactly 10 digits";
-    } else {
-        errorSpan.textContent = "";
-    }
-}
-
-function toggleExtraFields(button, rowId) {
-    const extraRow = document.querySelector(`tr.extra-fields-row[data-row-id="${rowId}"]`);
-    if (extraRow) {
-        extraRow.classList.toggle("d-none");
-        if (!extraRow.classList.contains("d-none")) {
-            extraRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-    }
-}
-
-function removeRow(button) {
-    const row = button.closest("tr");
-    const rowId = row.dataset.rowId;
-
-    if (row.dataset.isFirst === "true") {
-        return;
-    }
-
-    const extraRow = document.querySelector(`tr.extra-fields-row[data-row-id="${rowId}"]`);
-    if (row) row.remove();
-    if (extraRow) extraRow.remove();
-}
-
-// Display name function
-// function updateDisplayName() {
-//     const salutation = document.getElementById('salutation').value;
-//     let displayName = '';
-
-//     if (salutation === 'Mr') displayName = 'Mr';
-//     else if (salutation === 'Mrs') displayName = 'Mrs';
-//     else if (salutation === 'Ms') displayName = 'Ms';
-//     else if (salutation === 'Miss') displayName = 'Miss';
-//     else if (salutation === 'Dr') displayName = 'Dr';
-
-//     document.getElementById('display_name').value = displayName;
-// }
-
-// // Initialize display name when page loads
-// document.addEventListener('DOMContentLoaded', function() {
-//     updateDisplayName();
-// });
 </script>
-<!-- <script>
-$(document).ready(function() {
-    // Add CSS for error indicators on tabs
-    $('head').append(`
-        <style>
-            .nav-link.has-error {
-                color: #dc3545 !important;
-                border-bottom: 2px solid #dc3545 !important;
-            }
-        </style>
-    `);
 
-    // ---------------- Bank Field Real-time Validation ----------------
-    $('input[name="bank_name"], input[name="bank_branch"], input[name="account_holder"]').on('input', function() {
-        this.value = this.value.replace(/[^a-zA-Z\s]/g, '');
-        validateBankTextField(this);
-    });
-
-    $('input[name="account_number"]').on('input', function() {
-        this.value = this.value.replace(/[^0-9]/g, '');
-        validateBankAccountNumber(this);
-    });
-
-    $('input[name="IFSC_code"]').on('input', function() {
-        this.value = this.value.replace(/[^a-zA-Z0-9]/g, '');
-        validateBankIFSC(this);
-    });
-
-    // ---------------- Validation Functions ----------------
-    function validateBankTextField(input) {
-        const val = $(input).val().trim();
-        const name = $(input).attr('name');
-        const errorId = name + '_error';
-        if (!val) {
-            $('#' + errorId).text('This field is required.').addClass('error-text');
-            $('#bank-tab').addClass('has-error');
-        } else {
-            $('#' + errorId).text('').removeClass('error-text');
-            checkBankTabErrors();
-        }
-    }
-
-    function validateBankAccountNumber(input) {
-        const val = $(input).val().trim();
-        const errorId = 'account_number_error';
-        if (!val) {
-            $('#' + errorId).text('Account number is required.').addClass('error-text');
-            $('#bank-tab').addClass('has-error');
-        } else if (!/^\d{6,20}$/.test(val)) {
-            $('#' + errorId).text('Account number must be 6-20 digits.').addClass('error-text');
-            $('#bank-tab').addClass('has-error');
-        } else {
-            $('#' + errorId).text('').removeClass('error-text');
-            checkBankTabErrors();
-        }
-    }
-
-    function validateBankIFSC(input) {
-        const val = $(input).val().trim();
-        const errorId = 'IFSC_code_error';
-        if (!val) {
-            $('#' + errorId).text('IFSC code is required.').addClass('error-text');
-            $('#bank-tab').addClass('has-error');
-        } else if (!/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(val)) {
-            $('#' + errorId).text('Invalid IFSC format.').addClass('error-text');
-            $('#bank-tab').addClass('has-error');
-        } else {
-            $('#' + errorId).text('').removeClass('error-text');
-            checkBankTabErrors();
-        }
-    }
-
-    function checkBankTabErrors() {
-        const hasErrors = $('#bank-tab .error-text:visible').length > 0;
-        if (!hasErrors) $('#bank-tab').removeClass('has-error');
-    }
-
-    // ---------------- On form submit ----------------
-    $('#form').on('submit', function(e) {
-        let isValid = true;
-
-        // Validate all bank fields on submit
-        $('input[name="bank_name"], input[name="bank_branch"], input[name="account_holder"]').each(function() {
-            validateBankTextField(this);
-            if ($(this).val().trim() === '') isValid = false;
-        });
-
-        validateBankAccountNumber($('input[name="account_number"]'));
-        if ($('#account_number_error').text() !== '') isValid = false;
-
-        validateBankIFSC($('input[name="IFSC_code"]'));
-        if ($('#IFSC_code_error').text() !== '') isValid = false;
-
-        // If invalid, prevent submit and show bank tab
-        if (!isValid) {
-            e.preventDefault();
-
-            $('#bank-tab').tab('show'); // Activate bank tab
-
-            // Scroll to first visible error
-            setTimeout(function() {
-                const firstError = $('#bank-tab .error-text:visible').first();
-                if (firstError.length) {
-                    $('html, body').animate({
-                        scrollTop: firstError.offset().top - 100
-                    }, 500);
-                }
-            }, 300);
-        }
-    });
-});
-</script> -->
-
-
-<script>
-    $(document).ready(function () {
-    function validatePhone(selector, errorSelector, tabSelector) {
-        const value = $(selector).val().trim();
-        if (value && !/^[0-9]{10}$/.test(value)) {
-            $(errorSelector).text('Please enter a valid 10-digit number');
-            $(tabSelector).addClass('has-error');
-            return false;
-        } else {
-            $(errorSelector).text('');
-            $(tabSelector).removeClass('has-error');
-            return true;
-        }
-    }
-
-    // Real-time validation (on input/blur)
-    $('[name="phone_number"]').on('input blur', function () {
-        validatePhone('[name="phone_number"]', '#phone_number_error', `[data-bs-target="#otherTab"]`);
-    });
-
-    $('[name="business_number"]').on('input blur', function () {
-        validatePhone('[name="business_number"]', '#business_number_error', `[data-bs-target="#otherTab"]`);
-    });
-
-    // Form submit validation (final check)
-    $('form').on('submit', function (e) {
-        let isValid = true;
-        if (!validatePhone('[name="phone_number"]', '#phone_number_error', `[data-bs-target="#otherTab"]`)) {
-            isValid = false;
-        }
-        if (!validatePhone('[name="business_number"]', '#business_number_error', `[data-bs-target="#otherTab"]`)) {
-            isValid = false;
-        }
-
-        if (!isValid) {
-            e.preventDefault(); // stop submission
-        }
-    });
-});
-
-</script>
 <script>
 $(document).ready(function() {
     // Image preview functionality
@@ -2134,7 +1472,7 @@ $(document).ready(function() {
 });
 </script>
 
-<!-- Tab Persistence JavaScript - Add ONLY this block -->
+<!-- Tab Persistence JavaScript -->
 <script>
 $(document).ready(function() {
     // Update hidden field when tab changes

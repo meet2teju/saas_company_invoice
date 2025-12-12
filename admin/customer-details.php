@@ -144,8 +144,12 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
 
                                         <div class="">
                                             <p class="text-primary fs-14 fw-medium mb-1">Cl-<?= htmlspecialchars($client['id']) ?></p>
-                                            <h6 class="mb-2"> <?= htmlspecialchars($client['first_name']) ?><img src="assets/img/icons/confirme.svg" alt="confirme" class="ms-1">  </h6>
-                                    <p class="fs-14 fw-regular">
+                                            <!-- <h6 class="mb-2"> <?= htmlspecialchars($client['first_name']) ?><img src="assets/img/icons/confirme.svg" alt="confirme" class="ms-1">  </h6> -->
+                                   <h6 class="mb-2"> 
+    <?= htmlspecialchars("{$client['salutation']} {$client['first_name']} {$client['last_name']}") ?>
+    <img src="assets/img/icons/confirme.svg" alt="confirme" class="ms-1">  
+</h6>
+                                            <p class="fs-14 fw-regular">
                                         <i class="isax isax-location fs-14 me-1 text-gray-9"></i>
                                         <?= htmlspecialchars($client['billing_address1']) ?>
                                         <?= !empty($client['billing_address2']) ? '<br>' . htmlspecialchars($client['billing_address2']) : '' ?>
