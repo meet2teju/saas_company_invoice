@@ -183,8 +183,8 @@ if (isset($_POST['submit'])) {
                 $department = $_POST['contact_department'][$index] ?? '';
                 
                 // Get contact country codes if they exist in your form
-                $contact_work_country_code = mysqli_real_escape_string($conn, $_POST['contact_work_country_code'][$index] ?? '+91');
-                $contact_mobile_country_code = mysqli_real_escape_string($conn, $_POST['contact_mobile_country_code'][$index] ?? '+91');
+                // $contact_work_country_code = mysqli_real_escape_string($conn, $_POST['contact_work_country_code'][$index] ?? '+91');
+                // $contact_mobile_country_code = mysqli_real_escape_string($conn, $_POST['contact_mobile_country_code'][$index] ?? '+91');
 
                 // Only insert if at least one main field has data
                 if (!empty($firstName) || !empty($lastName) || !empty($email) || 
@@ -208,13 +208,11 @@ if (isset($_POST['submit'])) {
                     $contactInsertQuery = "INSERT INTO client_contact_persons (
                         client_id, contact_salutation, contact_first_name, contact_last_name, contact_email,
                         contact_work_phone, contact_mobile, contact_skype, contact_designation, contact_department,
-                        status, org_id, is_deleted, created_by, updated_by,
-                        contact_work_country_code, contact_mobile_country_code
+                        status, org_id, is_deleted, created_by, updated_by
                     ) VALUES (
                         '$clientId', '$salutation', '$firstName', '$lastName', '$email',
                         '$workPhone', '$mobile', '$skype', '$designation', '$department',
-                        1, '$orgId', 0, '$currentUserId', '$currentUserId',
-                        '$contact_work_country_code', '$contact_mobile_country_code'
+                        1, '$orgId', 0, '$currentUserId', '$currentUserId'
                     )";
 
                     if (!mysqli_query($conn, $contactInsertQuery)) {

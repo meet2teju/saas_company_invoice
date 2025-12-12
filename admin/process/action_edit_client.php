@@ -311,12 +311,22 @@ if (isset($_POST['submit'])) {
             }
         }
 
-        mysqli_commit($conn);
-        $_SESSION['message'] = 'Client updated successfully';
-        $_SESSION['message_type'] = 'success';
-        header("Location: ../edit-customer.php?id=" . $clientId);
-        exit();
+        // mysqli_commit($conn);
+        // $_SESSION['message'] = 'Client updated successfully';
+        // $_SESSION['message_type'] = 'success';
+        // header("Location: ../edit-customer.php?id=" . $clientId);
+        // exit();
+mysqli_commit($conn);
+$_SESSION['message'] = 'Client updated successfully';
+$_SESSION['message_type'] = 'success';
 
+// Store active tab in session before redirect
+if (isset($_POST['active_tab'])) {
+    $_SESSION['active_tab'] = $_POST['active_tab'];
+}
+
+header("Location: ../edit-customer.php?id=" . $clientId);
+exit();
     } catch (Exception $e) {
         mysqli_rollback($conn);
         $_SESSION['message'] = 'Update failed: ' . $e->getMessage();

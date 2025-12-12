@@ -3,22 +3,11 @@
 include '../config/config.php';
 
 // Get row ID from URL
-// $client_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-
-// // Fetch row data
-// $client_query = "SELECT * FROM row WHERE id = $client_id";
-// $client_result = mysqli_query($conn, $client_query);
-// $row = mysqli_fetch_assoc($client_result);
 $clientid = $_GET['id'];
 $query = "SELECT * FROM client WHERE id = $clientid";
 $result = mysqli_query($conn, $query);
 $row = mysqli_fetch_assoc($result);
 
-// if (!$row) {
-//     // Redirect if row not found
-//     header("Location: customers.php");
-//     exit();
-// }
 $bankquery = "SELECT * FROM client_bank WHERE client_id = $clientid";
 $bankresult = mysqli_query($conn, $bankquery);
 $bankrow = mysqli_fetch_assoc($bankresult);
@@ -26,7 +15,6 @@ $bankrow = mysqli_fetch_assoc($bankresult);
 $client_id = $_GET['id'];
 $doc_query = "SELECT * FROM client_document WHERE client_id = $client_id";
 $doc_result = mysqli_query($conn, $doc_query);
-
 
 $addressquery = "SELECT * FROM client_address WHERE client_id = $clientid";
 $addressresult = mysqli_query($conn, $addressquery);
@@ -170,6 +158,9 @@ $country_codes = [
                             <div class="card-body">
                                 <form id="form" action="process/action_edit_client.php" method="POST" enctype="multipart/form-data" id="form">
                                     <input type="hidden" name="client_id" value="<?php echo $clientid; ?>">
+                                    <!-- Add this ONE LINE for active tab -->
+                                    <input type="hidden" name="active_tab" id="activeTabField" value="other-tab">
+                                    
                                     <!-- In your edit form -->
                                     <input type="hidden" name="existing_image" value="<?php echo $row['customer_image']; ?>">
 
@@ -177,13 +168,6 @@ $country_codes = [
                                         <div class="row gx-3">
                                             <div class="col-lg-6 col-md-6">
                                                 <div class="d-flex align-items-center mb-3">
-                                                    <!-- <div id="add_image_preview" class="avatar avatar-xxl border border-dashed bg-light me-3 flex-shrink-0">
-                                                        <?php if (!empty($row['customer_image'])): ?>
-                                                            <img src="../uploads/<?php echo $row['customer_image']; ?>" class="avatar avatar-xl" alt="Customer Image">
-                                                        <?php else: ?>
-                                                            <i class="isax isax-image text-primary fs-24"></i>
-                                                        <?php endif; ?>
-                                                    </div> -->
                                                     <div id="add_image_preview" class="avatar avatar-xxl border border-dashed bg-light me-3 flex-shrink-0" style="cursor: pointer; display: flex; align-items: center; justify-content: center;">
                                                         <?php if (!empty($row['customer_image'])): ?>
                                                             <img src="../uploads/<?php echo $row['customer_image']; ?>" class="avatar avatar-xl" alt="Customer Image" style="width: 100%; height: 100%; object-fit: cover;">
@@ -2149,5 +2133,39 @@ $(document).ready(function() {
     });
 });
 </script>
+
+<!-- Tab Persistence JavaScript - Add ONLY this block -->
+<script>
+$(document).ready(function() {
+    // Update hidden field when tab changes
+    $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+        const tabId = $(e.target).attr('id');
+        $('#activeTabField').val(tabId);
+    });
+
+    // Restore active tab from session on page load
+    <?php if (isset($_SESSION['active_tab'])): ?>
+        const storedTabId = '<?php echo $_SESSION['active_tab']; ?>';
+        const storedTabButton = $('#' + storedTabId);
+        
+        if (storedTabButton.length) {
+            // Deactivate all tabs
+            $('.nav-link').removeClass('active');
+            $('.tab-pane').removeClass('show active');
+            
+            // Activate the stored tab
+            storedTabButton.addClass('active');
+            $(storedTabButton.data('bs-target')).addClass('show active');
+            
+            // Update hidden field
+            $('#activeTabField').val(storedTabId);
+            
+            // Clear session after use
+            <?php unset($_SESSION['active_tab']); ?>
+        }
+    <?php endif; ?>
+});
+</script>
+
 </body>
 </html>
