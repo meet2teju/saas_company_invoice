@@ -37,7 +37,7 @@ if (isset($_POST['submit'])) {
         if (mysqli_num_rows($resClientEmail) > 0) {
             $_SESSION['message'] = "Client email already exists in another client.";
             $_SESSION['message_type'] = 'danger';
-            header("../edit-customer.php?id=" . $clientId);
+            header("Location: ../edit-customer.php?id=" . $clientId);
             exit();
         }
 
@@ -129,8 +129,7 @@ if (isset($_POST['submit'])) {
             throw new Exception("Client update failed: " . mysqli_error($conn));
         }
 
-        // === Update client_address ===
-       // === Handle client_address - Check if exists first ===
+        // === Update client_address - Check if exists first ===
         $billing_name = mysqli_real_escape_string($conn, $_POST['billing_name'] ?? '');
         $billing_address1 = mysqli_real_escape_string($conn, $_POST['billing_address1'] ?? '');
         $billing_address2 = mysqli_real_escape_string($conn, $_POST['billing_address2'] ?? '');
@@ -146,9 +145,7 @@ if (isset($_POST['submit'])) {
         $shipping_city = isset($_POST['shipping_city']) && $_POST['shipping_city'] !== '' ? (int)$_POST['shipping_city'] : 0;
         $shipping_pincode = mysqli_real_escape_string($conn, $_POST['shipping_pincode'] ?? '');
 
-
-
-       // Check if address record exists for this client
+        // Check if address record exists for this client
         $checkAddressQuery = "SELECT id FROM client_address WHERE client_id = '$clientId'";
         $addressResult = mysqli_query($conn, $checkAddressQuery);
 
@@ -197,16 +194,22 @@ if (isset($_POST['submit'])) {
         }
 
         if (!mysqli_query($conn, $addressQuery)) {
-          throw new Exception("Address update/insert failed: " . mysqli_error($conn));
+            throw new Exception("Address update/insert failed: " . mysqli_error($conn));
         }
 
         // === Update client_bank ===
         $bank_name = mysqli_real_escape_string($conn, $_POST['bank_name'] ?? '');
         $bank_branch = mysqli_real_escape_string($conn, $_POST['bank_branch'] ?? '');
         $account_holder = mysqli_real_escape_string($conn, $_POST['account_holder'] ?? '');
-        $account_number = mysqli_real_escape_string($conn, $_POST['account_number'] ?? '');
+        
+        // FIXED: Handle account_number properly for integer field
+        $account_number = $_POST['account_number'] ?? '';
+        // Convert empty string to NULL for integer field
+        $account_number_sql = ($account_number === '') ? 'NULL' : "'" . mysqli_real_escape_string($conn, $account_number) . "'";
+        
         $routing_number = mysqli_real_escape_string($conn, $_POST['routing_number'] ?? '');
         $ifsc = mysqli_real_escape_string($conn, $_POST['IFSC_code'] ?? '');
+        
         // Check if bank record exists for this client
         $checkBankQuery = "SELECT id FROM client_bank WHERE client_id = '$clientId'";
         $bankResult = mysqli_query($conn, $checkBankQuery);
@@ -217,7 +220,7 @@ if (isset($_POST['submit'])) {
                 bank_name = '$bank_name',
                 bank_branch = '$bank_branch',
                 account_holder = '$account_holder',
-                account_number = '$account_number',
+                account_number = $account_number_sql,
                 routing_number = '$routing_number',
                 IFSC_code = '$ifsc',
                 updated_by = '$currentUserId',
@@ -230,7 +233,7 @@ if (isset($_POST['submit'])) {
                 bank_name = '$bank_name',
                 bank_branch = '$bank_branch',
                 account_holder = '$account_holder',
-                account_number = '$account_number',
+                account_number = $account_number_sql,
                 routing_number = '$routing_number',
                 IFSC_code = '$ifsc',
                 created_by = '$currentUserId',
@@ -240,7 +243,7 @@ if (isset($_POST['submit'])) {
         }
 
         if (!mysqli_query($conn, $bankQuery)) {
-         throw new Exception("Bank update/insert failed: " . mysqli_error($conn));
+            throw new Exception("Bank update/insert failed: " . mysqli_error($conn));
         }
 
         // === Handle documents ===
@@ -281,7 +284,6 @@ if (isset($_POST['submit'])) {
                 $designation = mysqli_real_escape_string($conn, $_POST['contact_designation'][$index] ?? '');
                 $department = mysqli_real_escape_string($conn, $_POST['contact_department'][$index] ?? '');
 
-            
                 $contactInsertQuery = "INSERT INTO client_contact_persons (
                     client_id, contact_salutation, contact_first_name, contact_last_name, contact_email,
                     contact_work_phone, contact_mobile, contact_skype, contact_designation, contact_department,

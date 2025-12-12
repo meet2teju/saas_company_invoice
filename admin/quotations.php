@@ -43,19 +43,37 @@ if ($userRoleId == 1) {
 } else {
     // Non-admin users: Can see their OWN quotations + quotations created by admin users
     // Get admin user IDs in this organization
-    $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
-    $adminResult = mysqli_query($conn, $adminUsersQuery);
     $adminUserIds = [$currentUserId]; // Start with current user's ID
     
-    while ($adminRow = mysqli_fetch_assoc($adminResult)) {
-        $adminUserIds[] = $adminRow['id'];
+    if ($currentOrgId > 0 && $currentUserId > 0) {
+        $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
+        $adminResult = mysqli_query($conn, $adminUsersQuery);
+        
+        if ($adminResult && mysqli_num_rows($adminResult) > 0) {
+            while ($adminRow = mysqli_fetch_assoc($adminResult)) {
+                $adminUserIds[] = $adminRow['id'];
+            }
+        }
+        
+        // Remove duplicates and create comma-separated list
+        $adminUserIds = array_unique($adminUserIds);
+        
+        // Check if we have valid user IDs (not 0)
+        $validUserIds = array_filter($adminUserIds, function($id) {
+            return $id > 0;
+        });
+        
+        if (!empty($validUserIds)) {
+            $adminUserIdsString = implode(',', $validUserIds);
+            $filterSql .= " AND q.user_id IN ($adminUserIdsString)";
+        } else {
+            // If no valid user IDs, show nothing (or handle as needed)
+            $filterSql .= " AND q.user_id = 0"; // This will return no results
+        }
+    } else {
+        // If no org_id or user_id, show nothing
+        $filterSql .= " AND q.user_id = 0";
     }
-    
-    // Remove duplicates and create comma-separated list
-    $adminUserIds = array_unique($adminUserIds);
-    $adminUserIdsString = implode(',', $adminUserIds);
-    
-    $filterSql .= " AND q.user_id IN ($adminUserIdsString)";
 }
 
 // Process form submission (using GET)
@@ -117,17 +135,35 @@ if ($currentOrgId > 0) {
 // **UPDATED: User-specific filtering for customers based on role**
 if ($userRoleId != 1) {
     // Non-admin users: Can see their OWN clients + clients created by admin users
-    $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
-    $adminResult = mysqli_query($conn, $adminUsersQuery);
-    $adminUserIds = [$currentUserId];
-    
-    while ($adminRow = mysqli_fetch_assoc($adminResult)) {
-        $adminUserIds[] = $adminRow['id'];
+    if ($currentOrgId > 0 && $currentUserId > 0) {
+        $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
+        $adminResult = mysqli_query($conn, $adminUsersQuery);
+        $adminUserIds = [$currentUserId];
+        
+        if ($adminResult && mysqli_num_rows($adminResult) > 0) {
+            while ($adminRow = mysqli_fetch_assoc($adminResult)) {
+                $adminUserIds[] = $adminRow['id'];
+            }
+        }
+        
+        $adminUserIds = array_unique($adminUserIds);
+        
+        // Check if we have valid user IDs (not 0)
+        $validUserIds = array_filter($adminUserIds, function($id) {
+            return $id > 0;
+        });
+        
+        if (!empty($validUserIds)) {
+            $adminUserIdsString = implode(',', $validUserIds);
+            $customers_query .= " AND user_id IN ($adminUserIdsString)";
+        } else {
+            // If no valid user IDs, show nothing
+            $customers_query .= " AND user_id = 0";
+        }
+    } else {
+        // If no org_id or user_id, show nothing
+        $customers_query .= " AND user_id = 0";
     }
-    
-    $adminUserIds = array_unique($adminUserIds);
-    $adminUserIdsString = implode(',', $adminUserIds);
-    $customers_query .= " AND user_id IN ($adminUserIdsString)";
 }
 $customers = mysqli_query($conn, $customers_query);
 
@@ -138,22 +174,38 @@ if ($currentOrgId > 0) {
 }
 // **UPDATED: User-specific filtering for quotation IDs based on role**
 if ($userRoleId != 1) {
-    $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
-    $adminResult = mysqli_query($conn, $adminUsersQuery);
-    $adminUserIds = [$currentUserId];
-    
-    while ($adminRow = mysqli_fetch_assoc($adminResult)) {
-        $adminUserIds[] = $adminRow['id'];
+    if ($currentOrgId > 0 && $currentUserId > 0) {
+        $adminUsersQuery = "SELECT id FROM login WHERE org_id = $currentOrgId AND role_id = 1";
+        $adminResult = mysqli_query($conn, $adminUsersQuery);
+        $adminUserIds = [$currentUserId];
+        
+        if ($adminResult && mysqli_num_rows($adminResult) > 0) {
+            while ($adminRow = mysqli_fetch_assoc($adminResult)) {
+                $adminUserIds[] = $adminRow['id'];
+            }
+        }
+        
+        $adminUserIds = array_unique($adminUserIds);
+        
+        // Check if we have valid user IDs (not 0)
+        $validUserIds = array_filter($adminUserIds, function($id) {
+            return $id > 0;
+        });
+        
+        if (!empty($validUserIds)) {
+            $adminUserIdsString = implode(',', $validUserIds);
+            $quotation_ids_query .= " AND user_id IN ($adminUserIdsString)";
+        } else {
+            // If no valid user IDs, show nothing
+            $quotation_ids_query .= " AND user_id = 0";
+        }
+    } else {
+        // If no org_id or user_id, show nothing
+        $quotation_ids_query .= " AND user_id = 0";
     }
-    
-    $adminUserIds = array_unique($adminUserIds);
-    $adminUserIdsString = implode(',', $adminUserIds);
-    $quotation_ids_query .= " AND user_id IN ($adminUserIdsString)";
 }
 $quotation_ids_result = mysqli_query($conn, $quotation_ids_query);
 
-// Check if there are any rows
-$hasData = mysqli_num_rows($result) > 0;
 ?>
 
 <!DOCTYPE html>
@@ -310,101 +362,88 @@ $hasData = mysqli_num_rows($result) > 0;
 								<th>Client</th>
 								<th>Quotation Date</th>
 								<th class="no-sort">Status</th>
-								<th class="no-sort">Action</th>
+								<th class="no-sort"></th>
 							</tr>
 						</thead>
 						<tbody>
-                            <?php if ($hasData): ?>
-                                <?php while ($row = mysqli_fetch_assoc($result)): 
-                                    $quotationId = $row['id'];
-                                    $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
-                                ?>
-                                <tr>
-                                    <td>
-                                        <div class="form-check form-check-md">
-                                            <input class="form-check-input user-checkbox" type="checkbox" value="<?= $quotationId ?>">
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <a href="view-quotation.php?id=<?= $quotationId ?>" class="link-default"><?= htmlspecialchars($row['quotation_id']) ?></a>
-                                    </td>
-                                    <td>
-                                        <div class="d-flex align-items-center">
-                                            <a href="view-quotation.php?id=<?= $quotationId ?>" class="avatar avatar-sm rounded-circle me-2 flex-shrink-0">
-                                                <img src="<?= $clientImg ?>" onerror="this.src='assets/img/users/user-16.jpg';">
+                            <?php
+                            // Just like the reference code - simple while loop
+                            while ($row = mysqli_fetch_assoc($result)) {
+                                $quotationId = $row['id'];
+                                $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
+                            ?>
+							<tr>
+								<td>
+                                  <div class="form-check form-check-md">
+                                        <input class="form-check-input user-checkbox" type="checkbox" value="<?= $quotationId ?>">
+                                    </div>
+                                </td>
+								<td>
+									<a href="view-quotation.php?id=<?= $quotationId ?>" class="link-default"><?= htmlspecialchars($row['quotation_id']) ?></a>
+								</td>
+								<td>
+                                    <div class="d-flex align-items-center">
+										<a href="view-quotation.php?id=<?= $quotationId ?>" class="avatar avatar-sm rounded-circle me-2 flex-shrink-0">
+											<img src="<?= $clientImg ?>" onerror="this.src='assets/img/users/user-16.jpg';">
+										</a>
+										<div>
+											<h6 class="fs-14 fw-medium mb-0"><a href="view-quotation.php?id=<?= $quotationId ?>"><?= htmlspecialchars($row['first_name']) ?></a></h6>
+										</div>
+									</div>
+                                </td>
+								<td><?= date('d M Y', strtotime($row['quotation_date'])) ?></td>
+								<td>
+									<span class="badge badge-soft-success d-inline-flex align-items-center"><?= htmlspecialchars($row['status']) ?><i class="isax isax-tick-circle ms-1"></i></span>
+								</td>
+								<td class="action-item">
+                                    <a href="javascript:void(0);" data-bs-toggle="dropdown" class="custom-elipse">
+                                        <i class="isax isax-more"></i>
+                                    </a>
+                                    <ul class="dropdown-menu">
+                                        <?php if (check_is_access_new("view_quotation") == 1) { ?>
+                                        <li>
+                                            <a href="view-quotation.php?id=<?= $quotationId ?>" class="dropdown-item d-flex align-items-center">
+                                                <i class="isax isax-eye me-2"></i>View
                                             </a>
-                                            <div>
-                                                <h6 class="fs-14 fw-medium mb-0"><a href="view-quotation.php?id=<?= $quotationId ?>"><?= htmlspecialchars($row['first_name']) ?></a></h6>
-                                            </div>
+                                        </li>
+                                        <?php } ?>
+
+                                        <?php if (check_is_access_new("edit_quotation") == 1) { ?>
+                                        <li>
+                                            <a href="edit-quotation.php?id=<?= $quotationId ?>" class="dropdown-item d-flex align-items-center"><i class="isax isax-edit me-2"></i>Edit</a>
+                                        </li>
+                                            <?php } ?>
+
+                                        <?php if (check_is_access_new("delete_quotation") == 1) { ?>
+                                        <li>
+                                            <a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#delete_modal<?= $quotationId ?>"><i class="isax isax-trash me-2"></i>Delete</a>
+                                        </li>
+                                         <?php } ?>
+
+                                    </ul>
+                                </td>
+							</tr>
+                     <div class="modal fade" id="delete_modal<?= $quotationId ?>" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-m">
+                            <div class="modal-content">
+                                <form method="POST" action="process/action_delete_quotation.php">
+                                    <input type="hidden" name="id" value="<?= $quotationId ?>">
+                                    <div class="modal-body text-center">
+                                        <div class="mb-3">
+                                            <img src="assets/img/icons/delete.svg" alt="img">
                                         </div>
-                                    </td>
-                                    <td><?= date('d M Y', strtotime($row['quotation_date'])) ?></td>
-                                    <td>
-                                        <span class="badge badge-soft-success d-inline-flex align-items-center"><?= htmlspecialchars($row['status']) ?><i class="isax isax-tick-circle ms-1"></i></span>
-                                    </td>
-                                    <td class="action-item">
-                                        <a href="javascript:void(0);" data-bs-toggle="dropdown" class="custom-elipse">
-                                            <i class="isax isax-more"></i>
-                                        </a>
-                                        <ul class="dropdown-menu">
-                                            <?php if (check_is_access_new("view_quotation") == 1) { ?>
-                                            <li>
-                                                <a href="view-quotation.php?id=<?= $quotationId ?>" class="dropdown-item d-flex align-items-center">
-                                                    <i class="isax isax-eye me-2"></i>View
-                                                </a>
-                                            </li>
-                                            <?php } ?>
-
-                                            <?php if (check_is_access_new("edit_quotation") == 1) { ?>
-                                            <li>
-                                                <a href="edit-quotation.php?id=<?= $quotationId ?>" class="dropdown-item d-flex align-items-center"><i class="isax isax-edit me-2"></i>Edit</a>
-                                            </li>
-                                                <?php } ?>
-
-                                            <?php if (check_is_access_new("delete_quotation") == 1) { ?>
-                                            <li>
-                                                <a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#delete_modal<?= $quotationId ?>"><i class="isax isax-trash me-2"></i>Delete</a>
-                                            </li>
-                                            <?php } ?>
-                                        </ul>
-                                    </td>
-                                </tr>
-                                <!-- Delete Modal -->
-                                <div class="modal fade" id="delete_modal<?= $quotationId ?>" tabindex="-1" aria-hidden="true">
-                                    <div class="modal-dialog modal-dialog-centered modal-m">
-                                        <div class="modal-content">
-                                            <form method="POST" action="process/action_delete_quotation.php">
-                                                <input type="hidden" name="id" value="<?= $quotationId ?>">
-                                                <div class="modal-body text-center">
-                                                    <div class="mb-3">
-                                                        <img src="assets/img/icons/delete.svg" alt="img">
-                                                    </div>
-                                                    <h6 class="mb-1">Delete Quotation</h6>
-                                                    <p class="mb-3">Are you sure, you want to delete this quotation?</p>
-                                                    <div class="d-flex justify-content-center">
-                                                        <button type="button" class="btn btn-outline-white me-3" data-bs-dismiss="modal">Cancel</button>
-                                                        <button type="submit" class="btn btn-primary">Yes, Delete</button>
-                                                    </div>
-                                                </div>
-                                            </form>
+                                        <h6 class="mb-1">Delete Quotation</h6>
+                                        <p class="mb-3">Are you sure, you want to delete this quotation?</p>
+                                        <div class="d-flex justify-content-center">
+                                            <button type="button" class="btn btn-outline-white me-3" data-bs-dismiss="modal">Cancel</button>
+                                            <button type="submit" class="btn btn-primary">Yes, Delete</button>
                                         </div>
                                     </div>
-                                </div>
-                                <?php endwhile; ?>
-                            <?php else: ?>
-                                <!-- FIX: When no data, create 6 empty cells to match the header -->
-                                <tr>
-                                    <td></td>
-                                    <td></td>
-                                    <td colspan="4" class="text-center py-4">
-                                        <div class="d-flex flex-column align-items-center">
-                                            <!-- <img src="assets/img/icons/empty.svg" alt="Empty" class="mb-3" width="80"> -->
-                                            <h6 class="text-muted">No quotations found</h6>
-                                            <p class="text-muted mb-0">No quotations match your current filters.</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+							   <?php } ?>
 						</tbody>
 					</table>
 				</div>
@@ -537,7 +576,7 @@ $hasData = mysqli_num_rows($result) > 0;
                                         <a href="javascript:void(0);" class="link-danger fw-medium text-decoration-underline reset-quotation_id">Reset</a>
                                     </li>
                                     <?php 
-                                    if (mysqli_num_rows($quotation_ids_result) > 0) {
+                                    if ($quotation_ids_result && mysqli_num_rows($quotation_ids_result) > 0) {
                                         mysqli_data_seek($quotation_ids_result, 0);
                                         while ($q = mysqli_fetch_assoc($quotation_ids_result)) {
                                             $checked = in_array($q['quotation_id'], $selected_quotation_ids) ? 'checked' : '';
@@ -767,6 +806,8 @@ $(document).ready(function() {
     updateDropdownLabel("status");
 
 });
+
+
 </script>
 <script>
 	   // Multi-delete functionality
