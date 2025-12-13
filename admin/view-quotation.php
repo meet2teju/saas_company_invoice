@@ -314,6 +314,68 @@ if (!empty($quotation['client_id'])) {
                 display: none;
             }
         }
+
+        /* Status dropdown styles */
+        .status-dropdown {
+            position: relative;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        .status-btn {
+            background: #fff;
+            border: 1px solid #dee2e6;
+            color: #495057;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
+        }
+        .status-btn:hover {
+            background: #f8f9fa;
+            border-color: #adb5bd;
+        }
+        .status-dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #fff;
+            min-width: 160px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            border-radius: 4px;
+            z-index: 1000;
+            border: 1px solid #dee2e6;
+            padding: 8px 0;
+        }
+        .status-dropdown-content.show {
+            display: block;
+        }
+        .status-option {
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #495057;
+            transition: background-color 0.2s;
+        }
+        .status-option:hover {
+            background-color: #f8f9fa;
+        }
+        .status-option i {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
     </style>
 </head>
 <body>
@@ -329,12 +391,55 @@ if (!empty($quotation['client_id'])) {
                         <div class="d-flex align-items-center justify-content-between flex-wrap row-gap-3 mb-3 no-print">
                             <h6>Quotation Detail</h6>
                             <div class="d-flex align-items-center flex-wrap row-gap-3">
-                                <!-- <a href="javascript:void(0);" onclick="downloadQuotationAsPDF(event)" class="btn btn-outline-white d-inline-flex align-items-center me-3">
-                                    <i class="isax isax-document-download me-1"></i>Download PDF
-                                </a> -->
+                                <!-- Status Dropdown -->
+                                <div class="status-dropdown">
+                                    <button class="status-btn" onclick="toggleStatusDropdown()">
+                                        <span class="status-indicator" id="statusIndicator" style="background-color: <?php 
+                                            $statusColor = match(strtolower($quotation['status'] ?? 'draft')) {
+                                                'accepted' => '#28a745',
+                                                'sent' => '#17a2b8',
+                                                'convert' => '#17a2b8',
+                                                'expired' => '#ffc107',
+                                                'rejected' => '#dc3545',
+                                                'cancel' => '#dc3545',
+                                                'draft' => '#6c757d',
+                                                default => '#6c757d'
+                                            };
+                                            echo $statusColor;
+                                        ?>"></span>
+                                        <span id="statusText"><?= ucfirst($quotation['status'] ?? 'Draft') ?></span>
+                                        <i class="fas fa-chevron-down" style="font-size: 12px;"></i>
+                                    </button>
+                                    <div class="status-dropdown-content" id="statusDropdown">
+                                        <div class="status-option" data-status="draft" onclick="updateStatus('draft')">
+                                            <i class="fas fa-circle" style="color: #6c757d;"></i> Draft
+                                        </div>
+                                        <div class="status-option" data-status="sent" onclick="updateStatus('sent')">
+                                            <i class="fas fa-circle" style="color: #17a2b8;"></i> Sent
+                                        </div>
+                                        <div class="status-option" data-status="convert" onclick="updateStatus('convert')">
+                                            <i class="fas fa-circle" style="color: #17a2b8;"></i> Convert to Invoice
+                                        </div>
+                                        <div class="status-option" data-status="accepted" onclick="updateStatus('accepted')">
+                                            <i class="fas fa-circle" style="color: #28a745;"></i> Accepted
+                                        </div>
+                                        <div class="status-option" data-status="rejected" onclick="updateStatus('rejected')">
+                                            <i class="fas fa-circle" style="color: #dc3545;"></i> Rejected
+                                        </div>
+                                        <div class="status-option" data-status="expired" onclick="updateStatus('expired')">
+                                            <i class="fas fa-circle" style="color: #ffc107;"></i> Expired
+                                        </div>
+                                        <div class="status-option" data-status="cancel" onclick="updateStatus('cancel')">
+                                            <i class="fas fa-circle" style="color: #dc3545;"></i> Cancelled
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Download PDF Button -->
                                 <a href="generate-quotation-pdf.php?id=<?= $quotationId ?>" class="btn btn-outline-white d-inline-flex align-items-center me-3">
-    <i class="isax isax-document-download me-1"></i>Download PDF
-</a>
+                                    <i class="isax isax-document-download me-1"></i>Download PDF
+                                </a>
+                                
                                 <a href="process/action_send_quotation_email.php?quotation_id=<?= $quotationId ?>" 
                                     class="btn btn-outline-white d-inline-flex align-items-center me-3">
                                     <i class="isax isax-message-notif me-1"></i>Send Email
@@ -795,8 +900,145 @@ if (!empty($quotation['client_id'])) {
 <?php include 'layouts/vendor-scripts.php'; ?>
 
 <script>
-
 // Status dropdown functionality
+function toggleStatusDropdown() {
+    const dropdown = document.getElementById('statusDropdown');
+    dropdown.classList.toggle('show');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('statusDropdown');
+    const button = document.querySelector('.status-btn');
+    
+    if (!button.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.classList.remove('show');
+    }
+});
+
+// Update status function
+function updateStatus(status) {
+    const statusText = document.getElementById('statusText');
+    const statusIndicator = document.getElementById('statusIndicator');
+    
+    // Update status text
+    let displayText = status.charAt(0).toUpperCase() + status.slice(1);
+    if (status === 'convert') {
+        displayText = 'Convert to Invoice';
+    }
+    statusText.textContent = displayText;
+    
+    // Update indicator color
+    const statusColors = {
+        'draft': '#6c757d',
+        'sent': '#17a2b8',
+        'convert': '#17a2b8',
+        'accepted': '#28a745',
+        'rejected': '#dc3545',
+        'expired': '#ffc107',
+        'cancel': '#dc3545'
+    };
+    
+    statusIndicator.style.backgroundColor = statusColors[status] || '#6c757d';
+    
+    // Close dropdown
+    document.getElementById('statusDropdown').classList.remove('show');
+    
+    // Show confirmation modal for convert status
+    if (status === 'convert') {
+        const convertModal = new bootstrap.Modal(document.getElementById('convertToInvoiceModal'));
+        convertModal.show();
+        return;
+    }
+    
+    // Send AJAX request to update status
+    updateStatusViaAjax(status);
+}
+
+// AJAX function to update status
+function updateStatusViaAjax(status) {
+    const formData = new FormData();
+    formData.append('quotation_id', '<?= $quotationId ?>');
+    formData.append('status', status);
+    
+    fetch('process/action_update_quotation_status.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(data => {
+        // Show success message
+        showToast('Status updated successfully!', 'success');
+        
+        // Update the status badge in the quotation details section if it exists
+        const statusBadge = document.querySelector('.quotation-details-section .badge');
+        if (statusBadge) {
+            const badgeClasses = {
+                'draft': 'bg-secondary',
+                'sent': 'bg-info',
+                'convert': 'bg-info',
+                'accepted': 'bg-success',
+                'rejected': 'bg-danger',
+                'expired': 'bg-warning text-dark',
+                'cancel': 'bg-danger'
+            };
+            
+            // Update badge class
+            statusBadge.className = 'badge ' + (badgeClasses[status] || 'bg-secondary') + ' badge-sm';
+            statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            if (status === 'convert') {
+                statusBadge.textContent = 'Convert to Invoice';
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Failed to update status. Please try again.', 'danger');
+    });
+}
+
+// Toast notification function
+function showToast(message, type) {
+    // Create toast container if it doesn't exist
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Create toast element
+    const toastId = 'toast-' + Date.now();
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-bg-${type} border-0`;
+    toast.id = toastId;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Initialize and show toast
+    const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+    bsToast.show();
+    
+    // Remove toast after it's hidden
+    toast.addEventListener('hidden.bs.toast', function () {
+        toast.remove();
+    });
+}
+
+// Original status dropdown functionality for offcanvas
 function updateDropdownBtn() {
     let selected = document.querySelector("input[name='status']:checked");
     let btn = document.getElementById("statusDropdownBtn");

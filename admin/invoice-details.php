@@ -320,6 +320,68 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
             display: none;
         }
     }
+    
+    /* Status dropdown styles */
+    .status-dropdown {
+        position: relative;
+        display: inline-block;
+        margin-right: 10px;
+    }
+    .status-btn {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        color: #495057;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 14px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.3s;
+    }
+    .status-btn:hover {
+        background: #f8f9fa;
+        border-color: #adb5bd;
+    }
+    .status-dropdown-content {
+        display: none;
+        position: absolute;
+        background-color: #fff;
+        min-width: 160px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        border-radius: 4px;
+        z-index: 1000;
+        border: 1px solid #dee2e6;
+        padding: 8px 0;
+    }
+    .status-dropdown-content.show {
+        display: block;
+    }
+    .status-option {
+        padding: 8px 16px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #495057;
+        transition: background-color 0.2s;
+    }
+    .status-option:hover {
+        background-color: #f8f9fa;
+    }
+    .status-option i {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+    .status-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
 </style>
 </head>
 
@@ -351,6 +413,39 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 								<h6>Invoice Detail</h6>
 								<div class="d-flex align-items-center flex-wrap row-gap-3">
 								
+                                    <!-- Status Dropdown -->
+                                    <div class="status-dropdown">
+                                        <button class="status-btn" onclick="toggleStatusDropdown()">
+                                            <span class="status-indicator" id="statusIndicator" style="background-color: <?php 
+                                                $statusColor = match(strtolower($invoice['status'] ?? 'unpaid')) {
+                                                    'paid' => '#28a745',
+                                                    'unpaid' => '#ffc107',
+                                                    'cancelled' => '#dc3545',
+                                                    'partially paid' => '#6f42c1',
+                                                    'uncollectable' => '#fd7e14',
+                                                    default => '#6c757d'
+                                                };
+                                                echo $statusColor;
+                                            ?>"></span>
+                                            <span id="statusText"><?= ucfirst($invoice['status'] ?? 'Unpaid') ?></span>
+                                            <i class="fas fa-chevron-down" style="font-size: 12px;"></i>
+                                        </button>
+                                        <div class="status-dropdown-content" id="statusDropdown">
+                                            <div class="status-option" data-status="paid" onclick="updateStatus('paid')">
+                                                <i class="fas fa-circle" style="color: #28a745;"></i> Paid
+                                            </div>
+                                            <div class="status-option" data-status="unpaid" onclick="updateStatus('unpaid')">
+                                                <i class="fas fa-circle" style="color: #ffc107;"></i> Unpaid
+                                            </div>
+                                            <div class="status-option" data-status="cancelled" onclick="updateStatus('cancelled')">
+                                                <i class="fas fa-circle" style="color: #dc3545;"></i> Cancelled
+                                            </div>
+                                            <div class="status-option" data-status="uncollectable" onclick="updateStatus('uncollectable')">
+                                                <i class="fas fa-circle" style="color: #fd7e14;"></i> Uncollectable
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <!-- Download PDF button -->
                                     <a href="generate-invoice-pdf.php?id=<?= $invoiceId ?>" class="btn btn-outline-white d-inline-flex align-items-center me-3">
                                         <i class="isax isax-document-download me-1"></i>Download PDF
@@ -430,6 +525,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 																'paid' => 'bg-success',
 																'unpaid' => 'bg-warning text-dark',
 																'cancelled' => 'bg-danger',
+																'uncollectable' => 'bg-orange',
 																default => 'bg-secondary'
 															};
 															?>
@@ -770,6 +866,126 @@ function sendInvoiceEmail(invoiceId) {
 }
 </script>
 <script>
+// Status dropdown functionality for the new dropdown
+function toggleStatusDropdown() {
+    const dropdown = document.getElementById('statusDropdown');
+    dropdown.classList.toggle('show');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('statusDropdown');
+    const button = document.querySelector('.status-btn');
+    
+    if (!button.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.classList.remove('show');
+    }
+});
+
+// Update status function for invoice
+function updateStatus(status) {
+    const statusText = document.getElementById('statusText');
+    const statusIndicator = document.getElementById('statusIndicator');
+    
+    // Update status text
+    let displayText = status.charAt(0).toUpperCase() + status.slice(1);
+    statusText.textContent = displayText;
+    
+    // Update indicator color
+    const statusColors = {
+        'paid': '#28a745',
+        'unpaid': '#ffc107',
+        'cancelled': '#dc3545',
+        'uncollectable': '#fd7e14'
+    };
+    
+    statusIndicator.style.backgroundColor = statusColors[status] || '#6c757d';
+    
+    // Close dropdown
+    document.getElementById('statusDropdown').classList.remove('show');
+    
+    // Send AJAX request to update status
+    updateInvoiceStatusViaAjax(status);
+}
+
+// AJAX function to update invoice status
+function updateInvoiceStatusViaAjax(status) {
+    const formData = new FormData();
+    formData.append('invoice_id', '<?= $invoiceId ?>');
+    formData.append('status', status);
+    
+    fetch('process/action_update_invoice_status.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(data => {
+        // Show success message
+        showToast('Invoice status updated successfully!', 'success');
+        
+        // Update the status badge in the invoice details section if it exists
+        const statusBadge = document.querySelector('.invoice-details-section .badge');
+        if (statusBadge) {
+            const badgeClasses = {
+                'paid': 'bg-success',
+                'unpaid': 'bg-warning text-dark',
+                'cancelled': 'bg-danger',
+                'uncollectable': 'bg-orange'
+            };
+            
+            // Update badge class
+            statusBadge.className = 'badge ' + (badgeClasses[status] || 'bg-secondary') + ' badge-sm';
+            statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('Failed to update status. Please try again.', 'danger');
+    });
+}
+
+// Toast notification function for invoice
+function showToast(message, type) {
+    // Create toast container if it doesn't exist
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    // Create toast element
+    const toastId = 'toast-' + Date.now();
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-bg-${type} border-0`;
+    toast.id = toastId;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    toast.setAttribute('aria-atomic', 'true');
+    
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Initialize and show toast
+    const bsToast = new bootstrap.Toast(toast, { delay: 3000 });
+    bsToast.show();
+    
+    // Remove toast after it's hidden
+    toast.addEventListener('hidden.bs.toast', function () {
+        toast.remove();
+    });
+}
+
+// Original status dropdown functionality for offcanvas (keep existing)
 function updateDropdownBtn() {
     let selected = document.querySelector("input[name='status']:checked");
     let btn = document.getElementById("statusDropdownBtn");
@@ -780,7 +996,7 @@ function updateDropdownBtn() {
     }
 }
 
-// === When user changes status ===
+// === When user changes status in offcanvas ===
 document.querySelectorAll("input[name='status']").forEach(function(radio) {
     radio.addEventListener("change", updateDropdownBtn);
 });
@@ -788,7 +1004,7 @@ document.querySelectorAll("input[name='status']").forEach(function(radio) {
 // === On page load (already saved status) ===
 window.addEventListener("DOMContentLoaded", updateDropdownBtn);
 
-// === Validation on submit ===
+// === Validation on submit for offcanvas form ===
 document.getElementById("invoiceStatusForm").addEventListener("submit", function(e) {
     let statusChecked = document.querySelector("input[name='status']:checked");
     let errorSpan = document.getElementById("statusError");
