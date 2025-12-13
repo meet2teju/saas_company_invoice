@@ -676,7 +676,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                         break;
 
                                                     case 'uncollectable':
-                                                        $statusClass = 'badge-soft-orange';
+                                                        $statusClass = 'badge-soft-danger';
                                                         $statusIcon = 'isax-alert-circle';
                                                         break;
 
@@ -862,7 +862,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                         break;
 
                                                     case 'uncollectable':
-                                                        $statusClass = 'badge-soft-orange';
+                                                        $statusClass = 'badge-soft-danger';
                                                         $statusIcon = 'isax-alert-circle';
                                                         break;
 
@@ -1046,7 +1046,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                         break;
 
                                                     case 'uncollectable':
-                                                        $statusClass = 'badge-soft-orange';
+                                                        $statusClass = 'badge-soft-danger';
                                                         $statusIcon = 'isax-alert-circle';
                                                         break;
 
@@ -1229,7 +1229,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                         break;
 
                                                     case 'uncollectable':
-                                                        $statusClass = 'badge-soft-orange';
+                                                        $statusClass = 'badge-soft-danger';
                                                         $statusIcon = 'isax-alert-circle';
                                                         break;
 
@@ -1413,7 +1413,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                         break;
 
                                                     case 'uncollectable':
-                                                        $statusClass = 'badge-soft-orange';
+                                                        $statusClass = 'badge-soft-danger';
                                                         $statusIcon = 'isax-alert-circle';
                                                         break;
 

@@ -422,7 +422,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
                                                     'unpaid' => '#ffc107',
                                                     'cancelled' => '#dc3545',
                                                     'partially paid' => '#6f42c1',
-                                                    'uncollectable' => '#fd7e14',
+                                                    'uncollectable' => '#dc3545',
                                                     default => '#6c757d'
                                                 };
                                                 echo $statusColor;
@@ -441,7 +441,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
                                                 <i class="fas fa-circle" style="color: #dc3545;"></i> Cancelled
                                             </div>
                                             <div class="status-option" data-status="uncollectable" onclick="updateStatus('uncollectable')">
-                                                <i class="fas fa-circle" style="color: #fd7e14;"></i> Uncollectable
+                                                <i class="fas fa-circle" style="color: #dc3545;"></i> Uncollectable
                                             </div>
                                         </div>
                                     </div>
@@ -525,7 +525,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 																'paid' => 'bg-success',
 																'unpaid' => 'bg-warning text-dark',
 																'cancelled' => 'bg-danger',
-																'uncollectable' => 'bg-orange',
+																'uncollectable' => 'bg-danger',
 																default => 'bg-secondary'
 															};
 															?>
@@ -896,7 +896,7 @@ function updateStatus(status) {
         'paid': '#28a745',
         'unpaid': '#ffc107',
         'cancelled': '#dc3545',
-        'uncollectable': '#fd7e14'
+        'uncollectable': '#dc3545'
     };
     
     statusIndicator.style.backgroundColor = statusColors[status] || '#6c757d';
@@ -930,7 +930,7 @@ function updateInvoiceStatusViaAjax(status) {
                 'paid': 'bg-success',
                 'unpaid': 'bg-warning text-dark',
                 'cancelled': 'bg-danger',
-                'uncollectable': 'bg-orange'
+                'uncollectable': 'bg-danger'
             };
             
             // Update badge class
