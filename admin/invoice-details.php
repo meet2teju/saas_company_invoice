@@ -489,23 +489,11 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 									<div class="card-body">
 										<!-- Company Logo Section - Visible on screen but not in PDF -->
 										<div class="company-logo-section no-pdf">
-											<?php if (!empty($company['invoice_logo'])): ?>
-												<img src="../uploads/<?= htmlspecialchars($company['invoice_logo']) ?>" class="company-logo-img" alt="Company Logo">
-											<?php endif; ?>
-										</div>
-
-										<!-- Invoice Details Section - Hidden in Print/PDF -->
-										<div class="invoice-details-section bg-light rounded position-relative mb-3 no-pdf">
-											<!-- start row -->
-											<div class="row gy-3 position-relative z-1">
-												<div class="col-lg-12">
-													<div>
-														<h6 class="mb-2 fs-16 fw-semibold">Invoice Details</h6>
-														<div class="pdf-hide-empty">
-															<p class="mb-1">Invoice Number : <span class="text-dark"><?= htmlspecialchars($invoice['invoice_id']) ?></span></p>
-															<p class="mb-1">Issued On : <span class="text-dark"><?= htmlspecialchars($invoice['invoice_date']) ?></span></span></p>
-															<p class="mb-1">Due Date :  <span class="text-dark"><?= htmlspecialchars($invoice['due_date']) ?></span></span></p>
-															<?php if (!empty($invoice['reference_name'])): ?>
+                                            <div class="col-md-6">
+                                                <?php if (!empty($company['invoice_logo'])): ?>
+                                                    <img src="../uploads/<?= htmlspecialchars($company['invoice_logo']) ?>" class="company-logo-img mb-3" alt="Company Logo">
+                                                <?php endif; ?>
+                                                <?php if (!empty($invoice['reference_name'])): ?>
 																<p class="mb-1">Reference Name:  <span class="text-dark"><?= htmlspecialchars($invoice['reference_name']) ?></span></span></p>
 															<?php endif; ?>
 															<?php if (!empty($invoice['salesperson_name'])): ?>
@@ -530,12 +518,17 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 															};
 															?>
 															<p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm"><?= ucfirst($status) ?></span></p>
-														</div>
-													</div>
-												</div><!-- end col -->
-											</div>
-											<!-- end row -->
+                                            </div>
+                                            <div class="col-md-6 text-end">
+                                                <p class="mb-1">Invoice Number : <span class="text-dark"><?= htmlspecialchars($invoice['invoice_id']) ?></span></p>
+															<p class="mb-1">Issued On : <span class="text-dark"><?= htmlspecialchars($invoice['invoice_date']) ?></span></span></p>
+															<p class="mb-1">Due Date :  <span class="text-dark"><?= htmlspecialchars($invoice['due_date']) ?></span></span></p>
+                                            </div>
+											
 										</div>
+
+										<!-- Invoice Details Section - Hidden in Print/PDF -->
+
 
 										<!-- Bill From and Bill To Side by Side -->
 										<div class="billing-section mb-3">

@@ -481,29 +481,11 @@ if (!empty($quotation['client_id'])) {
                                 <div class="card-body">
                                     <!-- Company Logo Section - Visible on screen but not in PDF -->
                                     <div class="company-logo-section no-pdf">
-                                        <?php if (!empty($company['invoice_logo'])): ?>
-                                            <img src="../uploads/<?= htmlspecialchars($company['invoice_logo']) ?>" class="company-logo-img" alt="Company Logo">
-                                        <?php endif; ?>
-                                        <!-- <div class="company-info-text">
-                                            <h2 class="company-name"><?= htmlspecialchars($company['name'] ?? 'Company Name') ?></h2>
-                                            <?php if (!empty($company['address'])): ?>
-                                                <p class="company-tagline"><?= htmlspecialchars($company['address']) ?></p>
-                                            <?php endif; ?>
-                                        </div> -->
-                                    </div>
-
-                                    <!-- Quotation Details Section - Hidden in Print/PDF -->
-                                    <div class="quotation-details-section bg-light rounded position-relative mb-3 no-pdf">
-                                        <!-- start row -->
-                                        <div class="row gy-3 position-relative z-1">
-                                            <div class="col-lg-12">
-                                                <div>
-                                                    <h6 class="mb-2 fs-16 fw-semibold">Quotation Details</h6>
-                                                    <div class="pdf-hide-empty">
-                                                        <p class="mb-1">Quotation Number : <span class="text-dark"><?= htmlspecialchars($quotation['quotation_id']) ?></span></p>
-                                                        <p class="mb-1">Issued On : <span class="text-dark"><?= htmlspecialchars($quotation['quotation_date']) ?></span></p>
-                                                        <p class="mb-1">Expiry Date : <span class="text-dark"><?= htmlspecialchars($quotation['expiry_date']) ?></span></p>
-                                                        <?php if (!empty($quotation['reference_name'])): ?>
+                                            <div class="col-md-6">
+                                                <?php if (!empty($company['invoice_logo'])): ?>
+                                                    <img src="../uploads/<?= htmlspecialchars($company['invoice_logo']) ?>" class="company-logo-img mb-3" alt="Company Logo">
+                                                <?php endif; ?>
+                                                <?php if (!empty($quotation['reference_name'])): ?>
                                                             <p class="mb-1">Reference Name: <span class="text-dark"><?= htmlspecialchars($quotation['reference_name']) ?></span></p>
                                                         <?php endif; ?>
                                                         <p class="mb-1">GST Type : 
@@ -525,12 +507,22 @@ if (!empty($quotation['client_id'])) {
                                                             };
                                                         ?>
                                                         <p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm"><?= ucfirst($status) ?></span></p>
-                                                    </div>
-                                                </div>
-                                            </div><!-- end col -->
-                                        </div>
-                                        <!-- end row -->
+                                            </div>
+                                            <div class="col-md-6 text-end">
+                                                        <p class="mb-1">Quotation Number : <span class="text-dark"><?= htmlspecialchars($quotation['quotation_id']) ?></span></p>
+                                                        <p class="mb-1">Issued On : <span class="text-dark"><?= htmlspecialchars($quotation['quotation_date']) ?></span></p>
+                                                        <p class="mb-1">Expiry Date : <span class="text-dark"><?= htmlspecialchars($quotation['expiry_date']) ?></span></p>
+                                            </div>
+                                        <!-- <div class="company-info-text">
+                                            <h2 class="company-name"><?= htmlspecialchars($company['name'] ?? 'Company Name') ?></h2>
+                                            <?php if (!empty($company['address'])): ?>
+                                                <p class="company-tagline"><?= htmlspecialchars($company['address']) ?></p>
+                                            <?php endif; ?>
+                                        </div> -->
                                     </div>
+
+                                    <!-- Quotation Details Section - Hidden in Print/PDF -->
+                                    
 
                                     <!-- Bill From and Bill To Side by Side -->
                                     <div class="billing-section mb-3">

@@ -200,7 +200,7 @@ $logo = !empty($logoRow['company_logo']) ? '../uploads/' . $logoRow['company_log
                                 </ul>
                             </li>
                             <?php } ?>
-
+                       
                  
                           
 
@@ -216,7 +216,7 @@ $logo = !empty($logoRow['company_logo']) ? '../uploads/' . $logoRow['company_log
                                 </ul>
                             </li>
                             <?php } ?>
-                        </ul>
+                        
                     </li> -->
                     <?php if (check_is_access_new("project", $role_id)) { ?>
     <li class="submenu">
@@ -229,6 +229,7 @@ $logo = !empty($logoRow['company_logo']) ? '../uploads/' . $logoRow['company_log
         </ul>
     </li>
 <?php } ?>
+</ul>
 
                     <!-- Finance & Accounts -->
                     <?php if (check_is_access_new("expense", $role_id)) { ?>
