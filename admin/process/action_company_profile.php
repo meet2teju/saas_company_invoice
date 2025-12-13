@@ -1,6 +1,7 @@
 <?php
 session_start();
 include '../../config/config.php';
+require_once '../../config/currency_helper.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $id          = $_POST['id'] ?? '';
@@ -17,7 +18,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $state              = !empty($_POST['state_id']) ? (int)$_POST['state_id'] : "NULL";
     $city               = !empty($_POST['city_id']) ? (int)$_POST['city_id'] : "NULL";
 
-    $org_id     = $_SESSION['org_id'] ?? 1; // ✅ required field
+    $org_id     = $_SESSION['org_id'] ?? 1;
     $updated_at = date('Y-m-d H:i:s');
     $updated_by = $_SESSION['crm_user_id'] ?? 0;
 
@@ -50,7 +51,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Upload files
     $company_logo = uploadFile('company_logo');
     $mini_logo    = uploadFile('mini_logo');
- 
     $invoice_logo = uploadFile('invoice_logo');
 
     if (empty($id)) {
@@ -74,7 +74,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             '" . mysqli_real_escape_string($conn, $zipcode) . "',
             '" . ($company_logo ?: '') . "',
             '" . ($mini_logo ?: '') . "',
-            
             '" . ($invoice_logo ?: '') . "',
             '$org_id',
             '$updated_at',
@@ -99,7 +98,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         if ($company_logo) $sql .= ", company_logo = '" . mysqli_real_escape_string($conn, $company_logo) . "'";
         if ($mini_logo)    $sql .= ", mini_logo = '" . mysqli_real_escape_string($conn, $mini_logo) . "'";
-      
         if ($invoice_logo) $sql .= ", invoice_logo = '" . mysqli_real_escape_string($conn, $invoice_logo) . "'";
 
         $sql .= " WHERE id = '" . mysqli_real_escape_string($conn, $id) . "'";
@@ -107,6 +105,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Run SQL
     if (mysqli_query($conn, $sql)) {
+        // ✅ CLEAR CURRENCY CACHE AFTER UPDATE
+        if (function_exists('clearCurrencyCache')) {
+            clearCurrencyCache();
+        } else {
+            // Fallback: unset session variable directly
+            unset($_SESSION['company_currency']);
+        }
+        
         $_SESSION['success'] = empty($id) ? "Company created successfully." : "Company updated successfully.";
     } else {
         $_SESSION['error'] = "DB Error: " . mysqli_error($conn);

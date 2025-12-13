@@ -133,23 +133,25 @@ if (!empty($company_info['state_id'])) {
                                                 </div>
                                            </div>
                                             <!-- end col -->
-                                             <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label class="form-label">
-                                                         Currency<span class="text-danger">*</span>
-                                                    </label>
-                                                    <select class="select2" id="currency" name="currency_symbol_id">
-                                                        <option value="">Select Currency</option>
-                                                        <?php 
-                                                        mysqli_data_seek($currency_result, 0);
-                                                        while ($currency = mysqli_fetch_assoc($currency_result)) {
-                                                            $selected = (!empty($company_info['currency_symbol_id']) && $company_info['currency_symbol_id'] == $currency['id']) ? 'selected' : '';
-                                                            echo "<option value='{$currency['id']}' $selected>{$currency['currency_name']} ({$currency['currency_symbol']})</option>";
-                                                        } ?>
-                                                    </select>
-                                                    <span id="currency_error" class="text-danger error-text"></span>
-                                                </div>
-                                            </div><!-- end col -->
+                                            <!-- In the currency dropdown section -->
+<div class="col-md-6">
+    <div class="mb-3">
+        <label class="form-label">
+            Currency<span class="text-danger">*</span>
+        </label>
+        <select class="select2" id="currency" name="currency_symbol_id">
+            <option value="">Select Currency</option>
+            <?php 
+            mysqli_data_seek($currency_result, 0);
+            while ($currency = mysqli_fetch_assoc($currency_result)) {
+                $selected = (!empty($company_info['currency_symbol_id']) && $company_info['currency_symbol_id'] == $currency['id']) ? 'selected' : '';
+                // Use isocode for display if needed
+                echo "<option value='{$currency['id']}' $selected>{$currency['currency_name']} ({$currency['currency_symbol']}) - {$currency['isocode']}</option>";
+            } ?>
+        </select>
+        <span id="currency_error" class="text-danger error-text"></span>
+    </div>
+</div><!-- end col -->
                                         </div>
                                         <!-- end row -->
                                     </div>

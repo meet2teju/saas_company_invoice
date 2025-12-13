@@ -1,7 +1,17 @@
 <?php
-
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
+}
+
+// Include config first to get database connection
+include '../config/config.php';
+
+// Include currency helper (with function_exists check to prevent redeclaration)
+require_once '../config/currency_helper.php';
+
+// Initialize company currency in session if not set
+if (!isset($_SESSION['company_currency']) && isset($conn)) {
+    getCompanyCurrency($conn);
 }
 
 header("Expires: Tue, 01 Jan 2000 00:00:00 GMT");
@@ -18,19 +28,9 @@ if (!in_array($currentPage, $publicPages)) {
         exit;
     }
 
-    include '../config/config.php';
-
     $login_user_id = $_SESSION['crm_user_id'];
     $current_time = date("Y-m-d H:i:s");
 
     mysqli_query($conn, "UPDATE login SET last_activity = '$current_time' WHERE id = '$login_user_id'");
 }
-// Add this to your session.php file if it doesn't exist
-// function check_permission($permission_name) {
-//     // This is a simple example - modify based on your actual permission system
-//     if ($permission_name === 'import_client') {
-//         return true; // Or false to restrict access
-//     }
-//     return true; // Default to allowing access
-// }
 ?>

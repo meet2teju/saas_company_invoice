@@ -2,6 +2,13 @@
 <?php
 include '../config/config.php';
 
+// Get company currency (already available via session.php)
+$companyCurrency = getCompanyCurrency($conn);
+
+// Get all currencies for dropdown
+$currency_query = "SELECT * FROM currency ORDER BY currency_name";
+$currency_result = mysqli_query($conn, $currency_query);
+
 // Get all countries for dropdown
 $country_query = "SELECT * FROM countries ORDER BY name";
 $country_result = mysqli_query($conn, $country_query);
@@ -119,7 +126,10 @@ $country_codes = [
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6>Add Client</h6>
-                            <!-- <a href="#" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a> -->
+                            <!-- Display current company currency -->
+                            <!-- <div class="badge bg-info">
+                                Company Currency: <?php echo $companyCurrency['currency_symbol'] . ' (' . $companyCurrency['currency_name'] . ')'; ?>
+                            </div> -->
                         </div>
 
                         <div class="card">
@@ -193,13 +203,6 @@ $country_codes = [
                                                     <span id="company_name_error" class="text-danger error-text"></span>
                                                 </div>
                                             </div>
-                                            <!-- <div class="col-lg-4 col-md-6">
-                                                <div class="mb-3">
-                                                    <label class="form-label">Display Name </label>
-                                                    <input type="text" class="form-control" name="display_name" id="display_name" readonly>
-                                                    <span id="display_name_error" class="text-danger error-text"></span>
-                                                </div>
-                                            </div> -->
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">Email</label>
@@ -270,12 +273,26 @@ $country_codes = [
                                                         <span id="pan_number_error" class="text-danger error-text"></span>
                                                     </div>
                                                     <div class="col-md-6 mb-3">
-                                                        <label class="form-label">Currency</label>
-                                                        <select class="form-select" name="currency" id="currency">
-                                                            <option value="INR">Indian Rupee&nbsp;(₹)</option>
-                                                            <option value="$">US Dollar&nbsp;($)</option>
-                                                        </select>
-                                                    </div>
+    <label class="form-label">Currency</label>
+    <select class="form-select" name="currency" id="currency">
+        <?php 
+        // Reset currency_result pointer
+        mysqli_data_seek($currency_result, 0);
+        
+        while ($currency = mysqli_fetch_assoc($currency_result)) {
+            // Use company currency as default selection
+            $selected = ($currency['id'] == $companyCurrency['id']) ? 'selected' : '';
+            echo "<option value='{$currency['id']}' $selected>
+                    {$currency['currency_name']} ({$currency['currency_symbol']})
+                  </option>";
+        } 
+        ?>
+    </select>
+    <!-- <small class="text-muted">
+        Default currency: <?php echo $companyCurrency['currency_name']; ?>
+        (<?php echo $companyCurrency['currency_symbol']; ?>)
+    </small> -->
+</div>
 
                                                     <div class="col-md-6 mb-3">
                                                         <label class="form-label">VAT/GST Number</label>
@@ -341,10 +358,6 @@ $country_codes = [
                                                     <div class="col-md-6">
                                                         <h6 class="mb-3">Billing Address</h6>
                                                         <div class="row">
-                                                            <!-- <div class="col-12 mb-3">
-                                                                <label class="form-label">Name</label>
-                                                                <input type="text" id="billing_name" class="form-control" name="billing_name">
-                                                            </div> -->
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 1</label>
                                                                 <input type="text" id="billing_address1" class="form-control" name="billing_address1">
@@ -363,21 +376,18 @@ $country_codes = [
                                                                         echo "<option value='{$country['id']}'>{$country['name']}</option>";
                                                                     } ?>
                                                                 </select>
-                                                                <!-- <span id="billing_country_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">State</label>
                                                                 <select class="select" id="billing_state" name="billing_state" onchange="getCities(this.value, 'billing_city')">
                                                                     <option value="">Select State</option>
                                                                 </select>
-                                                                <!-- <span id="billing_state_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">City</label>
                                                                 <select class="select" id="billing_city" name="billing_city">
                                                                     <option value="">Select City</option>
                                                                 </select>
-                                                                <!-- <span id="billing_city_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Pincode</label>
@@ -394,10 +404,6 @@ $country_codes = [
                                                      <i class="isax isax-document-copy me-1"></i>Copy From Billing</a>
                                                         </div>
                                                         <div class="row">
-                                                            <!-- <div class="col-12 mb-3">
-                                                                <label class="form-label">Name</label>
-                                                                <input type="text" class="form-control" id="shipping_name" name="shipping_name">
-                                                            </div> -->
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 1</label>
                                                                 <input type="text" class="form-control" id="shipping_address1" name="shipping_address1">
@@ -416,21 +422,18 @@ $country_codes = [
                                                                         echo "<option value='{$country['id']}'>{$country['name']}</option>";
                                                                     } ?>
                                                                 </select>
-                                                                <!-- <span id="shipping_country_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">State</label>
                                                                 <select class="select" id="shipping_state" name="shipping_state" onchange="getCities(this.value, 'shipping_city')">
                                                                     <option value="">Select State</option>
                                                                 </select>
-                                                                <!-- <span id="shipping_state_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">City</label>
                                                                 <select class="select" id="shipping_city" name="shipping_city">
                                                                     <option value="">Select City</option>
                                                                 </select>
-                                                                <!-- <span id="shipping_city_error" class="text-danger error-text"></span> -->
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Pincode</label>
@@ -540,6 +543,27 @@ $country_codes = [
 
 <script>
 $(document).ready(function () {
+
+   var companyCurrency = {
+            id: <?php echo $companyCurrency['id']; ?>,
+            symbol: '<?php echo $companyCurrency['currency_symbol']; ?>',
+            name: '<?php echo $companyCurrency['currency_name']; ?>',
+            code: '<?php echo $companyCurrency['currency_code'] ?? 'INR'; ?>'
+        };
+        
+        // Function to format price with company currency
+        function formatPrice(amount) {
+            return companyCurrency.symbol + parseFloat(amount).toFixed(2);
+        }
+        
+        // Example usage in your JavaScript
+        $('.price-field').each(function() {
+            var amount = $(this).data('amount') || $(this).val();
+            if (amount) {
+                $(this).val(formatPrice(amount));
+            }
+        });
+
     // === Allow only numbers ===
     $(document).on('input', '#phone_number, #business_number, #billing_pincode, #shipping_pincode, #account_number, .contact-workphone, .contact-mobile', function () {
         this.value = this.value.replace(/[^0-9]/g, '');
@@ -593,14 +617,6 @@ $(document).ready(function () {
         const requiredFields = [
             {name: 'first_name', errorId: 'first_name_error', message: 'First name is required', tab: 'otherTab'},
             {name: 'last_name', errorId: 'last_name_error', message: 'Last name is required', tab: 'otherTab'},
-            // {name: 'display_name', errorId: 'display_name_error', message: 'Display name is required', tab: 'otherTab'},
-            // {name: 'billing_city', errorId: 'billing_city_error', message: 'Billing city is required', tab: 'addressTab'},
-            // {name: 'shipping_city', errorId: 'shipping_city_error', message: 'Shipping city is required', tab: 'addressTab'},
-            // {name: 'billing_country', errorId: 'billing_country_error', message: 'Billing country is required', tab: 'addressTab'},
-            // {name: 'shipping_country', errorId: 'shipping_country_error', message: 'Shipping country is required', tab: 'addressTab'},
-            // {name: 'billing_state', errorId: 'billing_state_error', message: 'Billing state is required', tab: 'addressTab'},
-            // {name: 'shipping_state', errorId: 'shipping_state_error', message: 'Shipping state is required', tab: 'addressTab'},
-            // {name: 'salutation', errorId: 'salutation_error', message: 'Salutation is required', tab: 'otherTab'}
         ];
 
         requiredFields.forEach(field => {

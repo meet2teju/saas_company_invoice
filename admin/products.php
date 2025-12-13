@@ -1,11 +1,21 @@
 <?php include 'layouts/session.php'; ?>
-<?php include '../config/config.php'; ?>
+<?php include '../config/config.php'; 
+// Get company currency (add this line)
+$companyCurrency = getCompanyCurrency($conn);
+?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
 	<?php include 'layouts/title-meta.php'; ?> 
 	<?php include 'layouts/head-css.php'; ?>
+    <style>
+        .price-currency {
+            display: inline-block;
+            min-width: 20px;
+            text-align: left;
+        }
+    </style>
 </head>
 
 <body>
@@ -37,6 +47,10 @@
 				<div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3">
 					<div>
 						<h6>Products</h6>
+						<!-- Display current company currency -->
+						<small class="text-muted">
+							Company Currency: <?php echo $companyCurrency['currency_name'] . ' (' . $companyCurrency['currency_symbol'] . ')'; ?>
+						</small>
 					</div>
 					<div class="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
                         <div class="table-search d-flex align-items-center mb-0">
@@ -269,6 +283,10 @@
                          $status = $row['status'] ? 'checked' : '';
                         $productId = $row['id'];
                         $productImg = !empty($row['product_img']) ? '../uploads/' . htmlspecialchars($row['product_img']) : 'assets/img/users/user-16.jpg';
+                        
+                        // Format prices with company currency symbol
+                        $selling_price = htmlspecialchars($row['selling_price']);
+                        $purchase_price = htmlspecialchars($row['purchase_price']);
                         ?>
                         <tr>
                             <td>
@@ -291,8 +309,13 @@
                             <td><?= htmlspecialchars($row['category_name']) ?></td>
                             <td><?= htmlspecialchars($row['unit_name']) ?></td>
                             <td><?= htmlspecialchars($row['quantity']) ?></td>
-                            <td class="text-dark">$ &nbsp;<?= htmlspecialchars($row['selling_price']) ?></td>
-                            <td class="text-dark">$ &nbsp;<?= htmlspecialchars($row['purchase_price']) ?></td>
+                            <!-- Updated Price Columns -->
+                            <td class="text-dark">
+                                <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= $selling_price ?>
+                            </td>
+                            <td class="text-dark">
+                                <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= $purchase_price ?>
+                            </td>
                             <td>
                                 <div class="form-check form-switch">
                                     <input class="form-check-input status-toggle" type="checkbox" role="switch" <?= $status ? 'checked' : '' ?> data-id="<?= $row['id'] ?>">

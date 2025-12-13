@@ -2,6 +2,32 @@
 <?php
 include '../config/config.php';
 
+// Get company currency with database backup (SAME AS ADD PAGE)
+$companyCurrency = getCompanyCurrency($conn);
+
+// Method 2: Direct query as backup (SAME AS ADD PAGE)
+$org_id = $_SESSION['org_id'] ?? 1;
+$directQuery = "SELECT c.id, c.currency_name, c.currency_symbol, c.isocode as currency_code 
+                FROM company_info ci 
+                LEFT JOIN currency c ON ci.currency_symbol_id = c.id 
+                WHERE ci.org_id = '$org_id' 
+                LIMIT 1";
+$directResult = mysqli_query($conn, $directQuery);
+
+if ($directResult && mysqli_num_rows($directResult) > 0) {
+    $directCurrency = mysqli_fetch_assoc($directResult);
+    
+    // If session currency doesn't match database, update it
+    if ($companyCurrency['id'] != $directCurrency['id']) {
+        $companyCurrency = $directCurrency;
+        $_SESSION['company_currency'] = $directCurrency;
+    }
+}
+
+// Get all currencies for dropdown (ADDED THIS)
+$currency_query = "SELECT * FROM currency ORDER BY currency_name";
+$currency_result = mysqli_query($conn, $currency_query);
+
 // Get row ID from URL
 $clientid = $_GET['id'];
 $query = "SELECT * FROM client WHERE id = $clientid";
@@ -308,9 +334,23 @@ $country_codes = [
                                                     </div>
                                                     <div class="col-md-6 mb-3">
                                                         <label class="form-label">Currency</label>
+                                                        <!-- UPDATED CURRENCY DROPDOWN (SAME AS ADD PAGE) -->
                                                         <select class="form-select" name="currency" id="currency">
-                                                        <option value="INR" <?php echo $row['currency'] == 'INR' ? 'selected' : ''; ?>> Indian Rupee&nbsp;(₹)</option>
-                                                        <option value="USD" <?php echo $row['currency'] == 'USD' ? 'selected' : ''; ?>> US Dollar&nbsp;($)</option>
+                                                            <?php 
+                                                            // Reset currency_result pointer
+                                                            mysqli_data_seek($currency_result, 0);
+                                                            
+                                                            // Get client's current currency ID
+                                                            $clientCurrencyId = $row['currency_id'] ?? $companyCurrency['id'];
+                                                            
+                                                            while ($currency = mysqli_fetch_assoc($currency_result)) {
+                                                                // Use client's current currency as selected, fallback to company currency
+                                                                $selected = ($currency['id'] == $clientCurrencyId) ? 'selected' : '';
+                                                                echo "<option value='{$currency['id']}' $selected>
+                                                                        {$currency['currency_name']} ({$currency['currency_symbol']})
+                                                                      </option>";
+                                                            } 
+                                                            ?>
                                                         </select>
                                                     </div>
                                                     
