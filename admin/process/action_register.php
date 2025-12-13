@@ -17,6 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email = trim($_POST['email']);
     $password = trim($_POST['password']);
     $cpassword = trim($_POST['cpassword']);
+    $agree_terms = $_POST['agree_terms'] ?? '0'; // Get checkbox value, default to '0' if not checked
 
     $_SESSION['old'] = $_POST;
 
@@ -33,6 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if ($password !== $cpassword) {
         $errors['cpassword'] = "Confirm Password do not match.";
+    }
+
+    // Validate terms agreement (CHECKBOX VALIDATION ADDED HERE)
+    if (!isset($_POST['agree_terms']) || $_POST['agree_terms'] != '1') {
+        $errors['agree_terms'] = "You must agree to the Terms of Service and Privacy Policy";
     }
 
     // Check if email already exists
