@@ -2,6 +2,9 @@
 include 'layouts/session.php'; 
 include '../config/config.php';
 
+// Get company currency (add this line)
+$companyCurrency = getCompanyCurrency($conn);
+
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     $_SESSION['message'] = "Invalid expense ID.";
     $_SESSION['message_type'] = "danger";
@@ -48,6 +51,13 @@ $documents = mysqli_query($conn, "SELECT * FROM expense_document WHERE expense_i
     <?php include 'layouts/title-meta.php'; ?> 
     <?php include 'layouts/head-css.php'; ?>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        .price-currency {
+            display: inline-block;
+            min-width: 20px;
+            text-align: left;
+        }
+    </style>
 </head>
 <body>
 <div class="main-wrapper">
@@ -59,6 +69,10 @@ $documents = mysqli_query($conn, "SELECT * FROM expense_document WHERE expense_i
                 <div class="row">
                     <div class="col">
                         <h4 class="page-title">Expense Details</h4>
+                        <!-- Display current company currency -->
+                        <!-- <small class="text-muted">
+                            Company Currency: <?php echo $companyCurrency['currency_name'] . ' (' . $companyCurrency['currency_symbol'] . ')'; ?>
+                        </small> -->
                     </div>
                 </div>
             </div>
@@ -70,7 +84,7 @@ $documents = mysqli_query($conn, "SELECT * FROM expense_document WHERE expense_i
                     <tr><th>Client</th><td><?= $expense['first_name']?></td></tr>
                     <tr><th>Invoice</th><td><?= $expense['invoice_id'] ?></td></tr>
                     <tr><th>Date</th><td><?= date('d-m-Y', strtotime($expense['date'])) ?></td></tr>
-                    <tr><th>Amount</th><td><?= number_format($expense['amount'], 2) ?></td></tr>
+                    <tr><th>Amount</th><td class="text-dark"><span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($expense['amount'], 2) ?></td></tr>
                     <tr><th>Description</th><td><?= nl2br($expense['description']) ?></td></tr>
                 </table>
             </div>

@@ -2,6 +2,9 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
+// Get company currency (add this line)
+$companyCurrency = getCompanyCurrency($conn);
+
 // Get current user info
 $currentUserId = $_SESSION['crm_user_id'] ?? 0;
 $currentOrgId = $_SESSION['org_id'] ?? 0;
@@ -121,13 +124,20 @@ $categoriesResult = mysqli_query($conn, "SELECT id, name FROM expense_category W
 <!DOCTYPE html>
 <html lang="en">
 <head>
-	<?php include 'layouts/title-meta.php'; ?> 
-	<?php include 'layouts/head-css.php'; ?>
+    <?php include 'layouts/title-meta.php'; ?> 
+    <?php include 'layouts/head-css.php'; ?>
+    <style>
+        .price-currency {
+            display: inline-block;
+            min-width: 20px;
+            text-align: left;
+        }
+    </style>
 </head>
 
 <body>
 <div class="main-wrapper">
-	<?php include 'layouts/menu.php'; ?>
+    <?php include 'layouts/menu.php'; ?>
 
     <div class="page-wrapper">
         <div class="content content-two">
@@ -142,7 +152,13 @@ $categoriesResult = mysqli_query($conn, "SELECT id, name FROM expense_category W
             <?php endif; ?>
 
             <div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3 mb-3">
-                <div><h6>Expenses</h6></div>
+                <div>
+                    <h6>Expenses</h6>
+                    <!-- Display current company currency -->
+                    <!-- <small class="text-muted">
+                        Company Currency: <?php echo $companyCurrency['currency_name'] . ' (' . $companyCurrency['currency_symbol'] . ')'; ?>
+                    </small> -->
+                </div>
                 <div class="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
                     <div class="table-search d-flex align-items-center mb-0">
                         <div class="search-input">
@@ -152,10 +168,10 @@ $categoriesResult = mysqli_query($conn, "SELECT id, name FROM expense_category W
                     <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
                         <i class="isax isax-filter me-1"></i>Filter
                     </a>
-                     <!-- Multiple Delete Button -->
-                        <a href="#" class="btn btn-outline-danger delete-multiple d-none">
-                            <i class="fa-regular fa-trash-can me-1"></i>Delete
-                        </a>
+                    <!-- Multiple Delete Button -->
+                    <a href="#" class="btn btn-outline-danger delete-multiple d-none">
+                        <i class="fa-regular fa-trash-can me-1"></i>Delete
+                    </a>
                     <?php if (check_is_access_new("add_expense") == 1) { ?> 
                     <div>
                         <a href="add-expense.php" class="btn btn-primary d-flex align-items-center">
@@ -262,7 +278,10 @@ $categoriesResult = mysqli_query($conn, "SELECT id, name FROM expense_category W
                                     <?= htmlspecialchars($row['first_name']) ?>
                                 </td>                                    
                                 <td><?= date('d-m-Y', strtotime($row['date'])) ?></td>
-                                <td>$&nbsp;<?= number_format($row['amount'], 2) ?></td>
+                                <!-- Updated Amount Column -->
+                                <td class="text-dark">
+                                    <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($row['amount'], 2) ?>
+                                </td>
                                 <td style="white-space: normal; word-wrap: break-word;">
                                     <?= htmlspecialchars($row['description']) ?>
                                 </td>
@@ -619,7 +638,7 @@ $(document).ready(function() {
             categoryLabels.push($(this).closest('label').text().trim());
         });
         if (categoryLabels.length > 2) {
-            $('.category-toggle').text(categoryLabels.slice(0, 2).join(', ') + ' +' + (categoryLabels.length - 3));
+            $('.category-toggle').text(categoryLabels.slice(0, 2).join(', ') + ' +' . (categoryLabels.length - 3));
         } else {
             $('.category-toggle').text(categoryLabels.length > 0 ? categoryLabels.join(', ') : 'Select');
         }

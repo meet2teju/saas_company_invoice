@@ -516,9 +516,9 @@ if (!empty($company['city_name']) || !empty($company['state_name']) || !empty($c
     '</div>';
 }
 
-if (!empty($company['mobile_number'])) {
-    $html .= '<div class="address-deatils-box"><span class="bold-text">Phone:</span> ' . htmlspecialchars($company['mobile_number'] ?? '') . '</div>';
-}
+// if (!empty($company['mobile_number'])) {
+//     $html .= '<div class="address-deatils-box"><span class="bold-text">Phone:</span> ' . htmlspecialchars($company['mobile_number'] ?? '') . '</div>';
+// }
 
 if (!empty($company['email'])) {
     $html .= '<div class="address-deatils-box"><span class="bold-text">Email:</span> ' . htmlspecialchars($company['email'] ?? '') . '</div>';
@@ -554,9 +554,9 @@ if (!empty($client_address['city_name']) || !empty($client_address['state_name']
     '</div>';
 }
 
-if (!empty($quotation['phone_number'])) {
-    $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Phone:</span> ' . htmlspecialchars($quotation['phone_number'] ?? '') . '</div>';
-}
+// if (!empty($quotation['phone_number'])) {
+//     $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Phone:</span> ' . htmlspecialchars($quotation['phone_number'] ?? '') . '</div>';
+// }
 
 if (!empty($quotation['email'])) {
     $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Email:</span> ' . htmlspecialchars($quotation['email'] ?? '') . '</div>';

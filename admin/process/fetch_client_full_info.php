@@ -58,9 +58,9 @@ if (isset($_POST['client_id'])) {
         }
         
         // Phone
-        if (!empty($row['phone_number'])) {
-            $billing_parts[] = '<p class="mb-1 fs-13"><span class="text-dark">Phone:</span> ' . htmlspecialchars($row['phone_number']) . '</p>';
-        }
+        // if (!empty($row['phone_number'])) {
+        //     $billing_parts[] = '<p class="mb-1 fs-13"><span class="text-dark">Phone:</span> ' . htmlspecialchars($row['phone_number']) . '</p>';
+        // }
         
         // Email
         if (!empty($row['email'])) {
@@ -139,9 +139,9 @@ if (isset($_POST['client_id'])) {
         }
         
         // Phone
-        if (!empty($company['mobile_number'])) {
-            $shipping_parts[] = '<p class="mb-1 fs-13"><span class="text-dark">Phone:</span> ' . htmlspecialchars($company['mobile_number']) . '</p>';
-        }
+        // if (!empty($company['mobile_number'])) {
+        //     $shipping_parts[] = '<p class="mb-1 fs-13"><span class="text-dark">Phone:</span> ' . htmlspecialchars($company['mobile_number']) . '</p>';
+        // }
         
         // Email
         if (!empty($company['email'])) {

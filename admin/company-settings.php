@@ -110,10 +110,10 @@ if (!empty($company_info['state_id'])) {
                                             <div class="col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">
-                                                        Mobile Number <span class="text-danger">*</span>
+                                                        Mobile Number 
                                                     </label>
                                                     <input type="text" name="mobile_number" id="mobile_number" class="form-control" value="<?= !empty($company_info['mobile_number']) ? $company_info['mobile_number'] : '' ?>">
-                                                    <span id="mobile_number_error" class="text-danger error-text"></span>
+                                                    <!-- <span id="mobile_number_error" class="text-danger error-text"></span> -->
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
@@ -446,7 +446,7 @@ $(document).ready(function () {
         }
 
         // Mobile
-        isValid = validateElement("mobile_number", "mobile_number_error", "Mobile number is required", /^[0-9]{10,15}$/) && isValid;
+        // isValid = validateElement("mobile_number", "mobile_number_error", "Mobile number is required", /^[0-9]{10,15}$/) && isValid;
 
         // Currency
         isValid = validateElement("currency", "currency_error", "Currency is required") && isValid;

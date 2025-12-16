@@ -2,6 +2,9 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
+// Get company currency (add this line)
+$companyCurrency = getCompanyCurrency($conn);
+
 $project_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 // Fetch project
@@ -35,6 +38,33 @@ $tasks = [];
 $task_query = mysqli_query($conn, "SELECT * FROM project_task WHERE project_id = $project_id");
 while ($row = mysqli_fetch_assoc($task_query)) {
     $tasks[] = $row;
+}
+
+// Get currencies from currency table (add this)
+$currencies = [];
+$currency_query = "SELECT id, currency_name, currency_symbol FROM currency  ORDER BY currency_name";
+$currency_result = mysqli_query($conn, $currency_query);
+while ($row = mysqli_fetch_assoc($currency_result)) {
+    $currencies[] = $row;
+}
+
+// Find project currency symbol
+$projectCurrencySymbol = '';
+$projectCurrencyName = '';
+if (!empty($project['currency_type'])) {
+    foreach ($currencies as $currency) {
+        if ($currency['id'] == $project['currency_type']) {
+            $projectCurrencySymbol = $currency['currency_symbol'];
+            $projectCurrencyName = $currency['currency_name'];
+            break;
+        }
+    }
+}
+
+// If not found, use default company currency
+if (empty($projectCurrencySymbol)) {
+    $projectCurrencySymbol = $companyCurrency['currency_symbol'];
+    $projectCurrencyName = $companyCurrency['currency_name'];
 }
 ?>
 
@@ -71,9 +101,9 @@ while ($row = mysqli_fetch_assoc($task_query)) {
                             ?>
                         </div>
                         <?php if ($project['billing_method'] == 1): ?>
-                            <div class="col-md-6 mb-2"><strong>Total Project Cost:</strong> <?= ($project['currency_type'] == 1 ? 'INR' : '$') . ' ' . $project['total_project_cost'] ?></div>
+                            <div class="col-md-6 mb-2"><strong>Total Project Cost:</strong> <?= $projectCurrencySymbol . ' ' . $project['total_project_cost'] ?> (<?= $projectCurrencyName ?>)</div>
                         <?php elseif ($project['billing_method'] == 2): ?>
-                            <div class="col-md-6 mb-2"><strong>Rate Per Hour:</strong> <?= ($project['currency_type'] == 1 ? 'INR' : '$') . ' ' . $project['rate_per_hour'] ?></div>
+                            <div class="col-md-6 mb-2"><strong>Rate Per Hour:</strong> <?= $projectCurrencySymbol . ' ' . $project['rate_per_hour'] ?> (<?= $projectCurrencyName ?>)</div>
                         <?php endif; ?>
                         <div class="col-12 mt-3"><strong>Description:</strong> <br><?= nl2br(htmlspecialchars($project['description'])) ?></div>
                     </div>

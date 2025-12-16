@@ -2,6 +2,9 @@
 <?php include '../config/config.php'; ?>
 
 <?php
+// Get company currency (add this line)
+$companyCurrency = getCompanyCurrency($conn);
+
 // Get current user info (same as reference code)
 $currentUserId = $_SESSION['crm_user_id'] ?? 0;
 $currentOrgId = $_SESSION['org_id'] ?? 0;
@@ -68,6 +71,30 @@ $country_result = mysqli_query($conn, $country_query);
 
 // Reset country_result pointer for the dropdown
 mysqli_data_seek($country_result, 0);
+
+// Get currencies from currency table (add this)
+$currencies = [];
+$currency_query = "SELECT id, currency_name, currency_symbol FROM currency ORDER BY currency_name";
+$currency_result = mysqli_query($conn, $currency_query);
+while ($row = mysqli_fetch_assoc($currency_result)) {
+    $currencies[] = $row;
+}
+
+// Find default currency (company profile currency)
+$defaultCurrencyId = 0;
+$defaultCurrencySymbol = '';
+foreach ($currencies as $currency) {
+    if ($currency['currency_name'] == $companyCurrency['currency_name']) {
+        $defaultCurrencyId = $currency['id'];
+        $defaultCurrencySymbol = $currency['currency_symbol'];
+        break;
+    }
+}
+// If not found, use the first currency as default
+if ($defaultCurrencyId == 0 && count($currencies) > 0) {
+    $defaultCurrencyId = $currencies[0]['id'];
+    $defaultCurrencySymbol = $currencies[0]['currency_symbol'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -800,6 +827,20 @@ mysqli_data_seek($country_result, 0);
     }
     // Call on page load
     initDatePickers();
+    
+    // PHP variable for currency options
+    const currencyOptions = `<?php
+        $optionsHtml = '';
+        foreach ($currencies as $currency) {
+            $selected = ($currency['id'] == $defaultCurrencyId) ? 'selected' : '';
+            $optionsHtml .= '<option value="'.$currency['id'].'" '.$selected.' data-symbol="'.htmlspecialchars($currency['currency_symbol']).'">'.$currency['currency_name'].' ('.$currency['currency_symbol'].')</option>';
+        }
+        echo $optionsHtml;
+    ?>`;
+    
+    const defaultCurrencySymbol = '<?php echo $defaultCurrencySymbol; ?>';
+    const defaultCurrencyId = '<?php echo $defaultCurrencyId; ?>';
+
     const statusOptions = `<?php
         $optionsHtml = '<option value="">Select Status</option>';
         foreach ($statuses as $status) {
@@ -873,32 +914,38 @@ mysqli_data_seek($country_result, 0);
                 <div class="col-md-6 mb-3">
                     <label class="form-label">Total Project Cost <span class="text-danger">*</span></label>
                     <div class="input-group">
-                    <select class="form-select" name="currency_type" style="max-width: 100px;">
-                            <option value="1">Indian Rupee(₹)</option>
-                            <option value="0">US Dollar ($)</option>
+                        <select class="form-select" name="currency_type" id="currency_type" style="max-width: 120px;">
+                            ${currencyOptions}
                         </select>
                         <input type="number" class="form-control" name="total_project_cost" step="0.01" min="0">
-                       
                     </div>
                      <span class="text-danger error-text" id="fixed_error"></span>
                 </div>
             `;
+            
+            // Set default currency symbol in the dropdown
+            if (defaultCurrencyId) {
+                document.getElementById('currency_type').value = defaultCurrencyId;
+            }
         } 
         else if (billingMethod === '2') {
             container.innerHTML = `
                 <div class="col-md-6 mb-3">
                     <label class="form-label">Rate Per Hour <span class="text-danger">*</span></label>
                     <div class="input-group">
-                    <select class="form-select" name="currency_type" style="max-width: 100px;">
-                            <option value="1">Indian Rupee(₹)</option>
-                            <option value="0">US Dollar ($)</option>
+                        <select class="form-select" name="currency_type" id="rate_currency_type" style="max-width: 120px;">
+                            ${currencyOptions}
                         </select>
                         <input type="number" class="form-control" name="rate_per_hour" step="0.01" min="0">
-                       
                     </div>
                      <span class="text-danger error-text" id="hour_error"></span>
                 </div>
             `;
+            
+            // Set default currency symbol in the dropdown
+            if (defaultCurrencyId) {
+                document.getElementById('rate_currency_type').value = defaultCurrencyId;
+            }
         }
         else if (billingMethod === '3') {
             container.innerHTML = `
