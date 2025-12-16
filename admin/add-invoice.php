@@ -186,7 +186,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                             <label class="form-check-label" for="gst-disabled">Non-GST</label>
                                         </div>
                                     </div>
-                                    <a href="invoice-details.php" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a>
+                                    <!-- <a href="invoice-details.php" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a> -->
                                 </div>
                             </div>
                             <div class="card">
