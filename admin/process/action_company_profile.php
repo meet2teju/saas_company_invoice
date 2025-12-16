@@ -3,6 +3,9 @@ session_start();
 include '../../config/config.php';
 require_once '../../config/currency_helper.php';
 
+// DEBUG: Log what's being posted
+error_log("DEBUG: Currency symbol ID posted: " . ($_POST['currency_symbol_id'] ?? 'NULL'));
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $id          = $_POST['id'] ?? '';
     $name        = trim($_POST['name'] ?? '');
@@ -17,6 +20,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $country            = !empty($_POST['country_id']) ? (int)$_POST['country_id'] : "NULL";
     $state              = !empty($_POST['state_id']) ? (int)$_POST['state_id'] : "NULL";
     $city               = !empty($_POST['city_id']) ? (int)$_POST['city_id'] : "NULL";
+
+    // DEBUG: Log the currency ID
+    error_log("DEBUG: Processing currency ID: $currency_symbol_id");
 
     $org_id     = $_SESSION['org_id'] ?? 1;
     $updated_at = date('Y-m-d H:i:s');
@@ -103,19 +109,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $sql .= " WHERE id = '" . mysqli_real_escape_string($conn, $id) . "'";
     }
 
+    // DEBUG: Log the SQL
+    error_log("DEBUG: SQL Query: $sql");
+
     // Run SQL
     if (mysqli_query($conn, $sql)) {
-        // ✅ CLEAR CURRENCY CACHE AFTER UPDATE
-        if (function_exists('clearCurrencyCache')) {
-            clearCurrencyCache();
-        } else {
-            // Fallback: unset session variable directly
-            unset($_SESSION['company_currency']);
+        // DEBUG: Log before clearing cache
+        error_log("DEBUG: Before clearing cache - Session currency: " . 
+                 (isset($_SESSION['company_currency']['id']) ? $_SESSION['company_currency']['id'] : 'NOT SET'));
+        
+        // ✅ SIMPLIFIED CURRENCY CACHE UPDATE
+        // Method 1: Direct session update - SIMPLEST APPROACH
+        if ($currency_symbol_id !== "NULL") {
+            // Fetch the new currency from database
+            $currency_query = "SELECT id, currency_name, currency_symbol, isocode FROM currency WHERE id = $currency_symbol_id LIMIT 1";
+            $currency_result = mysqli_query($conn, $currency_query);
+            
+            if ($currency_result && mysqli_num_rows($currency_result) > 0) {
+                $new_currency = mysqli_fetch_assoc($currency_result);
+                
+                // DEBUG: Log the new currency
+                error_log("DEBUG: New currency fetched: ID=" . $new_currency['id'] . ", Name=" . $new_currency['currency_name']);
+                
+                // Update session directly
+                $_SESSION['company_currency'] = [
+                    'id' => $new_currency['id'],
+                    'currency_name' => $new_currency['currency_name'],
+                    'currency_symbol' => $new_currency['currency_symbol'],
+                    'currency_code' => $new_currency['isocode'] ?? 'INR'
+                ];
+                
+                // DEBUG: Log after update
+                error_log("DEBUG: After update - Session currency ID: " . $_SESSION['company_currency']['id']);
+            }
         }
         
+        // Also clear any cache timestamps
+        unset($_SESSION['currency_last_updated']);
+        
         $_SESSION['success'] = empty($id) ? "Company created successfully." : "Company updated successfully.";
+        
+        // DEBUG: Final session check
+        error_log("DEBUG: Final session currency ID: " . 
+                 (isset($_SESSION['company_currency']['id']) ? $_SESSION['company_currency']['id'] : 'NOT SET'));
     } else {
         $_SESSION['error'] = "DB Error: " . mysqli_error($conn);
+        error_log("ERROR: Database error: " . mysqli_error($conn));
     }
 
     header("Location: ../company-settings.php");
