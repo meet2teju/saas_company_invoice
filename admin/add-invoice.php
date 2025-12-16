@@ -2,6 +2,9 @@
 <?php
 include '../config/config.php';
 
+// Get company currency (already available via session.php)
+$companyCurrency = getCompanyCurrency($conn);
+
 // Get current user info
 $currentUserId = $_SESSION['crm_user_id'] ?? 0;
 $currentOrgId = $_SESSION['org_id'] ?? 0;
@@ -149,6 +152,15 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
         .product-tax-select {
             margin-bottom: 8px;
         }
+        /* Currency info badge */
+        .currency-badge {
+            background: #0dcaf0;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
     </style>
 </head>
 
@@ -175,6 +187,10 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                             <div class="d-flex align-items-center justify-content-between mb-3">
                                 <h6>Add Invoice</h6>
                                 <div class="d-flex align-items-center gap-3">
+                                    <!-- Display current company currency -->
+                                    <!-- <div class="currency-badge">
+                                        Company Currency: <?php echo $companyCurrency['currency_symbol'] . ' (' . $companyCurrency['currency_name'] . ')'; ?>
+                                    </div> -->
                                     <div class="gst-toggle-group">
                                         <span class="gst-toggle-label">GST Type:</span>
                                         <div class="form-check form-check-inline">
@@ -186,13 +202,17 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                             <label class="form-check-label" for="gst-disabled">Non-GST</label>
                                         </div>
                                     </div>
-                                    <!-- <a href="invoice-details.php" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a> -->
                                 </div>
                             </div>
                             <div class="card">
                                 <div class="card-body">
                                     <form action="process/action_add_invoice.php" method="POST" enctype="multipart/form-data" id="form">
                                       <input type="hidden" name="gst_type" id="gst_type_field" value="gst">
+                                      
+                                      <!-- Add currency hidden fields -->
+                                      <input type="hidden" name="currency_id" value="<?php echo $companyCurrency['id']; ?>">
+                                      <input type="hidden" name="currency_symbol" value="<?php echo $companyCurrency['currency_symbol']; ?>">
+                                      <input type="hidden" name="currency_name" value="<?php echo $companyCurrency['currency_name']; ?>">
 
                                         <div class="border-bottom mb-3 pb-1">
                                           <div class="row gx-3">
@@ -362,6 +382,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                                         </div>
                                                     </div>
                                                 </div>
+                                                <!-- GST Type section remains as before -->
                                                 <div class="col-auto">
                                                     <div>
                                                         <label class="form-label">GST Type<span class="text-danger">*</span></label>
@@ -470,19 +491,22 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
 
                                                     <div class="mb-3">
                                                         <div class="d-flex align-items-center justify-content-between mb-3">
-                                                            <h6 class="fs-14 fw-semibold">Amount</h6>
-                                                            <h6 class="fs-14 fw-semibold" id="subtotal-amount"></h6>
+                                                            <h6 class="fs-14 fw-semibold">Subtotal</h6>
+                                                            <h6 class="fs-14 fw-semibold"><span id="currency-symbol"><?php echo $companyCurrency['currency_symbol']; ?></span> <span id="subtotal-amount">0.00</span></h6>
                                                         </div>
                                                         <div class="tax-details">
                                                            
                                                         </div>
                                                         <div id="shipping-charge-group" class="d-flex align-items-center justify-content-between mb-3">
                                                             <h6 class="fs-14 fw-semibold mb-0">Shipping Charge</h6>
-                                                            <input type="text" class="form-control" id="shipping-charge" name="shipping_charge" value="0.00">
+                                                            <div class="input-group" style="width: 150px;">
+                                                                <span class="input-group-text currency-prefix"><?php echo $companyCurrency['currency_symbol']; ?></span>
+                                                                <input type="text" class="form-control" id="shipping-charge" name="shipping_charge" value="0.00">
+                                                            </div>
                                                         </div>
                                                         <div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3">
                                                             <h6>Total</h6>
-                                                            <h6 id="total-amount"></h6>
+                                                            <h6><span id="currency-symbol-total"><?php echo $companyCurrency['currency_symbol']; ?></span> <span id="total-amount">0.00</span></h6>
                                                         </div>
                                                     </div>
                                                 </div><!-- end col -->
@@ -575,7 +599,7 @@ $(document).ready(function() {
             $('.tax-rate').data('value', 0).val('0%');
             $('.service-tax-select').val('');
             $('.product-tax-select').val('');
-            $('.tax-amount-line').text('$ 0.00');
+            $('.tax-amount-line').text('<?php echo $companyCurrency['currency_symbol']; ?> 0.00');
             $('.tax-rate-line').text('0%');
         } else {
             $('.add-table').removeClass('non-gst-mode');
@@ -605,10 +629,17 @@ $(document).ready(function() {
         calculateSummary();
     });
 
+    // Get currency symbol from PHP
+    function getCurrencySymbol() {
+        return '<?php echo $companyCurrency['currency_symbol']; ?>';
+    }
+
+    // Format currency for display
     function formatCurrency(value) {
         const n = parseFloat(value);
         if (isNaN(n)) return '';
-        return `$ ${n.toFixed(2)}`;
+        const symbol = getCurrencySymbol();
+        return `${symbol} ${n.toFixed(2)}`;
     }
 
     function formatPercent(value) {
@@ -618,6 +649,7 @@ $(document).ready(function() {
     }
 
     function unformat(value) {
+        if (value === undefined || value === null) return 0;
         const n = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
         return isNaN(n) ? 0 : n;
     }
@@ -719,6 +751,7 @@ $(document).ready(function() {
                             if (response.success) {
                                 // Add task as an invoice item using your existing row structure
                                 const rowId = 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                                const currencySymbol = getCurrencySymbol();
                                 const newRow = `
                                 <tr id="${rowId}" class="service-row">
                                     <td>
@@ -739,6 +772,7 @@ $(document).ready(function() {
                                     </td>
                                     <td>
                                         <div class="service-fields">
+                                            <!-- Store plain number for form submission -->
                                             <input type="text" class="form-control service-price-input" name="selling_price[]" value="${response.rate_per_hour}" data-value="${response.rate_per_hour}" readonly>
                                         </div>
                                     </td>
@@ -746,12 +780,13 @@ $(document).ready(function() {
                                         <div class="service-fields">
                                             <input type="text" class="form-control tax-rate" name="rate[]" value="0" data-value="0" readonly style="display: none;">
                                             <div class="tax-display-container">
-                                                <div class="tax-amount-line">$ 0.00</div>
+                                                <div class="tax-amount-line">${currencySymbol} 0.00</div>
                                                 <div class="tax-rate-line">0%</div>
                                             </div>
                                         </div>
                                     </td>
                                     <td>
+                                        <!-- Store plain number for form submission -->
                                         <input type="text" class="form-control amount" name="amount[]" value="${response.total_amount}" data-value="${response.total_amount}" readonly>
                                     </td>
                                     <td>
@@ -811,14 +846,6 @@ $(document).ready(function() {
             $('#clientname_error').text('Client is required.');
             isValid = false;
         }
-       // if (!$('#project_id').val()) {
-          //  $('#project_error').text('Project is required.');
-           // isValid = false;
-       // }
-      //  if (!$('#task_id').val() || $('#task_id').val().length === 0) {
-        //    $('#task_error').text('At least one task is required.');
-          //  isValid = false;
-      //  }
         if (!$('#invoice_date').val()) {
             $('#invoice_date_error').text('Invoice Date is required.');
             isValid = false;
@@ -864,6 +891,21 @@ $(document).ready(function() {
                 $('html, body').animate({ 
                     scrollTop: $('#bank-tab-link').offset().top - 150 
                 }, 500);
+            }
+        } else {
+            // Before submitting, ensure all numeric fields have plain numbers (no formatting)
+            $('.selling-price, .service-price-input, .amount').each(function() {
+                const $input = $(this);
+                const currentValue = $input.val();
+                const plainNumber = unformat(currentValue);
+                $input.val(plainNumber.toFixed(2));
+            });
+            
+            // Also format shipping charge
+            const shippingCharge = $('#shipping-charge');
+            if (shippingCharge.length) {
+                const plainShipping = unformat(shippingCharge.val());
+                shippingCharge.val(plainShipping.toFixed(2));
             }
         }
     });
@@ -967,6 +1009,7 @@ $(document).ready(function() {
     function addNewRow(itemType) {
         const rowClass = itemType == 1 ? 'product-row' : 'service-row';
         const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
+        const currencySymbol = getCurrencySymbol();
         
         let taxOptions = '<option value="">Select Tax</option>';
         <?php foreach ($taxRates as $tax): ?>
@@ -995,6 +1038,7 @@ $(document).ready(function() {
                         <input type="text" class="form-control hsn-code" name="code[]" readonly>
                     </td>
                     <td>
+                        <!-- Store plain number for form submission -->
                         <input type="text" class="form-control selling-price" name="selling_price[]" value="0.00" data-value="0">
                     </td>
                     <td class="tax-column">
@@ -1005,12 +1049,13 @@ $(document).ready(function() {
                         <input type="hidden" class="tax-rate" name="rate[]" data-value="${isNonGST ? '0' : '0'}">
                         <input type="hidden" class="tax-name" name="tax_name[]" value="">
                         <div class="tax-display-container mt-2">
-                            <div class="tax-amount-line"></div>
-                            <div class="tax-rate-line"></div>
+                            <div class="tax-amount-line">${currencySymbol} 0.00</div>
+                            <div class="tax-rate-line">0%</div>
                         </div>
                     </td>
                     <td>
-                        <input type="text" class="form-control amount" name="amount[]" data-value="0" readonly>
+                        <!-- Store plain number for form submission -->
+                        <input type="text" class="form-control amount" name="amount[]" value="0.00" data-value="0" readonly>
                     </td>
                     <td>
                         <a href="javascript:void(0);" class="remove-table"><i class="isax isax-trash"></i></a>
@@ -1038,7 +1083,7 @@ $(document).ready(function() {
                         <input type="text" class="form-control hsn-code" name="code[]" readonly>
                     </td>
                     <td>
-                        <!-- FIXED: Changed to regular text input without currency formatting interference -->
+                        <!-- Store plain number for form submission -->
                         <input type="text" class="form-control service-price-input" name="selling_price[]" value="0.00" data-value="0" placeholder="0.00">
                     </td>
                     <td class="tax-column">
@@ -1048,12 +1093,13 @@ $(document).ready(function() {
                         <input type="hidden" class="tax-rate" name="rate[]" data-value="${isNonGST ? '0' : '0'}">
                         <input type="hidden" class="tax-name" name="tax_name[]" value="">
                         <div class="tax-display-container mt-2">
-                            <div class="tax-amount-line"></div>
-                            <div class="tax-rate-line"></div>
+                            <div class="tax-amount-line">${currencySymbol} 0.00</div>
+                            <div class="tax-rate-line">0%</div>
                         </div>
                     </td>
                     <td>
-                        <input type="text" class="form-control amount" name="amount[]" data-value="0" readonly>
+                        <!-- Store plain number for form submission -->
+                        <input type="text" class="form-control amount" name="amount[]" value="0.00" data-value="0" readonly>
                     </td>
                     <td>
                         <a href="javascript:void(0);" class="remove-table"><i class="isax isax-trash"></i></a>
@@ -1070,15 +1116,13 @@ $(document).ready(function() {
         } else {
             const $serviceSelect = $('.add-tbody tr:last .service-select');
             loadServices($serviceSelect);
-            $('.add-tbody tr:last .tax-amount-line').text('$ 0.00');
-            $('.add-tbody tr:last .tax-rate-line').text('0%');
         }
         
         updateProductDropdowns();
         updateServiceDropdowns();
     }
 
-    // Format behaviors - FIXED: Simplified for service price inputs
+    // Format behaviors - FIXED: Keep plain numbers in inputs
     function attachCurrencyBehavior(selector, onChangeCallback) {
         $(document).on('focus', selector, function(){
             const raw = $(this).data('value');
@@ -1086,7 +1130,7 @@ $(document).ready(function() {
         });
         $(document).on('blur', selector, function(){
             const num = unformat($(this).val());
-            $(this).data('value', num).val(formatCurrency(num));
+            $(this).data('value', num).val(num.toFixed(2));
             if (onChangeCallback) onChangeCallback($(this));
         });
         $(document).on('input', selector, function(){
@@ -1116,7 +1160,7 @@ $(document).ready(function() {
         calculateRow($el.closest('tr'));
     });
     
-    // FIXED: Use direct input handling for service price (no currency formatting interference)
+    // Service price input handling
     $(document).on('input', '.service-price-input', function() {
         const $row = $(this).closest('tr');
         const price = unformat($(this).val());
@@ -1127,7 +1171,7 @@ $(document).ready(function() {
     $(document).on('blur', '.service-price-input', function() {
         const $row = $(this).closest('tr');
         const price = unformat($(this).val());
-        $(this).data('value', price).val(formatCurrency(price));
+        $(this).data('value', price).val(price.toFixed(2));
         calculateRow($row);
     });
     
@@ -1146,7 +1190,7 @@ $(document).ready(function() {
             const initVal = unformat($ship.val());
             $ship.data('value', initVal);
             if ($ship.attr('type') !== 'number') {
-                $ship.val(formatCurrency(initVal));
+                $ship.val(initVal.toFixed(2));
             } else {
                 $ship.val(initVal.toFixed(2));
             }
@@ -1172,8 +1216,13 @@ $(document).ready(function() {
             const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
             const effectiveTax = isNonGST ? 0 : tax;
             
-            $row.find('.selling-price').data('value', price).val(formatCurrency(price));
+            $row.find('.selling-price').data('value', price).val(price.toFixed(2));
             $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+
+            // Update tax display
+            const currencySymbol = getCurrencySymbol();
+            $row.find('.tax-amount-line').text(currencySymbol + ' 0.00');
+            $row.find('.tax-rate-line').text(effectiveTax + '%');
 
             // Set the tax dropdown for products
             if (taxId && !isNonGST) {
@@ -1207,9 +1256,14 @@ $(document).ready(function() {
             const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
             const effectiveTax = isNonGST ? 0 : tax;
             
-            // FIXED: Set service price without formatting interference
+            // Store plain number
             $row.find('.service-price-input').data('value', price).val(price.toFixed(2));
             $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+            
+            // Update tax display
+            const currencySymbol = getCurrencySymbol();
+            $row.find('.tax-amount-line').text(currencySymbol + ' 0.00');
+            $row.find('.tax-rate-line').text(effectiveTax + '%');
             
             if (taxId && !isNonGST) {
                 $row.find('.service-tax-select').val(taxId).trigger('change');
@@ -1222,9 +1276,10 @@ $(document).ready(function() {
             $row.find('.tax-name').val('');
             $row.find('.service-price-input').val('0.00').data('value', 0);
             $row.find('.tax-rate').val('').removeData('value');
-            $row.find('.amount').val('').removeData('value');
-            $row.find('.tax-amount-line').text('');
-            $row.find('.tax-rate-line').text('');
+            $row.find('.amount').val('0.00').removeData('value');
+            const currencySymbol = getCurrencySymbol();
+            $row.find('.tax-amount-line').text(currencySymbol + ' 0.00');
+            $row.find('.tax-rate-line').text('0%');
             calculateSummary();
         }
 
@@ -1330,13 +1385,15 @@ $(document).ready(function() {
         const lineTaxAmount = lineSubtotal * (taxRate / 100);
         const lineTotal = lineSubtotal + lineTaxAmount;
 
-        const taxAmountFormatted = formatCurrency(lineTaxAmount);
+        const currencySymbol = getCurrencySymbol();
+        const taxAmountFormatted = currencySymbol + ' ' + lineTaxAmount.toFixed(2);
         const taxRateFormatted = `${taxRate}%`;
         
         $row.find('.tax-amount-line').text(taxAmountFormatted);
         $row.find('.tax-rate-line').text(taxRateFormatted);
         
-        $row.find('.amount').data('value', lineTotal).val(formatCurrency(lineTotal));
+        // Store plain number in input value
+        $row.find('.amount').data('value', lineTotal).val(lineTotal.toFixed(2));
         
         calculateSummary();
     }
@@ -1351,6 +1408,7 @@ $(document).ready(function() {
 
     function calculateSummary() {
         let sub = 0, taxGroups = {}, grandTotal = 0;
+        const currencySymbol = getCurrencySymbol();
 
         $('.add-tbody tr').each(function() {
             let p = 0;
@@ -1434,7 +1492,7 @@ $(document).ready(function() {
                     taxHtml += `
                         <div class="d-flex align-items-center justify-content-between mb-2">
                             <h6 class="fs-14 fw-semibold">${taxLabel}</h6>
-                            <h6 class="fs-14 fw-semibold">${formatCurrency(lineTaxAmount)}</h6>
+                            <h6 class="fs-14 fw-semibold">${currencySymbol} ${lineTaxAmount.toFixed(2)}</h6>
                         </div>`;
                 }
             });
@@ -1444,8 +1502,8 @@ $(document).ready(function() {
 
         const totalAll = grandTotal + shippingCharge;
 
-        $('#subtotal-amount').text(formatCurrency(sub));
-        $('#total-amount').text(formatCurrency(totalAll));
+        $('#subtotal-amount').text(sub.toFixed(2));
+        $('#total-amount').text(totalAll.toFixed(2));
 
         $('#subtotal-amount-field').val(sub.toFixed(2));
         $('#tax-amount-field').val(Object.values(taxGroups).reduce((a,b)=>a+b,0).toFixed(2));
@@ -1457,8 +1515,9 @@ $(document).ready(function() {
         $row.find('.quantity').val(isService ? '' : '1').removeClass('service-quantity');
         $row.find('.hsn-code, .selling-price, .tax-rate, .amount, .service-name-input, .service-price-input').val('').removeData('value');
         $row.find('.tax-id').val('');
-        $row.find('.tax-amount-line').text('');
-        $row.find('.tax-rate-line').text('');
+        const currencySymbol = getCurrencySymbol();
+        $row.find('.tax-amount-line').text(currencySymbol + ' 0.00');
+        $row.find('.tax-rate-line').text('0%');
         calculateSummary();
     }
 
@@ -1504,7 +1563,7 @@ $(document).ready(function() {
     updateServiceDropdowns();
     calculateSummary();
     
-    console.log('Initialization complete - service price editing works with optional quantity');
+    console.log('Initialization complete - currency functionality added without dropdown and without affecting data storage');
 });
 </script>
 </body>

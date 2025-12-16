@@ -8,6 +8,13 @@ if ($invoice_id <= 0) {
     die('Invalid Invoice ID!');
 }
 
+// Get company currency (same as in add customer)
+$companyCurrency = getCompanyCurrency($conn);
+
+// Get all currencies for dropdown
+$currency_query = "SELECT * FROM currency ORDER BY currency_name";
+$currency_result = mysqli_query($conn, $currency_query);
+
 // Fetch invoice
 $invoice_result = mysqli_query($conn, "
     SELECT i.*, l.name AS salesperson_name
@@ -26,6 +33,22 @@ $invoiceId = $invoice['id'];
 $client_id = $invoice['client_id'];
 $bank_id = $invoice['bank_id'];
 $item_type = $invoice['item_type']; // Get item type from invoice
+
+// Get client currency if set, otherwise use company currency
+$clientCurrency = $companyCurrency; // Default to company currency
+if (!empty($client_id)) {
+    $client_query = mysqli_query($conn, "SELECT currency FROM client WHERE id = $client_id");
+    if ($client = mysqli_fetch_assoc($client_query)) {
+        if (!empty($client['currency'])) {
+            // Get client's currency details
+            $currency_id = $client['currency'];
+            $currency_query = mysqli_query($conn, "SELECT * FROM currency WHERE id = $currency_id");
+            if ($currency = mysqli_fetch_assoc($currency_query)) {
+                $clientCurrency = $currency;
+            }
+        }
+    }
+}
 
 // Fetch client only if client_id is valid
 $client = null;
@@ -109,43 +132,10 @@ $showTerms = !empty($invoice['description']);
 // Check if bank details are available
 $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account_number']) || !empty($bank['ifsc_code']));
 
-// Function to convert number to words
-// function numberToWords($number) {
-//     $ones = array(
-//         0 => 'Zero', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four',
-//         5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine',
-//         10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen',
-//         14 => 'Fourteen', 15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen',
-//         18 => 'Eighteen', 19 => 'Nineteen'
-//     );
-    
-//     $tens = array(
-//         2 => 'Twenty', 3 => 'Thirty', 4 => 'Forty', 5 => 'Fifty',
-//         6 => 'Sixty', 7 => 'Seventy', 8 => 'Eighty', 9 => 'Ninety'
-//     );
-    
-//     if ($number < 20) {
-//         return $ones[$number];
-//     }
-    
-//     if ($number < 100) {
-//         return $tens[(int)($number / 10)] . ($number % 10 != 0 ? ' ' . $ones[$number % 10] : '');
-//     }
-    
-//     if ($number < 1000) {
-//         return $ones[(int)($number / 100)] . ' Hundred' . ($number % 100 != 0 ? ' ' . numberToWords($number % 100) : '');
-//     }
-    
-//     if ($number < 100000) {
-//         return numberToWords((int)($number / 1000)) . ' Thousand' . ($number % 1000 != 0 ? ' ' . numberToWords($number % 1000) : '');
-//     }
-    
-//     if ($number < 10000000) {
-//         return numberToWords((int)($number / 100000)) . ' Lakh' . ($number % 100000 != 0 ? ' ' . numberToWords($number % 100000) : '');
-//     }
-    
-//     return numberToWords((int)($number / 10000000)) . ' Crore' . ($number % 10000000 != 0 ? ' ' . numberToWords($number % 10000000) : '');
-// }
+// Function to format amount with currency symbol
+function formatAmount($amount, $currencySymbol = '$') {
+    return $currencySymbol . number_format($amount, 2);
+}
 
 ?>
 <!DOCTYPE html>
@@ -382,6 +372,22 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
         border-radius: 50%;
         margin-right: 6px;
     }
+    
+    /* Currency dropdown styles (same as add customer) */
+    .currency-select-container {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+    .currency-badge {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 14px;
+        color: #495057;
+    }
 </style>
 </head>
 
@@ -446,6 +452,14 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
                                         </div>
                                     </div>
 
+                                    <!-- Currency Display -->
+                                    <!-- <div class="currency-select-container">
+                                        <div class="currency-badge">
+                                            Currency: <?= htmlspecialchars($clientCurrency['currency_symbol']) ?> 
+                                            (<?= htmlspecialchars($clientCurrency['currency_name']) ?>)
+                                        </div>
+                                    </div> -->
+
                                     <!-- Download PDF button -->
                                     <a href="generate-invoice-pdf.php?id=<?= $invoiceId ?>" class="btn btn-outline-white d-inline-flex align-items-center me-3">
                                         <i class="isax isax-document-download me-1"></i>Download PDF
@@ -482,6 +496,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 										<h5>INVOICE</h5>
 										<p class="mb-0">Invoice No: <?= htmlspecialchars($invoice['invoice_id']) ?></p>
 										<p class="mb-0">Date: <?= htmlspecialchars($invoice['invoice_date']) ?></p>
+										<p class="mb-0">Currency: <?= htmlspecialchars($clientCurrency['currency_name']) ?></p>
 									</div>
 								</div>
 								
@@ -518,6 +533,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 															};
 															?>
 															<p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm"><?= ucfirst($status) ?></span></p>
+															<p class="mb-1">Currency : <span class="text-dark"><?= htmlspecialchars($clientCurrency['currency_name']) ?> (<?= htmlspecialchars($clientCurrency['currency_symbol']) ?>)</span></p>
                                             </div>
                                             <div class="col-md-6 text-end">
                                                 <p class="mb-1">Invoice Number : <span class="text-dark"><?= htmlspecialchars($invoice['invoice_id']) ?></span></p>
@@ -634,7 +650,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 																<td><?= $item['quantity'] ?></td>
 															<?php endif; ?>
 													
-															<td>$<?= $item['selling_price'] ?></td>
+															<td><?= formatAmount($item['selling_price'], $clientCurrency['currency_symbol']) ?></td>
 															<td>
 																<?php if (($invoice['gst_type'] ?? 'gst') === 'non_gst'): ?>
 																	Non-GST
@@ -642,7 +658,7 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 																	<?= $item['tax_name'] ?>
 																<?php endif; ?>
 															</td>
-															<td>$<?= $item['amount'] ?></td>
+															<td><?= formatAmount($item['amount'], $clientCurrency['currency_symbol']) ?></td>
 														</tr>
 														<?php } ?>
 													</tbody>
@@ -686,35 +702,35 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 													<div class="mb-3 p-4">
 														<div class="d-flex align-items-center justify-content-between mb-3">
 															<h6 class="fs-14 fw-semibold">Sub Amount</h6>
-															<h6 class="fs-14 fw-semibold">$<?= $invoice['amount'] ?></h6>
+															<h6 class="fs-14 fw-semibold"><?= formatAmount($invoice['amount'], $clientCurrency['currency_symbol']) ?></h6>
 														</div>
 														
 														<?php if (($invoice['gst_type'] ?? 'gst') === 'non_gst'): ?>
 															<div class="d-flex align-items-center justify-content-between mb-3">
 																<h6 class="fs-14 fw-semibold">Tax (Non-GST)</h6>
-																<h6 class="fs-14 fw-semibold">0.00</h6>
+																<h6 class="fs-14 fw-semibold"><?= formatAmount(0, $clientCurrency['currency_symbol']) ?></h6>
 															</div>
 														<?php else: ?>
 															<div class="d-flex align-items-center justify-content-between mb-3">
 																<h6 class="fs-14 fw-semibold">Tax Amount</h6>
-																<h6 class="fs-14 fw-semibold">$<?= $invoice['tax_amount'] ?></h6>
+																<h6 class="fs-14 fw-semibold"><?= formatAmount($invoice['tax_amount'], $clientCurrency['currency_symbol']) ?></h6>
 															</div>
 														<?php endif; ?>
 														
 														<?php if (!empty($invoice['shipping_charge']) && $invoice['shipping_charge'] > 0): ?>
 															<div class="d-flex align-items-center justify-content-between mb-3">
 																<h6 class="fs-14 fw-semibold">Shipping Charge</h6>
-																<h6 class="fs-14 fw-semibold">$<?= $invoice['shipping_charge'] ?></h6>
+																<h6 class="fs-14 fw-semibold"><?= formatAmount($invoice['shipping_charge'], $clientCurrency['currency_symbol']) ?></h6>
 															</div>
 														<?php endif; ?>
 														
 														<div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3">
 															<h6>Total</h6>
-															<h6>$<?= $invoice['total_amount'] ?></h6>
+															<h6><?= formatAmount($invoice['total_amount'], $clientCurrency['currency_symbol']) ?></h6>
 														</div>
 														<div class="d-flex justify-content-between align-items-center">
 															<h6 class="fs-14 fw-semibold mb-1 m-0">Total In Words</h6>
-															<p class="m-0"><?= numberToWords($invoice['total_amount']) ?> Dollars</p>
+															<p class="m-0"><?= numberToWords($invoice['total_amount']) ?> <?= htmlspecialchars($clientCurrency['currency_name']) ?></p>
 														</div>
 
 													</div>
@@ -820,6 +836,31 @@ $showBankDetails = $bank && (!empty($bank['bank_name']) || !empty($bank['account
 							</div>
 						</div>
 					</div>
+					
+					<!-- Currency Selection Section -->
+					<!-- <div class="mb-3">
+						<label class="form-label">Currency <span class="text-danger">*</span></label>
+						<span id="currencyError" class="text-danger fs-12 d-block mt-1"></span>
+						<select class="form-select" name="currency" id="currency">
+							<?php 
+							// Reset currency_result pointer
+							mysqli_data_seek($currency_result, 0);
+							
+							while ($currency = mysqli_fetch_assoc($currency_result)) {
+								// Use client currency as default selection, fallback to company currency
+								$selected = ($currency['id'] == $clientCurrency['id']) ? 'selected' : '';
+								echo "<option value='{$currency['id']}' $selected data-symbol='{$currency['currency_symbol']}'>
+										{$currency['currency_name']} ({$currency['currency_symbol']})
+									  </option>";
+							} 
+							?>
+						</select>
+						<small class="text-muted">
+							Current: <?= htmlspecialchars($clientCurrency['currency_name']) ?> 
+							(<?= htmlspecialchars($clientCurrency['currency_symbol']) ?>)
+						</small>
+					</div> -->
+					
 					<div class="offcanvas-footer">
 						<div class="row g-2">
 							<div class="col-6">
@@ -857,6 +898,35 @@ function sendInvoiceEmail(invoiceId) {
         }
     });
 }
+
+// Function to format price with currency symbol
+function formatPrice(amount, currencySymbol) {
+    return currencySymbol + parseFloat(amount).toFixed(2);
+}
+
+// Update all price displays when currency changes
+function updateCurrencyDisplay(currencySymbol) {
+    // Update all price displays on the page
+    document.querySelectorAll('.price-display').forEach(function(element) {
+        const amount = element.getAttribute('data-amount') || element.textContent.replace(/[^0-9.-]+/g, "");
+        if (amount) {
+            element.textContent = formatPrice(amount, currencySymbol);
+        }
+    });
+}
+
+// Handle currency change in offcanvas form
+document.getElementById('currency').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const currencySymbol = selectedOption.getAttribute('data-symbol');
+    
+    // Update the currency badge in the main view
+    const currencyBadge = document.querySelector('.currency-badge');
+    if (currencyBadge) {
+        const currencyName = selectedOption.text.split('(')[0].trim();
+        currencyBadge.textContent = 'Currency: ' + currencySymbol + ' (' + currencyName + ')';
+    }
+});
 </script>
 <script>
 // Status dropdown functionality for the new dropdown
@@ -1001,13 +1071,27 @@ window.addEventListener("DOMContentLoaded", updateDropdownBtn);
 document.getElementById("invoiceStatusForm").addEventListener("submit", function(e) {
     let statusChecked = document.querySelector("input[name='status']:checked");
     let errorSpan = document.getElementById("statusError");
+    let currencySelected = document.getElementById("currency").value;
+    let currencyError = document.getElementById("currencyError");
+    let isValid = true;
 
     if (!statusChecked) {
         e.preventDefault();
         errorSpan.textContent = "Please select a status.";
+        isValid = false;
     } else {
         errorSpan.textContent = "";
     }
+    
+    if (!currencySelected) {
+        e.preventDefault();
+        currencyError.textContent = "Please select a currency.";
+        isValid = false;
+    } else {
+        currencyError.textContent = "";
+    }
+    
+    return isValid;
 });
 </script>
 

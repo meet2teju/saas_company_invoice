@@ -6,6 +6,9 @@ ini_set('display_errors', 1);
 <?php
 include '../config/config.php';
 
+// ADDED: Get company currency
+$companyCurrency = getCompanyCurrency($conn);
+
 // Validate and sanitize the ID
 $invoice_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -27,6 +30,10 @@ if (!$result || mysqli_num_rows($result) === 0) {
 }
 
 $row = mysqli_fetch_assoc($result);
+
+// ADDED: Get all currencies for dropdown
+$currency_query = "SELECT * FROM currency ORDER BY currency_name";
+$currency_result = mysqli_query($conn, $currency_query);
 
 // Fetch tax rates from database
 $taxRates = [];
@@ -185,6 +192,15 @@ if ($project_id > 0) {
         .hidden-tax-id {
             display: none;
         }
+        /* ADDED: Currency badge style */
+        .currency-badge {
+            background-color: #e7f1ff;
+            color: #0d6efd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
     </style>
 </head>
 
@@ -218,6 +234,10 @@ if ($project_id > 0) {
                             <div class="d-flex align-items-center justify-content-between mb-3">
                                 <h6>Edit Invoice</h6>
                                 <div class="d-flex align-items-center gap-3">
+                                    <!-- ADDED: Currency badge -->
+                                    <!-- <div class="currency-badge">
+                                        Company Currency: <?php echo $companyCurrency['currency_symbol'] . ' (' . $companyCurrency['currency_name'] . ')'; ?>
+                                    </div> -->
                                     <div class="gst-toggle-group">
                                         <span class="gst-toggle-label">GST Type:</span>
                                         <div class="form-check form-check-inline">
@@ -240,6 +260,9 @@ if ($project_id > 0) {
                                         <input type="hidden" name="id" value="<?= $invoice_id ?>">
                                         <input type="hidden" name="user_id" value="<?php echo $_SESSION['crm_user_id'] ?? ''; ?>">
                                         <input type="hidden" name="gst_type" id="gst_type_field" value="<?= $gst_type ?>">
+                                        
+                                        <!-- ADDED: Currency hidden field -->
+                                        <input type="hidden" name="currency_id" id="currency_id" value="<?= $companyCurrency['id']; ?>">
 
                                         <div class="border-bottom mb-3 pb-1">
                                             <div class="row gx-3">
@@ -544,11 +567,11 @@ if ($project_id > 0) {
                                                                 <td>
                                                                     <?php if ($isProduct): ?>
                                                                         <input type="text" class="form-control selling-price" name="selling_price[]" 
-                                                                            value="<?= '$ ' . number_format($price, 2) ?>" 
+                                                                            value="<?= $companyCurrency['currency_symbol'] . ' ' . number_format($price, 2) ?>" 
                                                                             data-value="<?= $price ?>">
                                                                     <?php else: ?>
                                                                         <input type="text" class="form-control service-price-input" name="selling_price[]" 
-                                                                            value="<?= '$ ' . number_format($price, 2) ?>" 
+                                                                            value="<?= $companyCurrency['currency_symbol'] . ' ' . number_format($price, 2) ?>" 
                                                                             data-value="<?= $price ?>" placeholder="0.00">
                                                                     <?php endif; ?>
                                                                 </td>
@@ -568,7 +591,7 @@ if ($project_id > 0) {
                                                                         </select>
                                                                         <input type="hidden" class="tax-rate" name="rate[]" data-value="<?= $displayTaxRate ?>" value="<?= number_format($displayTaxRate, 2) . '%' ?>">
                                                                         <div class="tax-display-container mt-2">
-                                                                            <div class="tax-amount-line"><?= '$ ' . number_format($displayLineTax, 2) ?></div>
+                                                                            <div class="tax-amount-line"><?= $companyCurrency['currency_symbol'] . ' ' . number_format($displayLineTax, 2) ?></div>
                                                                             <div class="tax-rate-line"><?= number_format($displayTaxRate, 2) . '%' ?></div>
                                                                         </div>
                                                                     <?php else: ?>
@@ -584,7 +607,7 @@ if ($project_id > 0) {
                                                                         </select>
                                                                         <input type="hidden" class="tax-rate" name="rate[]" data-value="<?= $displayTaxRate ?>" value="<?= number_format($displayTaxRate, 2) . '%' ?>">
                                                                         <div class="tax-display-container mt-2">
-                                                                            <div class="tax-amount-line"><?= '$ ' . number_format($displayLineTax, 2) ?></div>
+                                                                            <div class="tax-amount-line"><?= $companyCurrency['currency_symbol'] . ' ' . number_format($displayLineTax, 2) ?></div>
                                                                             <div class="tax-rate-line"><?= number_format($displayTaxRate, 2) . '%' ?></div>
                                                                         </div>
                                                                     <?php endif; ?>
@@ -592,7 +615,7 @@ if ($project_id > 0) {
                                                                 
                                                                 <td>
                                                                     <input type="text" class="form-control amount" name="amount[]" 
-                                                                        value="<?= '$ ' . number_format($displayAmount, 2) ?>" 
+                                                                        value="<?= $companyCurrency['currency_symbol'] . ' ' . number_format($displayAmount, 2) ?>" 
                                                                         data-value="<?= $displayAmount ?>" readonly>
                                                                 </td>
                                                                 
@@ -712,18 +735,18 @@ if ($project_id > 0) {
                                                     <div class="mb-3">
                                                         <div class="d-flex align-items-center justify-content-between mb-3">
                                                             <h6 class="fs-14 fw-semibold">Amount</h6>
-                                                            <h6 class="fs-14 fw-semibold" id="subtotal-amount"><?= '$ ' . number_format($displaySubAmount, 2) ?></h6>
+                                                            <h6 class="fs-14 fw-semibold" id="subtotal-amount"><?= $companyCurrency['currency_symbol'] . ' ' . number_format($displaySubAmount, 2) ?></h6>
                                                         </div>
                                                         <div class="tax-details" style="<?= $gst_type == 'non_gst' ? 'display: none !important;' : '' ?>">
                                                             <!-- JS will populate tax per rate here -->
                                                         </div>
                                                         <div id="shipping-charge-group" class="d-flex align-items-center justify-content-between mb-3">
                                                             <h6 class="fs-14 fw-semibold mb-0">Shipping Charge</h6>
-                                                            <input type="text" class="form-control" id="shipping-charge" name="shipping_charge" value="<?= '$ ' . number_format($row['shipping_charge'], 2) ?>">
+                                                            <input type="text" class="form-control" id="shipping-charge" name="shipping_charge" value="<?= $companyCurrency['currency_symbol'] . ' ' . number_format($row['shipping_charge'], 2) ?>">
                                                         </div>
                                                         <div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3">
                                                             <h6>Total</h6>
-                                                            <h6 id="total-amount"><?= '$ ' . number_format($displayTotalAmount, 2) ?></h6>
+                                                            <h6 id="total-amount"><?= $companyCurrency['currency_symbol'] . ' ' . number_format($displayTotalAmount, 2) ?></h6>
                                                         </div>
                                                     </div>
                                                 </div><!-- end col -->
@@ -759,10 +782,41 @@ if ($project_id > 0) {
    
     <script>
         // =============================================
-        // FIXED INVOICE EDIT SCRIPT - WITH ALL QUOTATION FIXES
+        // FIXED INVOICE EDIT SCRIPT - WITH CURRENCY FUNCTIONALITY
         // =============================================
         $(document).ready(function() {
-            console.log('Document ready - initializing invoice edit with fixes...');
+            console.log('Document ready - initializing invoice edit with currency functionality...');
+
+            // Get company currency from PHP
+            const companyCurrency = {
+                id: <?php echo $companyCurrency['id']; ?>,
+                symbol: '<?php echo $companyCurrency['currency_symbol']; ?>',
+                name: '<?php echo $companyCurrency['currency_name']; ?>',
+                code: '<?php echo $companyCurrency['currency_code'] ?? 'INR'; ?>'
+            };
+            
+            console.log('Company currency loaded:', companyCurrency);
+
+            // Update currency formatting functions
+            function formatCurrency(value) {
+                if (value === '' || value === null || value === undefined) return companyCurrency.symbol + ' 0.00';
+                const n = parseFloat(value);
+                if (isNaN(n)) return companyCurrency.symbol + ' 0.00';
+                return `${companyCurrency.symbol} ${n.toFixed(2)}`;
+            }
+
+            function formatPercent(value) {
+                if (value === '' || value === null || value === undefined) return '0%';
+                const n = parseFloat(value);
+                if (isNaN(n)) return '0%';
+                return `${n.toFixed(2)}%`;
+            }
+
+            function unformat(value) {
+                if (value === '' || value === null || value === undefined) return 0;
+                const n = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+                return isNaN(n) ? 0 : n;
+            }
 
             // Remove ALL existing click handlers from add button FIRST
             $(document).off('click', '.add-invoice-data');
@@ -927,7 +981,7 @@ if ($project_id > 0) {
                                                     </select>
                                                     <input type="hidden" class="tax-rate" name="rate[]" data-value="${isNonGST ? '0' : '0'}" value="${isNonGST ? '0%' : '0%'}">
                                                     <div class="tax-display-container mt-2">
-                                                        <div class="tax-amount-line">$ 0.00</div>
+                                                        <div class="tax-amount-line">${formatCurrency(0)}</div>
                                                         <div class="tax-rate-line">${isNonGST ? '0%' : '0%'}</div>
                                                     </div>
                                                 </div>
@@ -1044,7 +1098,7 @@ if ($project_id > 0) {
                     $('.service-tax-select, .product-tax-select').prop('disabled', true);
                     
                     // Update tax display containers to show 0
-                    $('.tax-amount-line').text('$ 0.00');
+                    $('.tax-amount-line').text(formatCurrency(0));
                     $('.tax-rate-line').text('0%');
                     
                 } else {
@@ -1101,26 +1155,6 @@ if ($project_id > 0) {
             });
 
             // ================ BASIC FUNCTIONS ================
-            function formatCurrency(value) {
-                if (value === '' || value === null || value === undefined) return '$ 0.00';
-                const n = parseFloat(value);
-                if (isNaN(n)) return '$ 0.00';
-                return `$ ${n.toFixed(2)}`;
-            }
-
-            function formatPercent(value) {
-                if (value === '' || value === null || value === undefined) return '0%';
-                const n = parseFloat(value);
-                if (isNaN(n)) return '0%';
-                return `${n.toFixed(2)}%`;
-            }
-
-            function unformat(value) {
-                if (value === '' || value === null || value === undefined) return 0;
-                const n = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
-                return isNaN(n) ? 0 : n;
-            }
-
             function loadProducts(target) {
                 let productOptions = '<option value="">Select Product</option>';
                 <?php foreach ($products as $product): ?>
@@ -1762,7 +1796,7 @@ if ($project_id > 0) {
             updateProductDropdowns();
             updateServiceDropdowns();
             
-            console.log('Invoice edit initialization complete with all fixes');
+            console.log('Invoice edit initialization complete with currency functionality');
         });
     </script>
 
