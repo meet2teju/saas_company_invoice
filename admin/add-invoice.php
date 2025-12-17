@@ -291,7 +291,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                             <div class="col-lg-4 col-md-6">
                                               <div class="mb-3">
                                                   <label class="form-label">Invoice Number</label>
-                                                  <input type="text" class="form-control" name="invoice_id" value="<?= $newinvoiceID ?>" readonly >
+                                                  <input type="text" class="form-control" name="invoice_id" value="<?= $newinvoiceID ?>" >
                                               </div>
                                             </div>
                                             <div class="col-lg-4 col-md-6">

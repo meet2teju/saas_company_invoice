@@ -2,6 +2,9 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
+// Get company currency
+$companyCurrency = getCompanyCurrency($conn);
+
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['message'] = "Invalid Quotation ID.";
     $_SESSION['message_type'] = "danger";
@@ -102,43 +105,10 @@ if (!empty($quotation['client_id'])) {
     $client_address = mysqli_fetch_assoc($client_address_result);
 }
 
-// Function to convert number to words
-// function numberToWords($number) {
-//     $ones = array(
-//         0 => 'Zero', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four',
-//         5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine',
-//         10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen',
-//         14 => 'Fourteen', 15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen',
-//         18 => 'Eighteen', 19 => 'Nineteen'
-//     );
-    
-//     $tens = array(
-//         2 => 'Twenty', 3 => 'Thirty', 4 => 'Forty', 5 => 'Fifty',
-//         6 => 'Sixty', 7 => 'Seventy', 8 => 'Eighty', 9 => 'Ninety'
-//     );
-    
-//     if ($number < 20) {
-//         return $ones[$number];
-//     }
-    
-//     if ($number < 100) {
-//         return $tens[(int)($number / 10)] . ($number % 10 != 0 ? ' ' . $ones[$number % 10] : '');
-//     }
-    
-//     if ($number < 1000) {
-//         return $ones[(int)($number / 100)] . ' Hundred' . ($number % 100 != 0 ? ' ' . numberToWords($number % 100) : '');
-//     }
-    
-//     if ($number < 100000) {
-//         return numberToWords((int)($number / 1000)) . ' Thousand' . ($number % 1000 != 0 ? ' ' . numberToWords($number % 1000) : '');
-//     }
-    
-//     if ($number < 10000000) {
-//         return numberToWords((int)($number / 100000)) . ' Lakh' . ($number % 100000 != 0 ? ' ' . numberToWords($number % 100000) : '');
-//     }
-    
-//     return numberToWords((int)($number / 10000000)) . ' Crore' . ($number % 10000000 != 0 ? ' ' . numberToWords($number % 10000000) : '');
-// }
+// Get currency symbol
+$currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
+
+
 
 ?>
 
@@ -376,6 +346,12 @@ if (!empty($quotation['client_id'])) {
             border-radius: 50%;
             margin-right: 6px;
         }
+        
+        /* Currency display styles */
+        .currency-display {
+            font-weight: 600;
+            color: #2c3e50;
+        }
     </style>
 </head>
 <body>
@@ -474,6 +450,7 @@ if (!empty($quotation['client_id'])) {
                                     <h5>QUOTATION</h5>
                                     <p class="mb-0">Quotation No: <?= htmlspecialchars($quotation['quotation_id']) ?></p>
                                     <p class="mb-0">Date: <?= htmlspecialchars($quotation['quotation_date']) ?></p>
+                                    <p class="mb-0">Currency: <?= htmlspecialchars($companyCurrency['currency_name'] ?? '') ?> (<?= htmlspecialchars($currencySymbol) ?>)</p>
                                 </div>
                             </div>
                             
@@ -512,6 +489,7 @@ if (!empty($quotation['client_id'])) {
                                                         <p class="mb-1">Quotation Number : <span class="text-dark"><?= htmlspecialchars($quotation['quotation_id']) ?></span></p>
                                                         <p class="mb-1">Issued On : <span class="text-dark"><?= htmlspecialchars($quotation['quotation_date']) ?></span></p>
                                                         <p class="mb-1">Expiry Date : <span class="text-dark"><?= htmlspecialchars($quotation['expiry_date']) ?></span></p>
+                                                        <p class="mb-1">Currency : <span class="text-dark"><?= htmlspecialchars($companyCurrency['currency_name'] ?? '') ?> (<?= htmlspecialchars($currencySymbol) ?>)</span></p>
                                             </div>
                                         <!-- <div class="company-info-text">
                                             <h2 class="company-name"><?= htmlspecialchars($company['name'] ?? 'Company Name') ?></h2>
@@ -661,7 +639,7 @@ if (!empty($quotation['client_id'])) {
                                                                 <?php if ($showQuantityColumn): ?>
                                                                     <td><?= $item['quantity'] ?></td>
                                                                 <?php endif; ?>
-                                                                <td>$&nbsp;<?= number_format($item['selling_price'], 2) ?></td>
+                                                                <td><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($item['selling_price'], 2) ?></td>
                                                                 <td>
                                                                     <?php if (($quotation['gst_type'] ?? 'gst') === 'non_gst'): ?>
                                                                         Non-GST
@@ -669,7 +647,7 @@ if (!empty($quotation['client_id'])) {
                                                                         <?= $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '') ?>
                                                                     <?php endif; ?>
                                                                 </td>
-                                                                <td>$&nbsp;<?= number_format($itemAmount, 2) ?></td>
+                                                                <td><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($itemAmount, 2) ?></td>
                                                             </tr>
                                                         <?php } ?>
                                                     </tbody>
@@ -694,7 +672,7 @@ if (!empty($quotation['client_id'])) {
                                                 <div class="mb-3 p-4">
                                                     <div class="d-flex align-items-center justify-content-between mb-3">
                                                         <h6 class="fs-14 fw-semibold">Sub Amount</h6>
-                                                        <h6 class="fs-14 fw-semibold">$ <?= number_format($subtotal, 2) ?></h6>
+                                                        <h6 class="fs-14 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($subtotal, 2) ?></h6>
                                                     </div>
 
                                                     <?php 
@@ -705,7 +683,7 @@ if (!empty($quotation['client_id'])) {
                                                     ?>
                                                         <div class="d-flex align-items-center justify-content-between mb-3">
                                                             <h6 class="fs-14 fw-semibold"><?= $taxLabel ?></h6>
-                                                            <h6 class="fs-14 fw-semibold">$ <?= number_format($taxAmount, 2) ?></h6>
+                                                            <h6 class="fs-14 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($taxAmount, 2) ?></h6>
                                                         </div>
                                                     <?php 
                                                         endforeach; 
@@ -713,24 +691,24 @@ if (!empty($quotation['client_id'])) {
                                                     ?>
                                                         <div class="d-flex align-items-center justify-content-between mb-3">
                                                             <h6 class="fs-14 fw-semibold">Tax (Non-GST)</h6>
-                                                            <h6 class="fs-14 fw-semibold">$ 0.00</h6>
+                                                            <h6 class="fs-14 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;0.00</h6>
                                                         </div>
                                                     <?php endif; ?>
 
                                                    <?php if (!empty($quotation['shipping_charge']) && $quotation['shipping_charge'] > 0): ?>
                                                         <div class="d-flex align-items-center justify-content-between mb-3">
                                                             <h6 class="fs-14 fw-semibold">Shipping Charge</h6>
-                                                            <h6 class="fs-14 fw-semibold">$ <?= number_format($quotation['shipping_charge'], 2) ?></h6>
+                                                            <h6 class="fs-14 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($quotation['shipping_charge'], 2) ?></h6>
                                                         </div>
                                                     <?php endif; ?>
 
                                                     <div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3">
                                                         <h6>Total</h6>
-                                                        <h6>$ <?= number_format($quotation['total_amount'], 2) ?></h6>
+                                                        <h6><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($quotation['total_amount'], 2) ?></h6>
                                                     </div>
                                                     <div class="d-flex justify-content-between align-items-center">
                                                         <h6 class="fs-14 fw-semibold mb-1 m-0">Total In Words</h6>
-                                                        <p class="m-0"><?= numberToWords($quotation['total_amount']) ?> Dollars</p>
+                                                        <p class="m-0"><?= numberToWords($quotation['total_amount']) ?> <?= htmlspecialchars($companyCurrency['currency_name'] ?? 'Dollars') ?></p>
                                                     </div>
                                                 </div>
                                             </div><!-- end col -->
@@ -885,7 +863,7 @@ if (!empty($quotation['client_id'])) {
                     <button type="submit" class="btn btn-primary">Convert to Invoice</button>
                 </form>
             </div>
-        </div>
+</div>
     </div>
 </div>
 

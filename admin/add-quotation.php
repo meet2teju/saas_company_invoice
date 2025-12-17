@@ -6,6 +6,27 @@ ini_set('display_errors', 1);
 <?php
 include '../config/config.php';
 
+// Get company currency (already available via session.php)
+$companyCurrency = getCompanyCurrency($conn);
+
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
 // Get next AUTO_INCREMENT value
 $query = "SELECT AUTO_INCREMENT FROM INFORMATION_SCHEMA.TABLES 
           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'quotation'";
@@ -20,22 +41,39 @@ if ($row && isset($row['AUTO_INCREMENT'])) {
     $newQuotationID = 'EST-0001';
 }
 
-// Fetch tax rates from database
+// Fetch tax rates from database with organization filtering
 $taxRates = [];
-$taxQuery = "SELECT id, name, rate FROM tax WHERE status = 1 AND org_id = '" . $_SESSION['org_id'] . "'";
+$taxQuery = "SELECT id, name, rate FROM tax WHERE status = 1";
+if ($currentOrgId > 0) {
+    $taxQuery .= " AND org_id = $currentOrgId";
+}
 $taxResult = mysqli_query($conn, $taxQuery);
 while ($taxRow = mysqli_fetch_assoc($taxResult)) {
     $taxRates[] = $taxRow;
 }
 
-// Fetch products and services from product table based on item_type
+// Fetch products and services from product table based on item_type with organization filtering
 $products = [];
 $services = [];
 $itemQuery = "SELECT p.id, p.name, p.selling_price, p.code, p.item_type, 
                      t.id AS tax_id, t.rate AS tax_rate, t.name AS tax_name
               FROM product p
               LEFT JOIN tax t ON p.tax_id = t.id
-              WHERE p.is_deleted = 0 AND p.status = 1 AND p.org_id = '" . $_SESSION['org_id'] . "'";
+              WHERE p.is_deleted = 0 AND p.status = 1";
+if ($currentOrgId > 0) {
+    $itemQuery .= " AND p.org_id = $currentOrgId";
+}
+// Add role-based filtering for non-admin users
+if ($userRoleId != 1) {
+    $itemQuery .= " AND (p.user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = p.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
+}
+$itemQuery .= " ORDER BY p.name ASC";
+
 $itemResult = mysqli_query($conn, $itemQuery);
 while ($item = mysqli_fetch_assoc($itemResult)) {
     if ($item['item_type'] == 1) {
@@ -120,6 +158,18 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
         .product-tax-select {
             margin-bottom: 8px;
         }
+        /* Currency info badge */
+        .currency-badge {
+            background: #0dcaf0;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .currency-prefix {
+            font-weight: 600;
+        }
     </style>
 </head>
 
@@ -135,6 +185,10 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                             <div class="d-flex align-items-center justify-content-between mb-3">
                                 <h6>Add Quotations</h6>
                                 <div class="d-flex align-items-center gap-3">
+                                    <!-- Display current company currency -->
+                                    <!-- <div class="currency-badge">
+                                        Company Currency: <?php echo $companyCurrency['currency_symbol'] . ' (' . $companyCurrency['currency_name'] . ')'; ?>
+                                    </div> -->
                                     <div class="gst-toggle-group">
                                         <span class="gst-toggle-label">GST Type:</span>
                                         <div class="form-check form-check-inline">
@@ -154,6 +208,11 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                     <form action="process/action_add_quotation.php" method="POST" enctype="multipart/form-data" id="form">
                                         <input type="hidden" name="user_id" value="<?php echo $_SESSION['crm_user_id'] ?? ''; ?>">
                                         <input type="hidden" name="gst_type" id="gst_type_field" value="gst">
+                                        
+                                        <!-- Add currency hidden fields -->
+                                        <input type="hidden" name="currency_id" value="<?php echo $companyCurrency['id']; ?>">
+                                        <input type="hidden" name="currency_symbol" value="<?php echo $companyCurrency['currency_symbol']; ?>">
+                                        <input type="hidden" name="currency_name" value="<?php echo $companyCurrency['currency_name']; ?>">
 
                                         <div class="border-bottom mb-3 pb-1">
                                             <div class="row gx-3">
@@ -163,7 +222,23 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                                         <select class="form-select select2" name="client_id" id="client_id">
                                                             <option value="">Select Client</option>
                                                             <?php
-                                                            $result = mysqli_query($conn, "SELECT * FROM client WHERE org_id = '" . $_SESSION['org_id'] . "'");
+                                                            // MODIFIED: Apply access control to clients dropdown
+                                                            $clients_query = "SELECT * FROM client WHERE is_deleted = 0";
+                                                            if ($currentOrgId > 0) {
+                                                                $clients_query .= " AND org_id = $currentOrgId";
+                                                            }
+                                                            // Add role-based filtering for non-admin users
+                                                            if ($userRoleId != 1) {
+                                                                $clients_query .= " AND (user_id = $currentUserId OR EXISTS (
+                                                                    SELECT 1 FROM login u 
+                                                                    WHERE u.id = client.user_id 
+                                                                    AND u.role_id = 1 
+                                                                    AND u.org_id = $currentOrgId
+                                                                ))";
+                                                            }
+                                                            $clients_query .= " ORDER BY first_name ASC";
+                                                            
+                                                            $result = mysqli_query($conn, $clients_query);
                                                             while ($row = mysqli_fetch_assoc($result)) {
                                                                 $displayName = trim($row['salutation'] . ' ' . $row['first_name'] . ' ' . $row['last_name']);
                                                                 if (!empty($row['company_name'])) {
@@ -218,10 +293,15 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                                         <select class="form-select select2" name="salesperson_id" id="salesperson_id">
                                                             <option value="">Select Salesperson</option>
                                                             <?php
+                                                            // MODIFIED: Apply organization filtering to salesperson dropdown
                                                             $query = "SELECT login.id, login.name FROM login
                                                                       JOIN user_role ON login.role_id = user_role.id
-                                                                      WHERE login.is_deleted = 0 AND login.org_id = '" . $_SESSION['org_id'] . "'
-                                                                      ORDER BY login.name ASC";
+                                                                      WHERE login.is_deleted = 0";
+                                                            if ($currentOrgId > 0) {
+                                                                $query .= " AND login.org_id = $currentOrgId";
+                                                            }
+                                                            $query .= " ORDER BY login.name ASC";
+                                                            
                                                             $result = mysqli_query($conn, $query);
                                                             while ($row = mysqli_fetch_assoc($result)) {
                                                                 echo '<option value="' . $row['id'] . '">' . htmlspecialchars($row['name']) . '</option>';
@@ -237,7 +317,23 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                                         <select class="form-select select2" name="project_id" id="project_id">
                                                             <option value="">Select Project</option>
                                                             <?php
-                                                            $result = mysqli_query($conn, "SELECT * FROM project WHERE org_id = '" . $_SESSION['org_id'] . "'");
+                                                            // MODIFIED: Apply organization filtering to projects
+                                                            $project_query = "SELECT * FROM project WHERE is_deleted = 0";
+                                                            if ($currentOrgId > 0) {
+                                                                $project_query .= " AND org_id = $currentOrgId";
+                                                            }
+                                                            // Add role-based filtering for non-admin users
+                                                            if ($userRoleId != 1) {
+                                                                $project_query .= " AND (user_id = $currentUserId OR EXISTS (
+                                                                    SELECT 1 FROM login u 
+                                                                    WHERE u.id = project.user_id 
+                                                                    AND u.role_id = 1 
+                                                                    AND u.org_id = $currentOrgId
+                                                                ))";
+                                                            }
+                                                            $project_query .= " ORDER BY project_name ASC";
+                                                            
+                                                            $result = mysqli_query($conn, $project_query);
                                                             while ($row = mysqli_fetch_assoc($result)) {
                                                                 echo '<option value="' . $row['id'] . '">' . $row['project_name'] . '</option>';
                                                             }
@@ -363,16 +459,19 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                                     <div class="mb-3">
                                                         <div class="d-flex align-items-center justify-content-between mb-3">
                                                             <h6 class="fs-14 fw-semibold">Amount</h6>
-                                                            <h6 class="fs-14 fw-semibold" id="subtotal-amount"></h6>
+                                                            <h6 class="fs-14 fw-semibold"><span id="currency-symbol"><?php echo $companyCurrency['currency_symbol']; ?></span> <span id="subtotal-amount">0.00</span></h6>
                                                         </div>
                                                         <div class="tax-details"></div>
                                                         <div id="shipping-charge-group" class="d-flex align-items-center justify-content-between mb-3" style="display: none;">
                                                             <h6 class="fs-14 fw-semibold mb-0">Shipping Charge</h6>
-                                                            <input type="text" class="form-control" id="shipping-charge" name="shipping_charge" value="0.00">
+                                                            <div class="input-group" style="width: 150px;">
+                                                                <span class="input-group-text currency-prefix"><?php echo $companyCurrency['currency_symbol']; ?></span>
+                                                                <input type="text" class="form-control" id="shipping-charge" name="shipping_charge" value="0.00">
+                                                            </div>
                                                         </div>
                                                         <div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3">
                                                             <h6>Total</h6>
-                                                            <h6 id="total-amount"></h6>
+                                                            <h6><span id="currency-symbol-total"><?php echo $companyCurrency['currency_symbol']; ?></span> <span id="total-amount">0.00</span></h6>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -398,7 +497,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
     <!-- Additional JS for datepicker -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
-        // COMPLETE SCRIPT - Fixed tax dropdown for products
+        // UPDATED SCRIPT - Added currency functionality and fixed data storage
 
         $(document).ready(function() {
             console.log('Document ready - initializing...');
@@ -453,7 +552,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                     $('.tax-rate').data('value', 0).val('0%');
                     $('.service-tax-select').val('');
                     $('.product-tax-select').val('');
-                    $('.tax-amount-line').text('$ 0.00');
+                    $('.tax-amount-line').text('<?php echo $companyCurrency['currency_symbol']; ?> 0.00');
                     $('.tax-rate-line').text('0%');
                 } else {
                     $('.add-table').removeClass('non-gst-mode');
@@ -483,10 +582,17 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                 calculateSummary();
             });
 
+            // Get currency symbol from PHP
+            function getCurrencySymbol() {
+                return '<?php echo $companyCurrency['currency_symbol']; ?>';
+            }
+
+            // Format currency for display
             function formatCurrency(value) {
                 const n = parseFloat(value);
                 if (isNaN(n)) return '';
-                return `$ ${n.toFixed(2)}`;
+                const symbol = getCurrencySymbol();
+                return `${symbol} ${n.toFixed(2)}`;
             }
 
             function formatPercent(value) {
@@ -496,6 +602,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
             }
 
             function unformat(value) {
+                if (value === undefined || value === null) return 0;
                 const n = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
                 return isNaN(n) ? 0 : n;
             }
@@ -507,7 +614,12 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                     $.ajax({
                         url: 'process/fetch_client_full_info.php',
                         type: 'POST',
-                        data: { client_id: clientId },
+                        data: { 
+                            client_id: clientId,
+                            current_user_id: <?= $currentUserId ?>,
+                            current_org_id: <?= $currentOrgId ?>,
+                            user_role_id: <?= $userRoleId ?>
+                        },
                         dataType: 'json',
                         success: response => {
                             $('#client_info_block').html(response.billing_html);
@@ -519,7 +631,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                 }
             });
 
-            // Form validation
+            // Form validation - IMPORTANT: Ensure plain numbers are submitted
             $('#form').on('submit', function(e) {
                 let isValid = true;
                 $('.error-text').text('');
@@ -546,6 +658,21 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                 if (!isValid) {
                     e.preventDefault();
                     $('html, body').animate({ scrollTop: $('.error-text:visible').first().offset().top - 100 }, 500);
+                } else {
+                    // Before submitting, ensure all numeric fields have plain numbers (no formatting)
+                    $('.selling-price, .service-price-input, .amount').each(function() {
+                        const $input = $(this);
+                        const currentValue = $input.val();
+                        const plainNumber = unformat(currentValue);
+                        $input.val(plainNumber.toFixed(2));
+                    });
+                    
+                    // Also format shipping charge
+                    const shippingCharge = $('#shipping-charge');
+                    if (shippingCharge.length) {
+                        const plainShipping = unformat(shippingCharge.val());
+                        shippingCharge.val(plainShipping.toFixed(2));
+                    }
                 }
             });
 
@@ -560,8 +687,8 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                     data-hsn="<?= $product['code'] ?>"
                                     data-tax="<?= $product['tax_rate'] ?>"
                                     data-tax-id="<?= $product['tax_id'] ?>"
-                                    data-tax-name="<?= $product['tax_name'] ?>">
-                                    <?= $product['name'] ?>
+                                    data-tax-name="<?= htmlspecialchars($product['tax_name'] ?? '', ENT_QUOTES) ?>">
+                                    <?= htmlspecialchars($product['name']) ?>
                                     </option>`;
                 <?php endforeach; ?>
                 
@@ -579,8 +706,8 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                     data-hsn="<?= $service['code'] ?>"
                                     data-tax="<?= $service['tax_rate'] ?>"
                                     data-tax-id="<?= $service['tax_id'] ?>"
-                                    data-tax-name="<?= $service['tax_name'] ?>">
-                                    <?= $service['name'] ?>
+                                    data-tax-name="<?= htmlspecialchars($service['tax_name'] ?? '', ENT_QUOTES) ?>">
+                                    <?= htmlspecialchars($service['name']) ?>
                                     </option>`;
                 <?php endforeach; ?>
                 
@@ -648,10 +775,11 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
             function addNewRow(itemType) {
                 const rowClass = itemType == 1 ? 'product-row' : 'service-row';
                 const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
+                const currencySymbol = getCurrencySymbol();
                 
                 let taxOptions = '<option value="">Select Tax</option>';
                 <?php foreach ($taxRates as $tax): ?>
-                taxOptions += `<option value="<?= $tax['id'] ?>" data-rate="<?= $tax['rate'] ?>"><?= $tax['name'] ?> (<?= $tax['rate'] ?>%)</option>`;
+                taxOptions += `<option value="<?= $tax['id'] ?>" data-rate="<?= $tax['rate'] ?>"><?= htmlspecialchars($tax['name']) ?> (<?= $tax['rate'] ?>%)</option>`;
                 <?php endforeach; ?>
 
                 let newRow = '';
@@ -676,6 +804,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                 <input type="text" class="form-control hsn-code" name="code[]" readonly>
                             </td>
                             <td>
+                                <!-- Store plain number for form submission -->
                                 <input type="text" class="form-control selling-price" name="selling_price[]" value="0.00" data-value="0">
                             </td>
                             <td class="tax-column">
@@ -686,12 +815,13 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                 <input type="hidden" class="tax-rate" name="rate[]" data-value="${isNonGST ? '0' : '0'}">
                                 <input type="hidden" class="tax-name" name="tax_name[]" value="">
                                 <div class="tax-display-container mt-2">
-                                    <div class="tax-amount-line"></div>
-                                    <div class="tax-rate-line"></div>
+                                    <div class="tax-amount-line">${currencySymbol} 0.00</div>
+                                    <div class="tax-rate-line">0%</div>
                                 </div>
                             </td>
                             <td>
-                                <input type="text" class="form-control amount" name="amount[]" data-value="0" readonly>
+                                <!-- Store plain number for form submission -->
+                                <input type="text" class="form-control amount" name="amount[]" value="0.00" data-value="0" readonly>
                             </td>
                             <td>
                                 <a href="javascript:void(0);" class="remove-table"><i class="isax isax-trash"></i></a>
@@ -719,7 +849,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                 <input type="text" class="form-control hsn-code" name="code[]" readonly>
                             </td>
                             <td>
-                                <!-- FIXED: Changed to regular text input without currency formatting interference -->
+                                <!-- Store plain number for form submission -->
                                 <input type="text" class="form-control service-price-input" name="selling_price[]" value="0.00" data-value="0" placeholder="0.00">
                             </td>
                             <td class="tax-column">
@@ -729,12 +859,13 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                 <input type="hidden" class="tax-rate" name="rate[]" data-value="${isNonGST ? '0' : '0'}">
                                 <input type="hidden" class="tax-name" name="tax_name[]" value="">
                                 <div class="tax-display-container mt-2">
-                                    <div class="tax-amount-line"></div>
-                                    <div class="tax-rate-line"></div>
+                                    <div class="tax-amount-line">${currencySymbol} 0.00</div>
+                                    <div class="tax-rate-line">0%</div>
                                 </div>
                             </td>
                             <td>
-                                <input type="text" class="form-control amount" name="amount[]" data-value="0" readonly>
+                                <!-- Store plain number for form submission -->
+                                <input type="text" class="form-control amount" name="amount[]" value="0.00" data-value="0" readonly>
                             </td>
                             <td>
                                 <a href="javascript:void(0);" class="remove-table"><i class="isax isax-trash"></i></a>
@@ -751,15 +882,13 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                 } else {
                     const $serviceSelect = $('.add-tbody tr:last .service-select');
                     loadServices($serviceSelect);
-                    $('.add-tbody tr:last .tax-amount-line').text('$ 0.00');
-                    $('.add-tbody tr:last .tax-rate-line').text('0%');
                 }
                 
                 updateProductDropdowns();
                 updateServiceDropdowns();
             }
 
-            // Format behaviors - FIXED: Simplified for service price inputs
+            // Format behaviors - FIXED: Keep plain numbers in inputs
             function attachCurrencyBehavior(selector, onChangeCallback) {
                 $(document).on('focus', selector, function(){
                     const raw = $(this).data('value');
@@ -767,7 +896,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                 });
                 $(document).on('blur', selector, function(){
                     const num = unformat($(this).val());
-                    $(this).data('value', num).val(formatCurrency(num));
+                    $(this).data('value', num).val(num.toFixed(2));
                     if (onChangeCallback) onChangeCallback($(this));
                 });
                 $(document).on('input', selector, function(){
@@ -797,7 +926,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                 calculateRow($el.closest('tr'));
             });
             
-            // FIXED: Use direct input handling for service price (no currency formatting interference)
+            // Service price input handling
             $(document).on('input', '.service-price-input', function() {
                 const $row = $(this).closest('tr');
                 const price = unformat($(this).val());
@@ -808,7 +937,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
             $(document).on('blur', '.service-price-input', function() {
                 const $row = $(this).closest('tr');
                 const price = unformat($(this).val());
-                $(this).data('value', price).val(formatCurrency(price));
+                $(this).data('value', price).val(price.toFixed(2));
                 calculateRow($row);
             });
             
@@ -827,7 +956,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                     const initVal = unformat($ship.val());
                     $ship.data('value', initVal);
                     if ($ship.attr('type') !== 'number') {
-                        $ship.val(formatCurrency(initVal));
+                        $ship.val(initVal.toFixed(2));
                     } else {
                         $ship.val(initVal.toFixed(2));
                     }
@@ -853,8 +982,14 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                     const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
                     const effectiveTax = isNonGST ? 0 : tax;
                     
-                    $row.find('.selling-price').data('value', price).val(formatCurrency(price));
+                    // Store plain number in input
+                    $row.find('.selling-price').data('value', price).val(price.toFixed(2));
                     $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+
+                    // Update tax display
+                    const currencySymbol = getCurrencySymbol();
+                    $row.find('.tax-amount-line').text(currencySymbol + ' 0.00');
+                    $row.find('.tax-rate-line').text(effectiveTax + '%');
 
                     // Set the tax dropdown for products
                     if (taxId && !isNonGST) {
@@ -888,9 +1023,14 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                     const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
                     const effectiveTax = isNonGST ? 0 : tax;
                     
-                    // FIXED: Set service price without formatting interference
+                    // Store plain number
                     $row.find('.service-price-input').data('value', price).val(price.toFixed(2));
                     $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+                    
+                    // Update tax display
+                    const currencySymbol = getCurrencySymbol();
+                    $row.find('.tax-amount-line').text(currencySymbol + ' 0.00');
+                    $row.find('.tax-rate-line').text(effectiveTax + '%');
                     
                     if (taxId && !isNonGST) {
                         $row.find('.service-tax-select').val(taxId).trigger('change');
@@ -903,9 +1043,10 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                     $row.find('.tax-name').val('');
                     $row.find('.service-price-input').val('0.00').data('value', 0);
                     $row.find('.tax-rate').val('').removeData('value');
-                    $row.find('.amount').val('').removeData('value');
-                    $row.find('.tax-amount-line').text('');
-                    $row.find('.tax-rate-line').text('');
+                    $row.find('.amount').val('0.00').removeData('value');
+                    const currencySymbol = getCurrencySymbol();
+                    $row.find('.tax-amount-line').text(currencySymbol + ' 0.00');
+                    $row.find('.tax-rate-line').text('0%');
                     calculateSummary();
                 }
 
@@ -1011,13 +1152,15 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                 const lineTaxAmount = lineSubtotal * (taxRate / 100);
                 const lineTotal = lineSubtotal + lineTaxAmount;
 
-                const taxAmountFormatted = formatCurrency(lineTaxAmount);
+                const currencySymbol = getCurrencySymbol();
+                const taxAmountFormatted = currencySymbol + ' ' + lineTaxAmount.toFixed(2);
                 const taxRateFormatted = `${taxRate}%`;
                 
                 $row.find('.tax-amount-line').text(taxAmountFormatted);
                 $row.find('.tax-rate-line').text(taxRateFormatted);
                 
-                $row.find('.amount').data('value', lineTotal).val(formatCurrency(lineTotal));
+                // Store plain number in input value
+                $row.find('.amount').data('value', lineTotal).val(lineTotal.toFixed(2));
                 
                 calculateSummary();
             }
@@ -1032,6 +1175,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
 
             function calculateSummary() {
                 let sub = 0, taxGroups = {}, grandTotal = 0;
+                const currencySymbol = getCurrencySymbol();
 
                 $('.add-tbody tr').each(function() {
                     let p = 0;
@@ -1115,7 +1259,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                             taxHtml += `
                                 <div class="d-flex align-items-center justify-content-between mb-2">
                                     <h6 class="fs-14 fw-semibold">${taxLabel}</h6>
-                                    <h6 class="fs-14 fw-semibold">${formatCurrency(lineTaxAmount)}</h6>
+                                    <h6 class="fs-14 fw-semibold">${currencySymbol} ${lineTaxAmount.toFixed(2)}</h6>
                                 </div>`;
                         }
                     });
@@ -1125,8 +1269,8 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
 
                 const totalAll = grandTotal + shippingCharge;
 
-                $('#subtotal-amount').text(formatCurrency(sub));
-                $('#total-amount').text(formatCurrency(totalAll));
+                $('#subtotal-amount').text(sub.toFixed(2));
+                $('#total-amount').text(totalAll.toFixed(2));
 
                 $('#subtotal-amount-field').val(sub.toFixed(2));
                 $('#tax-amount-field').val(Object.values(taxGroups).reduce((a,b)=>a+b,0).toFixed(2));
@@ -1138,8 +1282,9 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                 $row.find('.quantity').val(isService ? '' : '1').removeClass('service-quantity');
                 $row.find('.hsn-code, .selling-price, .tax-rate, .amount, .service-name-input, .service-price-input').val('').removeData('value');
                 $row.find('.tax-id').val('');
-                $row.find('.tax-amount-line').text('');
-                $row.find('.tax-rate-line').text('');
+                const currencySymbol = getCurrencySymbol();
+                $row.find('.tax-amount-line').text(currencySymbol + ' 0.00');
+                $row.find('.tax-rate-line').text('0%');
                 calculateSummary();
             }
 
@@ -1185,7 +1330,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
             updateServiceDropdowns();
             calculateSummary();
             
-            console.log('Initialization complete - service price editing works with optional quantity');
+            console.log('Initialization complete - currency functionality added and data storage fixed');
         });
     </script>
 </body>
