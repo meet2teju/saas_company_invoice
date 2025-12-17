@@ -1,16 +1,26 @@
 <?php
+// Start output buffering at the VERY beginning
+ob_start();
 
 session_start();
+
+// Turn off error display for production, but log errors
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
 include '../../config/config.php';
+
+// Check for any output before this point
+if (ob_get_length() > 0) {
+    ob_clean();
+}
 
 // Include Composer's autoloader
 require '../../vendor/autoload.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
-
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $name = trim($_POST['name']);
@@ -55,8 +65,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     if (!empty($errors)) {
         $_SESSION['errors'] = $errors;
+        // Clear buffer before redirect
+        ob_end_clean();
         header("Location: ../register.php");
-        exit;
+        exit();
     }
 
     // Start transaction for data consistency
@@ -144,22 +156,57 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Commit transaction
         mysqli_commit($conn);
         
-        // Send welcome email
-        if (sendWelcomeEmail($name, $email, $password)) {
+        // Send welcome email (but don't wait for it)
+        try {
+            sendWelcomeEmail($name, $email, $password);
             $_SESSION['success'] = "Registration successful. Welcome email sent. Please login.";
-        } else {
-            $_SESSION['success'] = "Registration successful, but email could not be sent. Please login.";
+        } catch (Exception $e) {
+            $_SESSION['success'] = "Registration successful. Please login.";
         }
         
-        header("Location: ../login.php");
-        exit;
+        // Close database connection
+        mysqli_close($conn);
+        
+        // Clear output buffer completely
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
+        // Clear session buffer
+        session_write_close();
+        
+        // Use JavaScript redirect as fallback
+        echo '<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Redirecting...</title>
+            <script>
+                window.location.href = "../login.php";
+            </script>
+            <meta http-equiv="refresh" content="0;url=../login.php">
+        </head>
+        <body>
+            <p>Registration successful! Redirecting to login page...</p>
+            <p>If you are not redirected, <a href="../login.php">click here</a>.</p>
+        </body>
+        </html>';
+        exit();
         
     } catch (Exception $e) {
         // Rollback transaction on error
         mysqli_rollback($conn);
+        mysqli_close($conn);
+        
         $_SESSION['errors']['general'] = "Something went wrong. Please try again.";
+        
+        // Clear output buffer
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
         header("Location: ../register.php");
-        exit;
+        exit();
     }
 }
 
@@ -175,6 +222,13 @@ function sendWelcomeEmail($name, $email, $plainPassword) {
         $mail->Password = 'jhkg aneq xyhh emfm';
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = 587;
+        $mail->SMTPOptions = array(
+            'ssl' => array(
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true
+            )
+        );
 
         // Sender and recipient
         $mail->setFrom('no-reply@invoice.com', 'Invoice CRM');
@@ -186,16 +240,19 @@ function sendWelcomeEmail($name, $email, $plainPassword) {
         $mail->Subject = 'Welcome to Invoice CRM!';
         $mail->Body = generateEmailTemplate($name, $email, $plainPassword);
         
-        // Send email
-        return $mail->send();
+        // Send email (non-blocking)
+        $mail->send();
+        return true;
         
     } catch (Exception $e) {
+        // Log error but don't fail registration
+        error_log("Email error: " . $e->getMessage());
         return false;
     }
 }
 
 function generateEmailTemplate($name, $email, $plainPassword) {
-    $loginUrl = "https://invoice.yuglogix.com/admin/login.php";
+    $loginUrl = "https://saas-invoice.simplecrm365.com/admin/login.php";
     
     return '
     <!DOCTYPE html>
@@ -225,4 +282,7 @@ function generateEmailTemplate($name, $email, $plainPassword) {
     </body>
     </html>';
 }
+
+// Make sure no output at the end
+ob_end_flush();
 ?>

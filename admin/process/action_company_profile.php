@@ -1,10 +1,24 @@
 <?php
-session_start();
-include '../../config/config.php';
-require_once '../../config/currency_helper.php';
+// Start output buffering
+ob_start();
 
-// DEBUG: Log what's being posted
-error_log("DEBUG: Currency symbol ID posted: " . ($_POST['currency_symbol_id'] ?? 'NULL'));
+session_start();
+
+// Turn on error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+include '../../config/config.php';
+
+// Include currency helper
+if (file_exists('../../config/currency_helper.php')) {
+    require_once '../../config/currency_helper.php';
+}
+
+// Clear any output before processing
+if (ob_get_length() > 0) {
+    ob_clean();
+}
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $id          = $_POST['id'] ?? '';
@@ -17,13 +31,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $gst_number  = trim($_POST['gst_number'] ?? '');
     $zipcode     = trim($_POST['zipcode'] ?? '');
 
+    // Handle currency - if empty, set to NULL
     $currency_symbol_id = !empty($_POST['currency_symbol_id']) ? (int)$_POST['currency_symbol_id'] : "NULL";
-    $country            = !empty($_POST['country_id']) ? (int)$_POST['country_id'] : "NULL";
-    $state              = !empty($_POST['state_id']) ? (int)$_POST['state_id'] : "NULL";
-    $city               = !empty($_POST['city_id']) ? (int)$_POST['city_id'] : "NULL";
-
-    // DEBUG: Log the currency ID
-    error_log("DEBUG: Processing currency ID: $currency_symbol_id");
+    
+    // Handle other optional fields - FIXED: Handle empty strings properly
+    $country = (!empty($_POST['country_id']) && $_POST['country_id'] !== '') ? (int)$_POST['country_id'] : "NULL";
+    $state   = (!empty($_POST['state_id']) && $_POST['state_id'] !== '') ? (int)$_POST['state_id'] : "NULL";
+    $city    = (!empty($_POST['city_id']) && $_POST['city_id'] !== '') ? (int)$_POST['city_id'] : "NULL";
+    
+    // FIX: Handle zipcode properly - if empty, set to NULL, otherwise escape as string
+    if ($zipcode === '') {
+        $zipcode_sql = "NULL";
+    } else {
+        $zipcode_sql = "'" . mysqli_real_escape_string($conn, $zipcode) . "'";
+    }
 
     $updated_at = date('Y-m-d H:i:s');
     $updated_by = $_SESSION['crm_user_id'] ?? 0;
@@ -35,18 +56,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $targetPath = $folder . $fileName;
 
             $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            $fileType = mime_content_type($_FILES[$field]['tmp_name']);
+            
+            // Get file info safely
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $fileType = finfo_file($finfo, $_FILES[$field]['tmp_name']);
+            finfo_close($finfo);
 
             if (!in_array($fileType, $allowedTypes)) {
                 $_SESSION['error'] = "Only JPG, PNG, GIF, or WEBP files are allowed.";
-                header("Location: ../company-settings.php");
-                exit();
+                return false;
             }
+            
             if ($_FILES[$field]['size'] > 5 * 1024 * 1024) {
                 $_SESSION['error'] = "File size must be less than 5MB.";
-                header("Location: ../company-settings.php");
-                exit();
+                return false;
             }
+            
             if (move_uploaded_file($_FILES[$field]['tmp_name'], $targetPath)) {
                 return $fileName;
             }
@@ -55,19 +80,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 
     // Upload files
+    $upload_errors = [];
     $company_logo = uploadFile('company_logo');
-    $mini_logo    = uploadFile('mini_logo');
+    if ($company_logo === false) $upload_errors[] = "company_logo";
+    
+    $mini_logo = uploadFile('mini_logo');
+    if ($mini_logo === false) $upload_errors[] = "mini_logo";
+    
     $invoice_logo = uploadFile('invoice_logo');
+    if ($invoice_logo === false) $upload_errors[] = "invoice_logo";
+
+    // If there were upload errors, redirect back
+    if (!empty($upload_errors)) {
+        $_SESSION['error'] = "File upload failed for: " . implode(', ', $upload_errors);
+        header("Location: ../company-settings.php");
+        exit();
+    }
 
     // Check if company exists for this organization
     $check_query = "SELECT id FROM company_info WHERE org_id = '$org_id' LIMIT 1";
     $check_result = mysqli_query($conn, $check_query);
+    
+    if (!$check_result) {
+        $_SESSION['error'] = "Database error: " . mysqli_error($conn);
+        header("Location: ../company-settings.php");
+        exit();
+    }
     
     if (mysqli_num_rows($check_result) > 0) {
         // UPDATE existing company
         $existing = mysqli_fetch_assoc($check_result);
         $id = $existing['id'];
         
+        // Start building update query
         $sql = "UPDATE company_info SET 
             name = '" . mysqli_real_escape_string($conn, $name) . "',
             email = '" . mysqli_real_escape_string($conn, $email) . "',
@@ -79,10 +124,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             country_id = $country,
             state_id = $state,
             city_id = $city,
-            zipcode = '" . mysqli_real_escape_string($conn, $zipcode) . "',
+            zipcode = $zipcode_sql,
             updated_at = '$updated_at',
             updated_by = '$updated_by'";
 
+        // Add file updates if new files were uploaded
         if ($company_logo) $sql .= ", company_logo = '" . mysqli_real_escape_string($conn, $company_logo) . "'";
         if ($mini_logo)    $sql .= ", mini_logo = '" . mysqli_real_escape_string($conn, $mini_logo) . "'";
         if ($invoice_logo) $sql .= ", invoice_logo = '" . mysqli_real_escape_string($conn, $invoice_logo) . "'";
@@ -106,48 +152,53 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $country,
             $state,
             $city,
-            '" . mysqli_real_escape_string($conn, $zipcode) . "',
-            '" . ($company_logo ?: '') . "',
-            '" . ($mini_logo ?: '') . "',
-            '" . ($invoice_logo ?: '') . "',
+            $zipcode_sql,
+            '" . ($company_logo ? mysqli_real_escape_string($conn, $company_logo) : '') . "',
+            '" . ($mini_logo ? mysqli_real_escape_string($conn, $mini_logo) : '') . "',
+            '" . ($invoice_logo ? mysqli_real_escape_string($conn, $invoice_logo) : '') . "',
             '$org_id',
             '$updated_at',
             '$updated_by'
         )";
     }
 
-    // DEBUG: Log the SQL
-    error_log("DEBUG: SQL Query: $sql");
-
-    // Run SQL
+    // Execute SQL
     if (mysqli_query($conn, $sql)) {
-        // Update currency in session
-        if ($currency_symbol_id !== "NULL") {
-            $currency_query = "SELECT id, currency_name, currency_symbol, isocode FROM currency WHERE id = $currency_symbol_id LIMIT 1";
-            $currency_result = mysqli_query($conn, $currency_query);
-            
-            if ($currency_result && mysqli_num_rows($currency_result) > 0) {
-                $new_currency = mysqli_fetch_assoc($currency_result);
-                
-                $_SESSION['company_currency'] = [
-                    'id' => $new_currency['id'],
-                    'currency_name' => $new_currency['currency_name'],
-                    'currency_symbol' => $new_currency['currency_symbol'],
-                    'currency_code' => $new_currency['isocode'] ?? 'INR'
-                ];
-            }
+        // Clear the currency cache from session
+        if (isset($_SESSION['company_currency'])) {
+            unset($_SESSION['company_currency']);
         }
         
-        unset($_SESSION['currency_last_updated']);
+        // Also clear any cache timestamps
+        if (isset($_SESSION['currency_last_updated'])) {
+            unset($_SESSION['currency_last_updated']);
+        }
         
+        // Set success message
         $_SESSION['success'] = empty($id) ? "Company profile created successfully." : "Company profile updated successfully.";
         
     } else {
-        $_SESSION['error'] = "DB Error: " . mysqli_error($conn);
-        error_log("ERROR: Database error: " . mysqli_error($conn));
+        $_SESSION['error'] = "Database error: " . mysqli_error($conn);
     }
 
+    // Close database connection
+    mysqli_close($conn);
+    
+    // Clear output buffer before redirect
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    
+    // Close session
+    session_write_close();
+    
+    // Redirect
     header("Location: ../company-settings.php");
     exit();
+}
+
+// Clean up if we get here
+while (ob_get_level()) {
+    ob_end_clean();
 }
 ?>

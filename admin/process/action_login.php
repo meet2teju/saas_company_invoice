@@ -1,5 +1,14 @@
 <?php
+// Start output buffering at the VERY beginning
+ob_start();
+
 session_start();
+
+// Clear any existing output
+if (ob_get_length() > 0) {
+    ob_clean();
+}
+
 include '../../config/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -39,16 +48,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $_SESSION['crm_user_phone'] = $user['phone_number'];
                 $_SESSION['crm_profile_img'] = $user['profile_img'];
 
-                $role = strtolower($user['role_name']); 
-                // if ($role === 'admin') {
-                //     header("Location: ../admin-dashboard.php");
-                // } elseif ($role === !'admin') {
-                //     header("Location: ../customer-dashboard.php");
-                // } else {
-                //     $_SESSION['login_error'] = 'unauthorized';
-                //     header("Location: ../login.php");
-                // }
-                // exit;
+                // Clear output buffer before redirect
+                while (ob_get_level()) {
+                    ob_end_clean();
+                }
+                
+                // Close session to prevent lock
+                session_write_close();
+                
                 $role = strtolower($user['role_name']); 
                 if ($role === 'admin') {
                     header("Location: ../admin-dashboard.php");
@@ -56,10 +63,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     // Any role other than 'admin'
                     header("Location: ../customer-dashboard.php");
                 }
-                exit;
-
+                exit();
 
             } else {
+                // Clear buffer before redirect
+                while (ob_get_level()) {
+                    ob_end_clean();
+                }
                 
                 $_SESSION['login_error'] = 'inactive';
                 header("Location: ../login.php");
@@ -67,14 +77,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
 
         } else {
+            // Clear buffer before redirect
+            while (ob_get_level()) {
+                ob_end_clean();
+            }
+            
             $_SESSION['login_error'] = 'password';
             header("Location: ../login.php");
             exit;
         }
     } else {
+        // Clear buffer before redirect
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        
         $_SESSION['login_error'] = 'email';
         header("Location: ../login.php");
         exit;
     }
+}
+
+// Clean up if we get here
+while (ob_get_level()) {
+    ob_end_clean();
 }
 ?>

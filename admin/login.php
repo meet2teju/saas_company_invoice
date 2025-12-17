@@ -1,40 +1,46 @@
-<?php include 'layouts/session.php';
+<?php 
+// Start output buffering at the VERY beginning
+ob_start();
+
+// Include session
+include 'layouts/session.php';
+
+// Check if already logged in
 if (isset($_SESSION['crm_is_login']) && $_SESSION['crm_is_login'] === 1) {
+    // Clear buffer before redirect
+    ob_end_clean();
     header("Location: admin-dashboard.php");
     exit;
 }
 
-?>
-<?php
-// session_start();
+// Clear any existing output
+if (ob_get_length() > 0) {
+    ob_clean();
+}
+
 include '../config/config.php';
 
 // Initialize variables
 $email = '';
 $password = '';
 
-// Load cookies if they exist
-// if (isset($_COOKIE['email']) && isset($_COOKIE['password'])) {
-//     $email = $_COOKIE['email'];
-//      $password = $_COOKIE['password'];
-// }
-
-// session_start();
-// if (isset($_SESSION['crm_user_id'])) {
-//     header("Location: admin-dashboard.php"); // already logged in
-//     exit();
-// }
-
 // Load cookies if available
 $email = isset($_COOKIE['email']) ? $_COOKIE['email'] : '';
 $password = isset($_COOKIE['password']) ? $_COOKIE['password'] : '';
 $remember_checked = ($email && $password) ? 'checked' : '';
 
+// Clear any messages that might cause output issues
+if (isset($_SESSION['message'])) {
+    $message = $_SESSION['message'];
+    $message_type = $_SESSION['message_type'] ?? 'info';
+    unset($_SESSION['message'], $_SESSION['message_type']);
+}
 
+if (isset($_SESSION['login_error'])) {
+    $login_error = $_SESSION['login_error'];
+    unset($_SESSION['login_error']);
+}
 ?>
-
-
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -50,20 +56,18 @@ $remember_checked = ($email && $password) ? 'checked' : '';
                 <div class="row justify-content-center align-items-center vh-100 overflow-auto flex-wrap ">
                     <div class="col-lg-4 mx-auto">
 
-                  
-                <?php if (isset($_SESSION['message'])): ?>
-                    <div class="alert alert-<?= $_SESSION['message_type'] ?> alert-dismissible fade show" role="alert">
-                        <?= $_SESSION['message']; ?>
+                <?php if (isset($message)): ?>
+                    <div class="alert alert-<?= $message_type ?> alert-dismissible fade show" role="alert">
+                        <?= htmlspecialchars($message); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
-                    <?php unset($_SESSION['message'], $_SESSION['message_type']); ?>
                 <?php endif; ?>
                         <form action="process/action_login.php" method="POST" class="d-flex justify-content-center align-items-center">
                             <div class="d-flex flex-column justify-content-lg-center p-4 p-lg-0 pb-0 flex-fill">
                                 <div class="mx-auto mb-5 text-center"></div>
                                 <div class="card border-0 p-lg-3 shadow-lg">
                                     <div class="card-body">
-                                                <?php if (isset($_SESSION['login_error']) && $_SESSION['login_error'] === 'inactive'): ?>
+                                                <?php if (isset($login_error) && $login_error === 'inactive'): ?>
     <div class="alert alert-danger">Your account is inactive. You cannot login.</div>
 <?php endif; ?>
                                         <div class="text-center mb-3">
@@ -108,7 +112,7 @@ $remember_checked = ($email && $password) ? 'checked' : '';
                                         </div>
 
                                         <div class="text-center">
-                                            <h6 class="fw-normal fs-14 text-dark mb-0">Don’t have an account yet?
+                                            <h6 class="fw-normal fs-14 text-dark mb-0">Don't have an account yet?
                                                 <a href="register.php" class="hover-a"> Register</a>
                                             </h6>
                                         </div>
@@ -140,16 +144,17 @@ $remember_checked = ($email && $password) ? 'checked' : '';
       toggle.classList.toggle("isax-eye", isHidden);
     });
 
-
-
-      <?php if (isset($_SESSION['login_error'])): ?>
-        const errorType = "<?php echo $_SESSION['login_error']; ?>";
+      <?php if (isset($login_error)): ?>
+        const errorType = "<?php echo $login_error; ?>";
         if (errorType === "email") {
             document.getElementById("email-error").style.display = "block";
         } else if (errorType === "password") {
             document.getElementById("password-error").style.display = "block";
         }
-        <?php unset($_SESSION['login_error']); ?>
     <?php endif; ?>
   });
 </script>
+<?php
+// Flush the output buffer
+ob_end_flush();
+?>
