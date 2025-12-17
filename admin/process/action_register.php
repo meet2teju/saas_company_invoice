@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email = trim($_POST['email']);
     $password = trim($_POST['password']);
     $cpassword = trim($_POST['cpassword']);
-    $agree_terms = $_POST['agree_terms'] ?? '0'; // Get checkbox value, default to '0' if not checked
+    $agree_terms = $_POST['agree_terms'] ?? '0';
 
     $_SESSION['old'] = $_POST;
 
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $errors['cpassword'] = "Confirm Password do not match.";
     }
 
-    // Validate terms agreement (CHECKBOX VALIDATION ADDED HERE)
+    // Validate terms agreement
     if (!isset($_POST['agree_terms']) || $_POST['agree_terms'] != '1') {
         $errors['agree_terms'] = "You must agree to the Terms of Service and Privacy Policy";
     }
@@ -97,6 +97,49 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         mysqli_stmt_bind_param($stmtUpdate, "ii", $user_id, $org_id);
         mysqli_stmt_execute($stmtUpdate);
         mysqli_stmt_close($stmtUpdate);
+        
+        // ==================== CREATE DEFAULT COMPANY PROFILE ====================
+        // Get default currency (INR or first available)
+        $defaultCurrencyQuery = "SELECT id FROM currency WHERE isocode = 'INR' LIMIT 1";
+        $currencyResult = mysqli_query($conn, $defaultCurrencyQuery);
+
+        if (mysqli_num_rows($currencyResult) > 0) {
+            $currencyRow = mysqli_fetch_assoc($currencyResult);
+            $default_currency_id = $currencyRow['id'];
+        } else {
+            // Fallback: get first currency
+            $fallbackCurrencyQuery = "SELECT id FROM currency ORDER BY id LIMIT 1";
+            $fallbackResult = mysqli_query($conn, $fallbackCurrencyQuery);
+            if (mysqli_num_rows($fallbackResult) > 0) {
+                $fallbackRow = mysqli_fetch_assoc($fallbackResult);
+                $default_currency_id = $fallbackRow['id'];
+            } else {
+                $default_currency_id = 1;
+            }
+        }
+
+        // Insert default company profile
+        $companyProfileQuery = "INSERT INTO company_info 
+            (user_id, name, email, currency_symbol_id, org_id, created_at, created_by, status)
+        VALUES (?, ?, ?, ?, ?, NOW(), ?, '1')";
+
+        $stmtCompany = mysqli_prepare($conn, $companyProfileQuery);
+        $companyName = $name . " Company";
+        mysqli_stmt_bind_param($stmtCompany, "issiii", 
+            $user_id, 
+            $companyName, 
+            $email, 
+            $default_currency_id, 
+            $org_id, 
+            $user_id
+        );
+
+        if (!mysqli_stmt_execute($stmtCompany)) {
+            throw new Exception("Failed to create company profile");
+        }
+
+        mysqli_stmt_close($stmtCompany);
+        // ==================== END COMPANY PROFILE CREATION ====================
         
         // Commit transaction
         mysqli_commit($conn);

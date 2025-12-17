@@ -2,25 +2,28 @@
 <?php
 include '../config/config.php';
 
+// Get current organization ID
+$org_id = $_SESSION['org_id'] ?? 1;
+
 $invoice_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($invoice_id <= 0) {
     die('Invalid Invoice ID!');
 }
 
-// Get company currency (same as in add customer)
-$companyCurrency = getCompanyCurrency($conn);
+// Get company currency with organization condition
+$companyCurrency = getCompanyCurrency($conn, $org_id);
 
 // Get all currencies for dropdown
 $currency_query = "SELECT * FROM currency ORDER BY currency_name";
 $currency_result = mysqli_query($conn, $currency_query);
 
-// Fetch invoice
+// Fetch invoice with organization condition
 $invoice_result = mysqli_query($conn, "
     SELECT i.*, l.name AS salesperson_name
     FROM invoice i
     LEFT JOIN login l ON i.user_id = l.id
-    WHERE i.id = $invoice_id AND i.is_deleted = 0
+    WHERE i.id = $invoice_id AND i.is_deleted = 0 AND i.org_id = '$org_id'
 ");
 
 $invoice = mysqli_fetch_assoc($invoice_result);
@@ -59,7 +62,7 @@ if (!empty($client_id)) {
 // Fetch bank only if bank_id is valid
 $bank = null;
 if (!empty($bank_id)) {
-    $bank = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM bank WHERE id = $bank_id"));
+    $bank = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM bank WHERE id = $bank_id AND org_id = '$org_id'"));
 }
 
 // Fetch items with updated structure for products and services
@@ -110,7 +113,7 @@ if (!empty($client_id)) {
     $client_address = mysqli_fetch_assoc(mysqli_query($conn, $client_address_query));
 }
 
-// Fetch company info (Bill From) with city/state/country names and invoice logo
+// Fetch company info (Bill From) with city/state/country names and invoice logo - ADDED ORG_ID CONDITION
 $company = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT ci.*, 
            co.name AS country_name,
@@ -120,6 +123,7 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
     LEFT JOIN countries co ON co.id = ci.country_id
     LEFT JOIN states s ON s.id = ci.state_id
     LEFT JOIN cities c ON c.id = ci.city_id
+    WHERE ci.org_id = '$org_id'
     LIMIT 1
 "));
 

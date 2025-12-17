@@ -2,8 +2,11 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
-// Get company currency
-$companyCurrency = getCompanyCurrency($conn);
+// Get current organization ID
+$org_id = $_SESSION['org_id'] ?? 1;
+
+// Get company currency with organization condition
+$companyCurrency = getCompanyCurrency($conn, $org_id);
 
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['message'] = "Invalid Quotation ID.";
@@ -18,7 +21,7 @@ $quotationId = intval($_GET['id']);
 $sql = "SELECT q.*, c.first_name, c.last_name, c.email, c.customer_image, c.company_name, c.phone_number 
         FROM quotation q
         LEFT JOIN client c ON q.client_id = c.id
-        WHERE q.id = $quotationId";
+        WHERE q.id = $quotationId AND q.org_id = '$org_id'";
 $result = mysqli_query($conn, $sql);
 $quotation = mysqli_fetch_assoc($result);
 
@@ -73,7 +76,7 @@ $showDocuments = (mysqli_num_rows($docs) > 0);
 // Reset pointer for documents for later use
 mysqli_data_seek($docs, 0);
 
-// Fetch company info (Bill From)
+// Fetch company info (Bill From) - ADDED ORG_ID CONDITION
 $company = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT ci.*, 
            co.name AS country_name,
@@ -83,6 +86,7 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
     LEFT JOIN countries co ON co.id = ci.country_id
     LEFT JOIN states s ON s.id = ci.state_id
     LEFT JOIN cities c ON c.id = ci.city_id
+    WHERE ci.org_id = '$org_id'
     LIMIT 1
 "));
 
@@ -107,8 +111,6 @@ if (!empty($quotation['client_id'])) {
 
 // Get currency symbol
 $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
-
-
 
 ?>
 

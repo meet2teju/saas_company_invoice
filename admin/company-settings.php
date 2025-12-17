@@ -2,10 +2,13 @@
 <?php
 include '../config/config.php';
 
+// Get current organization ID from session
+$org_id = $_SESSION['org_id'] ?? 1;
+$user_id = $_SESSION['crm_user_id'] ?? 0;
 
-// Get company information if it exists
+// Get company information for the current organization
 $company_info = [];
-$company_query = "SELECT * FROM company_info LIMIT 1";
+$company_query = "SELECT * FROM company_info WHERE org_id = '$org_id' LIMIT 1";
 $company_result = mysqli_query($conn, $company_query);
 if (mysqli_num_rows($company_result) > 0) {
     $company_info = mysqli_fetch_assoc($company_result);
@@ -78,6 +81,7 @@ if (!empty($company_info['state_id'])) {
                                 
                                 <form id="companyForm" action="process/action_company_profile.php" method="POST" enctype="multipart/form-data">
                                     <input type="hidden" name="id" value="<?= !empty($company_info['id']) ? $company_info['id'] : '' ?>">
+                                    <input type="hidden" name="org_id" value="<?= $org_id ?>">
                                     
                                     <div class="border-bottom mb-3">
                                         <div class="card-title-head">
@@ -113,7 +117,6 @@ if (!empty($company_info['state_id'])) {
                                                         Mobile Number 
                                                     </label>
                                                     <input type="text" name="mobile_number" id="mobile_number" class="form-control" value="<?= !empty($company_info['mobile_number']) ? $company_info['mobile_number'] : '' ?>">
-                                                    <!-- <span id="mobile_number_error" class="text-danger error-text"></span> -->
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
@@ -133,8 +136,7 @@ if (!empty($company_info['state_id'])) {
                                                 </div>
                                            </div>
                                             <!-- end col -->
-                                            <!-- In the currency dropdown section -->
-<div class="col-md-6">
+                                            <div class="col-md-6">
     <div class="mb-3">
         <label class="form-label">
             Currency<span class="text-danger">*</span>
@@ -145,7 +147,6 @@ if (!empty($company_info['state_id'])) {
             mysqli_data_seek($currency_result, 0);
             while ($currency = mysqli_fetch_assoc($currency_result)) {
                 $selected = (!empty($company_info['currency_symbol_id']) && $company_info['currency_symbol_id'] == $currency['id']) ? 'selected' : '';
-                // Use isocode for display if needed
                 echo "<option value='{$currency['id']}' $selected>{$currency['currency_name']} ({$currency['currency_symbol']}) - {$currency['isocode']}</option>";
             } ?>
         </select>
@@ -223,7 +224,6 @@ if (!empty($company_info['state_id'])) {
                                                                     <div class="image-upload mb-1">
                                                                         <input type="file" id="mini_logo" name="mini_logo">
                                                                         <div class="image-uploads">
-                                                                            <!-- <h4><i class="ti ti-upload me-1"></i>Change Photo</h4> -->
                                                                              <h4 style="color: #f0f0f0;"><i class="ti ti-upload me-1"></i>Change Photo</h4>
                                                                       
                                                                          <span id="mini_logo_error" class="text-danger error-text fs-12"></span>
@@ -320,8 +320,6 @@ if (!empty($company_info['state_id'])) {
                                                             echo "<option value='{$country['id']}' $selected>{$country['name']}</option>";
                                                         } ?>
                                                     </select>
-                                                        <!-- <span id="country_name_error" class="text-danger error-text"></span> -->
-
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
@@ -336,8 +334,6 @@ if (!empty($company_info['state_id'])) {
                                                             <option value="<?= $state['id'] ?>" <?= $selected ?>><?= $state['name'] ?></option>
                                                         <?php endforeach; ?>
                                                     </select>
-                                                    <!-- <span id="state_name_error" class="text-danger error-text"></span> -->
-
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
@@ -352,8 +348,6 @@ if (!empty($company_info['state_id'])) {
                                                             <option value="<?= $city['id'] ?>" <?= $selected ?>><?= $city['name'] ?></option>
                                                         <?php endforeach; ?>
                                                     </select>
-                                                    <!-- <span id="city_name_error" class="text-danger error-text"></span> -->
-
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
@@ -362,7 +356,6 @@ if (!empty($company_info['state_id'])) {
                                                         Postal Code
                                                     </label>
                                                     <input type="text" class="form-control" name="zipcode" value="<?= !empty($company_info['zipcode']) ? $company_info['zipcode'] : '' ?>">
-                                                    <!-- <span id="zipcode_name_error" class="text-danger error-text"></span> -->
                      
                                                 </div>
                                             </div><!-- end col -->
@@ -399,20 +392,15 @@ if (!empty($company_info['state_id'])) {
 
     <?php include 'layouts/vendor-scripts.php'; ?>
     <script>
-
-        
 $(document).ready(function () {
-    // Cancel button functionality - redirect to dashboard
     $("#cancelBtn").on("click", function () {
         window.location.href = 'admin-dashboard.php';
     });
     $("#companyForm").on("submit", function (e) {
         let isValid = true;
 
-        // Reset previous errors
         $(".error-text").text("");
 
-        // Validate only if elements exist
         function validateElement(elementId, errorId, errorMessage, validationRegex = null) {
             const element = $("#" + elementId);
             if (element.length) {
@@ -429,10 +417,8 @@ $(document).ready(function () {
             return true;
         }
 
-        // Company Name
         isValid = validateElement("name", "company_name_error", "Company name is required") && isValid;
 
-        // Email
         const emailElement = $("#email");
         if (emailElement.length) {
             const email = emailElement.val().trim();
@@ -445,28 +431,10 @@ $(document).ready(function () {
             }
         }
 
-        // Mobile
-        // isValid = validateElement("mobile_number", "mobile_number_error", "Mobile number is required", /^[0-9]{10,15}$/) && isValid;
-
-        // Currency
         isValid = validateElement("currency", "currency_error", "Currency is required") && isValid;
 
-        // Country
-        // isValid = validateElement("country", "country_name_error", "Country is required") && isValid;
-
-        // State
-        // isValid = validateElement("state", "state_name_error", "State is required") && isValid;
-
-        // City
-        // isValid = validateElement("city", "city_name_error", "City is required") && isValid;
-
-        // Postal Code
-        // isValid = validateElement("zipcode", "zipcode_name_error", "Postal code is required", /^[0-9]{6}$/) && isValid;
-
-        // Prevent submit if not valid
         if (!isValid) {
             e.preventDefault();
-            // Scroll to first error
             const firstError = $(".error-text:visible:first");
             if (firstError.length) {
                 $('html, body').animate({
@@ -476,7 +444,6 @@ $(document).ready(function () {
         }
     });
 
-    // Image preview functionality - safe version that checks if elements exist
     function addImagePreviewListener(inputId, previewId) {
         const inputElement = document.getElementById(inputId);
         const previewElement = document.getElementById(previewId);
@@ -495,10 +462,8 @@ $(document).ready(function () {
         }
     }
 
-    // Add listeners for all image previews
     addImagePreviewListener('company_logo', 'logoPreview');
     addImagePreviewListener('mini_logo', 'minilogoPreview');
-    addImagePreviewListener('favicon_logo', 'faviconlogoPreview');
     addImagePreviewListener('invoice_logo', 'invoicelogoPreview');
 });
 
@@ -551,12 +516,11 @@ function validateImage(inputId, errorId, allowedTypes, msg) {
         const file = fileInput.files[0];
         if (!allowedTypes.includes(file.type)) {
             errorSpan.textContent = msg;
-            fileInput.value = ""; // clear invalid file
+            fileInput.value = "";
         }
     }
 }
 
-// JPG + PNG
 document.getElementById("company_logo")
     .addEventListener("change", () => validateImage("company_logo", "company_logo_error", ["image/jpeg", "image/png"], "Only JPG/PNG allowed"));
 
@@ -565,12 +529,6 @@ document.getElementById("mini_logo")
 
 document.getElementById("invoice_logo")
     .addEventListener("change", () => validateImage("invoice_logo", "invoice_logo_error", ["image/jpeg", "image/png"], "Only JPG/PNG allowed"));
-
-// ICO only
-// document.getElementById("favicon_logo")
-//     .addEventListener("change", () => validateImage("favicon_logo", "favicon_logo_error", ["image/x-icon", "image/vnd.microsoft.icon"], "Only ICO allowed"));
 </script>
-
-
 </body>
 </html>

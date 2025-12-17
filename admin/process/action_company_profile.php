@@ -8,6 +8,7 @@ error_log("DEBUG: Currency symbol ID posted: " . ($_POST['currency_symbol_id'] ?
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $id          = $_POST['id'] ?? '';
+    $org_id      = $_POST['org_id'] ?? ($_SESSION['org_id'] ?? 1);
     $name        = trim($_POST['name'] ?? '');
     $email       = trim($_POST['email'] ?? '');
     $phone       = trim($_POST['mobile_number'] ?? '');
@@ -24,7 +25,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // DEBUG: Log the currency ID
     error_log("DEBUG: Processing currency ID: $currency_symbol_id");
 
-    $org_id     = $_SESSION['org_id'] ?? 1;
     $updated_at = date('Y-m-d H:i:s');
     $updated_by = $_SESSION['crm_user_id'] ?? 0;
 
@@ -59,8 +59,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $mini_logo    = uploadFile('mini_logo');
     $invoice_logo = uploadFile('invoice_logo');
 
-    if (empty($id)) {
-        // === INSERT ===
+    // Check if company exists for this organization
+    $check_query = "SELECT id FROM company_info WHERE org_id = '$org_id' LIMIT 1";
+    $check_result = mysqli_query($conn, $check_query);
+    
+    if (mysqli_num_rows($check_result) > 0) {
+        // UPDATE existing company
+        $existing = mysqli_fetch_assoc($check_result);
+        $id = $existing['id'];
+        
+        $sql = "UPDATE company_info SET 
+            name = '" . mysqli_real_escape_string($conn, $name) . "',
+            email = '" . mysqli_real_escape_string($conn, $email) . "',
+            mobile_number = '" . mysqli_real_escape_string($conn, $phone) . "',
+            address = '" . mysqli_real_escape_string($conn, $address) . "',
+            pan_number = '" . mysqli_real_escape_string($conn, $pan_number) . "',
+            gst_number = '" . mysqli_real_escape_string($conn, $gst_number) . "',
+            currency_symbol_id = $currency_symbol_id,
+            country_id = $country,
+            state_id = $state,
+            city_id = $city,
+            zipcode = '" . mysqli_real_escape_string($conn, $zipcode) . "',
+            updated_at = '$updated_at',
+            updated_by = '$updated_by'";
+
+        if ($company_logo) $sql .= ", company_logo = '" . mysqli_real_escape_string($conn, $company_logo) . "'";
+        if ($mini_logo)    $sql .= ", mini_logo = '" . mysqli_real_escape_string($conn, $mini_logo) . "'";
+        if ($invoice_logo) $sql .= ", invoice_logo = '" . mysqli_real_escape_string($conn, $invoice_logo) . "'";
+
+        $sql .= " WHERE id = '$id' AND org_id = '$org_id'";
+    } else {
+        // INSERT new company profile
         $sql = "INSERT INTO company_info 
             (name, email, mobile_number, address, pan_number, gst_number,
              currency_symbol_id, country_id, state_id, city_id, zipcode,
@@ -85,28 +114,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             '$updated_at',
             '$updated_by'
         )";
-    } else {
-        // === UPDATE ===
-        $sql = "UPDATE company_info SET 
-            name = '" . mysqli_real_escape_string($conn, $name) . "',
-            email = '" . mysqli_real_escape_string($conn, $email) . "',
-            mobile_number = '" . mysqli_real_escape_string($conn, $phone) . "',
-            address = '" . mysqli_real_escape_string($conn, $address) . "',
-            pan_number = '" . mysqli_real_escape_string($conn, $pan_number) . "',
-            gst_number = '" . mysqli_real_escape_string($conn, $gst_number) . "',
-            currency_symbol_id = $currency_symbol_id,
-            country_id = $country,
-            state_id = $state,
-            city_id = $city,
-            zipcode = '" . mysqli_real_escape_string($conn, $zipcode) . "',
-            updated_at = '$updated_at',
-            updated_by = '$updated_by'";
-
-        if ($company_logo) $sql .= ", company_logo = '" . mysqli_real_escape_string($conn, $company_logo) . "'";
-        if ($mini_logo)    $sql .= ", mini_logo = '" . mysqli_real_escape_string($conn, $mini_logo) . "'";
-        if ($invoice_logo) $sql .= ", invoice_logo = '" . mysqli_real_escape_string($conn, $invoice_logo) . "'";
-
-        $sql .= " WHERE id = '" . mysqli_real_escape_string($conn, $id) . "'";
     }
 
     // DEBUG: Log the SQL
@@ -114,44 +121,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Run SQL
     if (mysqli_query($conn, $sql)) {
-        // DEBUG: Log before clearing cache
-        error_log("DEBUG: Before clearing cache - Session currency: " . 
-                 (isset($_SESSION['company_currency']['id']) ? $_SESSION['company_currency']['id'] : 'NOT SET'));
-        
-        // ✅ SIMPLIFIED CURRENCY CACHE UPDATE
-        // Method 1: Direct session update - SIMPLEST APPROACH
+        // Update currency in session
         if ($currency_symbol_id !== "NULL") {
-            // Fetch the new currency from database
             $currency_query = "SELECT id, currency_name, currency_symbol, isocode FROM currency WHERE id = $currency_symbol_id LIMIT 1";
             $currency_result = mysqli_query($conn, $currency_query);
             
             if ($currency_result && mysqli_num_rows($currency_result) > 0) {
                 $new_currency = mysqli_fetch_assoc($currency_result);
                 
-                // DEBUG: Log the new currency
-                error_log("DEBUG: New currency fetched: ID=" . $new_currency['id'] . ", Name=" . $new_currency['currency_name']);
-                
-                // Update session directly
                 $_SESSION['company_currency'] = [
                     'id' => $new_currency['id'],
                     'currency_name' => $new_currency['currency_name'],
                     'currency_symbol' => $new_currency['currency_symbol'],
                     'currency_code' => $new_currency['isocode'] ?? 'INR'
                 ];
-                
-                // DEBUG: Log after update
-                error_log("DEBUG: After update - Session currency ID: " . $_SESSION['company_currency']['id']);
             }
         }
         
-        // Also clear any cache timestamps
         unset($_SESSION['currency_last_updated']);
         
-        $_SESSION['success'] = empty($id) ? "Company created successfully." : "Company updated successfully.";
+        $_SESSION['success'] = empty($id) ? "Company profile created successfully." : "Company profile updated successfully.";
         
-        // DEBUG: Final session check
-        error_log("DEBUG: Final session currency ID: " . 
-                 (isset($_SESSION['company_currency']['id']) ? $_SESSION['company_currency']['id'] : 'NOT SET'));
     } else {
         $_SESSION['error'] = "DB Error: " . mysqli_error($conn);
         error_log("ERROR: Database error: " . mysqli_error($conn));

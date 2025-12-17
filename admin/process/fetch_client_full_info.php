@@ -1,4 +1,5 @@
 <?php
+session_start();
 include '../../config/config.php';
 
 $response = [
@@ -8,9 +9,11 @@ $response = [
 
 if (isset($_POST['client_id'])) {
     $client_id = intval($_POST['client_id']);
+    
+    // Get organization ID from session (default to 1 if not set)
+    $org_id = isset($_SESSION['org_id']) ? $_SESSION['org_id'] : 1;
 
     // --- Billing info from client_address ---
-    // Modified query to get client details from client table
     $query = "SELECT 
         c.company_name,
         CONCAT(c.first_name, ' ', c.last_name) as client_full_name,
@@ -44,7 +47,6 @@ if (isset($_POST['client_id'])) {
         }
         
         // 2. Client Name (from client table - use first_name + last_name)
-        // You can also use display_name if preferred
         $client_name = '';
         if (!empty($row['client_full_name']) && trim($row['client_full_name']) !== '') {
             $client_name = trim($row['client_full_name']);
@@ -56,11 +58,6 @@ if (isset($_POST['client_id'])) {
         if (!empty($client_name)) {
             $billing_parts[] = '<p class="mb-1 fs-13"><span class="text-dark">Client:</span> ' . htmlspecialchars($client_name) . '</p>';
         }
-        
-        // Phone
-        // if (!empty($row['phone_number'])) {
-        //     $billing_parts[] = '<p class="mb-1 fs-13"><span class="text-dark">Phone:</span> ' . htmlspecialchars($row['phone_number']) . '</p>';
-        // }
         
         // Email
         if (!empty($row['email'])) {
@@ -117,18 +114,46 @@ if (isset($_POST['client_id'])) {
     }
 
     // --- Shipping info from company_info ---
-    $companyRes = mysqli_query($conn, "SELECT 
+    $companyQuery = "SELECT 
         name, email, mobile_number, pan_number, 
         address, country_id, state_id, city_id, zipcode 
         FROM company_info 
-        LIMIT 1"
-    );
+        WHERE org_id = '$org_id' 
+        LIMIT 1";
+    
+    $companyRes = mysqli_query($conn, $companyQuery);
 
-    if ($company = mysqli_fetch_assoc($companyRes)) {
+    if ($companyRes && mysqli_num_rows($companyRes) > 0) {
+        $company = mysqli_fetch_assoc($companyRes);
+        
         // Fetch country/state/city names
-        $country = mysqli_fetch_assoc(mysqli_query($conn, "SELECT name FROM countries WHERE id=" . (int)$company['country_id']));
-        $state   = mysqli_fetch_assoc(mysqli_query($conn, "SELECT name FROM states WHERE id=" . (int)$company['state_id']));
-        $city    = mysqli_fetch_assoc(mysqli_query($conn, "SELECT name FROM cities WHERE id=" . (int)$company['city_id']));
+        $country_name = '';
+        $state_name = '';
+        $city_name = '';
+        
+        if (!empty($company['country_id'])) {
+            $country_query = mysqli_query($conn, "SELECT name FROM countries WHERE id = " . (int)$company['country_id']);
+            if ($country_query && mysqli_num_rows($country_query) > 0) {
+                $country_data = mysqli_fetch_assoc($country_query);
+                $country_name = $country_data['name'] ?? '';
+            }
+        }
+        
+        if (!empty($company['state_id'])) {
+            $state_query = mysqli_query($conn, "SELECT name FROM states WHERE id = " . (int)$company['state_id']);
+            if ($state_query && mysqli_num_rows($state_query) > 0) {
+                $state_data = mysqli_fetch_assoc($state_query);
+                $state_name = $state_data['name'] ?? '';
+            }
+        }
+        
+        if (!empty($company['city_id'])) {
+            $city_query = mysqli_query($conn, "SELECT name FROM cities WHERE id = " . (int)$company['city_id']);
+            if ($city_query && mysqli_num_rows($city_query) > 0) {
+                $city_data = mysqli_fetch_assoc($city_query);
+                $city_name = $city_data['name'] ?? '';
+            }
+        }
 
         // Build shipping HTML dynamically - only show non-empty fields
         $shipping_parts = [];
@@ -137,11 +162,6 @@ if (isset($_POST['client_id'])) {
         if (!empty($company['name'])) {
             $shipping_parts[] = '<h6 class="fs-14 fw-semibold mb-1">' . htmlspecialchars($company['name']) . '</h6>';
         }
-        
-        // Phone
-        // if (!empty($company['mobile_number'])) {
-        //     $shipping_parts[] = '<p class="mb-1 fs-13"><span class="text-dark">Phone:</span> ' . htmlspecialchars($company['mobile_number']) . '</p>';
-        // }
         
         // Email
         if (!empty($company['email'])) {
@@ -164,9 +184,9 @@ if (isset($_POST['client_id'])) {
         
         // City, State, Country, Zipcode
         $location_parts = [];
-        if (!empty($city['name'])) $location_parts[] = htmlspecialchars($city['name']);
-        if (!empty($state['name'])) $location_parts[] = htmlspecialchars($state['name']);
-        if (!empty($country['name'])) $location_parts[] = htmlspecialchars($country['name']);
+        if (!empty($city_name)) $location_parts[] = htmlspecialchars($city_name);
+        if (!empty($state_name)) $location_parts[] = htmlspecialchars($state_name);
+        if (!empty($country_name)) $location_parts[] = htmlspecialchars($country_name);
         
         if (!empty($location_parts)) {
             $address_html .= '<p class="mb-1 fs-13"><span class="text-dark"></span> ' . implode(', ', $location_parts);
@@ -190,6 +210,9 @@ if (isset($_POST['client_id'])) {
         } else {
             $response['shipping_html'] = implode('', $shipping_parts);
         }
+    } else {
+        // No company found for this org_id
+        $response['shipping_html'] = '<p class="text-warning">Company profile not set up. Please complete company profile.</p>';
     }
 }
 
