@@ -9,6 +9,24 @@ include '../config/config.php';
 // ADDED: Get company currency
 $companyCurrency = getCompanyCurrency($conn);
 
+// Get current user info for organization filtering
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
 // Validate and sanitize the ID
 $invoice_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -35,15 +53,18 @@ $row = mysqli_fetch_assoc($result);
 $currency_query = "SELECT * FROM currency ORDER BY currency_name";
 $currency_result = mysqli_query($conn, $currency_query);
 
-// Fetch tax rates from database
+// Fetch tax rates from database with organization filtering
 $taxRates = [];
 $taxQuery = "SELECT id, name, rate FROM tax WHERE status = 1";
+if ($currentOrgId > 0) {
+    $taxQuery .= " AND org_id = $currentOrgId";
+}
 $taxResult = mysqli_query($conn, $taxQuery);
 while ($taxRow = mysqli_fetch_assoc($taxResult)) {
     $taxRates[] = $taxRow;
 }
 
-// Fetch products and services from product table based on item_type
+// Fetch products and services from product table based on item_type WITH ORGANIZATION FILTERING
 $products = [];
 $services = [];
 $itemQuery = "SELECT p.id, p.name, p.selling_price, p.code, p.item_type, 
@@ -53,6 +74,20 @@ $itemQuery = "SELECT p.id, p.name, p.selling_price, p.code, p.item_type,
               LEFT JOIN tax t ON p.tax_id = t.id
               LEFT JOIN units u ON p.unit_id = u.id
               WHERE p.is_deleted = 0 AND p.status = 1";
+if ($currentOrgId > 0) {
+    $itemQuery .= " AND p.org_id = $currentOrgId";
+}
+// Add role-based filtering for non-admin users
+if ($userRoleId != 1) {
+    $itemQuery .= " AND (p.user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = p.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
+}
+$itemQuery .= " ORDER BY p.name ASC";
+
 $itemResult = mysqli_query($conn, $itemQuery);
 while ($item = mysqli_fetch_assoc($itemResult)) {
     if ($item['item_type'] == 1) {
@@ -62,12 +97,34 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
     }
 }
 
-// Fetch related data
-$clients = mysqli_query($conn, "SELECT id, first_name, last_name, salutation, company_name FROM client WHERE is_deleted = 0");
-$users = mysqli_query($conn,  "SELECT login.id, login.name FROM login
+// Fetch clients with organization filtering
+$clients_query = "SELECT id, first_name, last_name, salutation, company_name FROM client WHERE is_deleted = 0";
+if ($currentOrgId > 0) {
+    $clients_query .= " AND org_id = $currentOrgId";
+}
+// Add role-based filtering for non-admin users
+if ($userRoleId != 1) {
+    $clients_query .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = client.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
+}
+$clients_query .= " ORDER BY first_name ASC";
+$clients = mysqli_query($conn, $clients_query);
+
+// Fetch users (salespersons) with organization filtering
+$users_query = "SELECT login.id, login.name FROM login
     JOIN user_role ON login.role_id = user_role.id
-    WHERE login.is_deleted = 0
-    ORDER BY login.name ASC");
+    WHERE login.is_deleted = 0";
+if ($currentOrgId > 0) {
+    $users_query .= " AND login.org_id = $currentOrgId";
+}
+$users_query .= " ORDER BY login.name ASC";
+$users = mysqli_query($conn, $users_query);
+
+// Fetch documents
 $documents = mysqli_query($conn, "SELECT id, document FROM invoice_document WHERE invoice_id = $invoice_id AND is_deleted = 0");
 
 // Radio precheck
@@ -292,7 +349,21 @@ if ($project_id > 0) {
                                                             <option value="">Select Project</option>
                                                             <?php
                                                             if ($row['client_id']) {
-                                                                $client_projects = mysqli_query($conn, "SELECT * FROM project WHERE client_id = {$row['client_id']} AND is_deleted = 0");
+                                                                // Fetch projects with organization filtering
+                                                                $client_projects_query = "SELECT * FROM project WHERE client_id = {$row['client_id']} AND is_deleted = 0";
+                                                                if ($currentOrgId > 0) {
+                                                                    $client_projects_query .= " AND org_id = $currentOrgId";
+                                                                }
+                                                                // Add role-based filtering for non-admin users
+                                                                if ($userRoleId != 1) {
+                                                                    $client_projects_query .= " AND (user_id = $currentUserId OR EXISTS (
+                                                                        SELECT 1 FROM login u 
+                                                                        WHERE u.id = project.user_id 
+                                                                        AND u.role_id = 1 
+                                                                        AND u.org_id = $currentOrgId
+                                                                    ))";
+                                                                }
+                                                                $client_projects = mysqli_query($conn, $client_projects_query);
                                                                 while ($project = mysqli_fetch_assoc($client_projects)) {
                                                                     $selected = ($project['id'] == $project_id) ? 'selected' : '';
                                                                     echo "<option value='{$project['id']}' $selected>{$project['project_name']}</option>";
@@ -309,7 +380,21 @@ if ($project_id > 0) {
                                                             <option value="">Select Tasks</option>
                                                             <?php
                                                             if ($project_id) {
-                                                                $project_tasks = mysqli_query($conn, "SELECT * FROM project_task WHERE project_id = $project_id AND is_deleted = 0");
+                                                                // Fetch tasks with organization filtering
+                                                                $project_tasks_query = "SELECT * FROM project_task WHERE project_id = $project_id AND is_deleted = 0";
+                                                                if ($currentOrgId > 0) {
+                                                                    $project_tasks_query .= " AND org_id = $currentOrgId";
+                                                                }
+                                                                // Add role-based filtering for non-admin users
+                                                                if ($userRoleId != 1) {
+                                                                    $project_tasks_query .= " AND (user_id = $currentUserId OR EXISTS (
+                                                                        SELECT 1 FROM login u 
+                                                                        WHERE u.id = project_task.user_id 
+                                                                        AND u.role_id = 1 
+                                                                        AND u.org_id = $currentOrgId
+                                                                    ))";
+                                                                }
+                                                                $project_tasks = mysqli_query($conn, $project_tasks_query);
                                                                 while ($task = mysqli_fetch_assoc($project_tasks)) {
                                                                     $selected = in_array($task['id'], $task_ids) ? 'selected' : '';
                                                                     echo "<option value='{$task['id']}' $selected>{$task['task_name']} ({$task['hour']} hours)</option>";
@@ -519,9 +604,9 @@ if ($project_id > 0) {
                                                                                         data-unit-id="<?= $product['unit_id'] ?>"
                                                                                         data-tax="<?= $product['tax_rate'] ?>"
                                                                                         data-tax-id="<?= $product['tax_id'] ?>"
-                                                                                        data-tax-name="<?= $product['tax_name'] ?>"
+                                                                                        data-tax-name="<?= htmlspecialchars($product['tax_name'] ?? '') ?>"
                                                                                         <?= ($product['id'] == $itemId) ? 'selected' : '' ?>>
-                                                                                        <?= $product['name'] ?>
+                                                                                        <?= htmlspecialchars($product['name']) ?>
                                                                                     </option>
                                                                                 <?php endforeach; ?>
                                                                             </select>
@@ -542,9 +627,9 @@ if ($project_id > 0) {
                                                                                         data-unit-id="<?= $service['unit_id'] ?>"
                                                                                         data-tax="<?= $service['tax_rate'] ?>"
                                                                                         data-tax-id="<?= $service['tax_id'] ?>"
-                                                                                        data-tax-name="<?= $service['tax_name'] ?>"
+                                                                                        data-tax-name="<?= htmlspecialchars($service['tax_name'] ?? '') ?>"
                                                                                         <?= ($service['id'] == $itemId) ? 'selected' : '' ?>>
-                                                                                        <?= $service['name'] ?>
+                                                                                        <?= htmlspecialchars($service['name']) ?>
                                                                                     </option>
                                                                                 <?php endforeach; ?>
                                                                             </select>
@@ -585,7 +670,7 @@ if ($project_id > 0) {
                                                                                 <option value="<?= $tax['id'] ?>" 
                                                                                     data-rate="<?= $tax['rate'] ?>"
                                                                                     <?= ($gst_type != 'non_gst' && $tax['id'] == $taxId) ? 'selected' : '' ?>>
-                                                                                    <?= $tax['name'] ?> (<?= $tax['rate'] ?>%)
+                                                                                    <?= htmlspecialchars($tax['name']) ?> (<?= $tax['rate'] ?>%)
                                                                                 </option>
                                                                             <?php endforeach; ?>
                                                                         </select>
@@ -601,7 +686,7 @@ if ($project_id > 0) {
                                                                                 <option value="<?= $tax['id'] ?>" 
                                                                                     data-rate="<?= $tax['rate'] ?>"
                                                                                     <?= ($gst_type != 'non_gst' && $tax['id'] == $taxId) ? 'selected' : '' ?>>
-                                                                                    <?= $tax['name'] ?> (<?= $tax['rate'] ?>%)
+                                                                                    <?= htmlspecialchars($tax['name']) ?> (<?= $tax['rate'] ?>%)
                                                                                 </option>
                                                                             <?php endforeach; ?>
                                                                         </select>
@@ -669,7 +754,14 @@ if ($project_id > 0) {
                                                                         <option value="">Select Account</option>
                                                                         <?php
                                                                         $invoiceBankId = $row['bank_id'] ?? 0;
-                                                                        $bankResult = mysqli_query($conn, "SELECT * FROM bank WHERE status = 1");
+                                                                        // Fetch bank accounts with organization filtering
+                                                                        $bank_query = "SELECT * FROM bank WHERE status = 1";
+                                                                        if ($currentOrgId > 0) {
+                                                                            $bank_query .= " AND org_id = $currentOrgId";
+                                                                        }
+                                                                        $bank_query .= " ORDER BY account_holder ASC";
+                                                                        
+                                                                        $bankResult = mysqli_query($conn, $bank_query);
                                                                         while ($bank = mysqli_fetch_assoc($bankResult)) {
                                                                             $selected = ($bank['id'] == $invoiceBankId) ? 'selected' : '';
                                                                             echo '<option value="' . $bank['id'] . '" ' . $selected . '>'
@@ -876,7 +968,12 @@ if ($project_id > 0) {
                     $.ajax({
                         url: 'process/get_projects_by_client.php',
                         type: 'POST',
-                        data: { client_id: clientId },
+                        data: { 
+                            client_id: clientId,
+                            current_user_id: <?= $currentUserId ?>,
+                            current_org_id: <?= $currentOrgId ?>,
+                            user_role_id: <?= $userRoleId ?>
+                        },
                         success: function(data) {
                             $('#project_id').html(data);
                         },
@@ -902,7 +999,12 @@ if ($project_id > 0) {
                     $.ajax({
                         url: 'process/get_tasks_by_project.php',
                         type: 'POST',
-                        data: { project_id: projectId },
+                        data: { 
+                            project_id: projectId,
+                            current_user_id: <?= $currentUserId ?>,
+                            current_org_id: <?= $currentOrgId ?>,
+                            user_role_id: <?= $userRoleId ?>
+                        },
                         success: function(data) {
                             $('#task_id').html(data);
                             // Initialize select2 for multi-select
@@ -940,7 +1042,12 @@ if ($project_id > 0) {
                             $.ajax({
                                 url: 'process/get_task_details.php',
                                 type: 'POST',
-                                data: { task_id: taskId },
+                                data: { 
+                                    task_id: taskId,
+                                    current_user_id: <?= $currentUserId ?>,
+                                    current_org_id: <?= $currentOrgId ?>,
+                                    user_role_id: <?= $userRoleId ?>
+                                },
                                 dataType: 'json',
                                 success: function(response) {
                                     if (response.success) {
@@ -976,7 +1083,7 @@ if ($project_id > 0) {
                                                     <select class="form-select service-tax-select" name="tax_id[]" ${isNonGST ? 'disabled' : ''}>
                                                         <option value="">Select Tax</option>
                                                         <?php foreach ($taxRates as $tax): ?>
-                                                        <option value="<?= $tax['id'] ?>" data-rate="<?= $tax['rate'] ?>"><?= $tax['name'] ?> (<?= $tax['rate'] ?>%)</option>
+                                                        <option value="<?= $tax['id'] ?>" data-rate="<?= $tax['rate'] ?>"><?= htmlspecialchars($tax['name']) ?> (<?= $tax['rate'] ?>%)</option>
                                                         <?php endforeach; ?>
                                                     </select>
                                                     <input type="hidden" class="tax-rate" name="rate[]" data-value="${isNonGST ? '0' : '0'}" value="${isNonGST ? '0%' : '0%'}">
@@ -1020,7 +1127,12 @@ if ($project_id > 0) {
                     $.ajax({
                         url: 'process/fetch_client_full_info.php',
                         type: 'POST',
-                        data: { client_id: clientId },
+                        data: { 
+                            client_id: clientId,
+                            current_user_id: <?= $currentUserId ?>,
+                            current_org_id: <?= $currentOrgId ?>,
+                            user_role_id: <?= $userRoleId ?>
+                        },
                         dataType: 'json',
                         success: function(response) {
                             console.log('Client info response:', response);
@@ -1165,8 +1277,8 @@ if ($project_id > 0) {
                                 data-unit-id="<?= $product['unit_id'] ?>"
                                 data-tax="<?= $product['tax_rate'] ?>"
                                 data-tax-id="<?= $product['tax_id'] ?>"
-                                data-tax-name="<?= $product['tax_name'] ?>">
-                                <?= $product['name'] ?>
+                                data-tax-name="<?= htmlspecialchars($product['tax_name'] ?? '') ?>">
+                                <?= htmlspecialchars($product['name']) ?>
                                 </option>`;
                 <?php endforeach; ?>
                 
@@ -1186,8 +1298,8 @@ if ($project_id > 0) {
                                 data-unit-id="<?= $service['unit_id'] ?>"
                                 data-tax="<?= $service['tax_rate'] ?>"
                                 data-tax-id="<?= $service['tax_id'] ?>"
-                                data-tax-name="<?= $service['tax_name'] ?>">
-                                <?= $service['name'] ?>
+                                data-tax-name="<?= htmlspecialchars($service['tax_name'] ?? '') ?>">
+                                <?= htmlspecialchars($service['name']) ?>
                                 </option>`;
                 <?php endforeach; ?>
                 
@@ -1345,7 +1457,7 @@ if ($project_id > 0) {
                 const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
                 let taxOptions = '<option value="">Select Tax</option>';
                 <?php foreach ($taxRates as $tax): ?>
-                taxOptions += `<option value="<?= $tax['id'] ?>" data-rate="<?= $tax['rate'] ?>"><?= $tax['name'] ?> (<?= $tax['rate'] ?>%)</option>`;
+                taxOptions += `<option value="<?= $tax['id'] ?>" data-rate="<?= $tax['rate'] ?>"><?= htmlspecialchars($tax['name']) ?> (<?= $tax['rate'] ?>%)</option>`;
                 <?php endforeach; ?>
 
                 const newRow = $(`
@@ -1417,7 +1529,7 @@ if ($project_id > 0) {
                 const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
                 let taxOptions = '<option value="">Select Tax</option>';
                 <?php foreach ($taxRates as $tax): ?>
-                taxOptions += `<option value="<?= $tax['id'] ?>" data-rate="<?= $tax['rate'] ?>"><?= $tax['name'] ?> (<?= $tax['rate'] ?>%)</option>`;
+                taxOptions += `<option value="<?= $tax['id'] ?>" data-rate="<?= $tax['rate'] ?>"><?= htmlspecialchars($tax['name']) ?> (<?= $tax['rate'] ?>%)</option>`;
                 <?php endforeach; ?>
 
                 const newRow = $(`
