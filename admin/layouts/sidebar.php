@@ -284,7 +284,9 @@ $logo = !empty($logoRow['company_logo']) ? '../uploads/' . $logoRow['company_log
                                 <ul>
                                     <li><a href="tax-rates.php" class="<?= ($page == 'tax-rates.php') ? 'active' : '' ?>">Tax Rates</a></li>
                                     <li><a href="bank.php" class="<?= ($page == 'bank.php') ? 'active' : '' ?>">Bank</a></li>
+                                      <?php if ($role_id == 1) { ?>
                                     <li><a href="company-settings.php" class="<?= ($page == 'company-settings.php') ? 'active' : '' ?>">Company Profile</a></li>
+                                     <?php } ?>
                                 </ul>
                             </li>
                         </ul>
