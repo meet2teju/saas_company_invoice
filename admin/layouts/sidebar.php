@@ -3,18 +3,34 @@ include "function.php";
 
 // Fetch user role ID from session
 $user_id = $_SESSION['crm_user_id'] ?? 0;
+$org_id = $_SESSION['org_id'] ?? 0;
 $role_id = 0;
 $role_name = '';
 
 if ($user_id > 0) {
-    $login_result = mysqli_query($conn, "SELECT role_id FROM login WHERE id = '$user_id'");
+    $login_result = mysqli_query($conn, "SELECT role_id, org_id FROM login WHERE id = '$user_id'");
     if ($login_row = mysqli_fetch_assoc($login_result)) {
         $role_id = $login_row['role_id'];
+        $org_id = $login_row['org_id'];
         $role_result = mysqli_query($conn, "SELECT name FROM user_role WHERE id = '$role_id'");
         $role_data = mysqli_fetch_assoc($role_result);
         $role_name = strtolower($role_data['name']??'');
     }
 }
+
+// Fetch logo from company_info based on organization
+$logoQuery = "SELECT company_logo FROM company_info WHERE is_deleted = 0";
+if ($org_id > 0) {
+    $logoQuery .= " AND org_id = $org_id";
+} else {
+    $logoQuery .= " LIMIT 1";
+}
+
+$logoResult = mysqli_query($conn, $logoQuery);
+$logoRow = mysqli_fetch_assoc($logoResult);
+
+// Use default if not set
+$logo = !empty($logoRow['company_logo']) ? '../uploads/' . $logoRow['company_logo'] : 'assets/img/logocrm.png';
 ?>
 
 <div class="two-col-sidebar" id="two-col-sidebar">
@@ -97,28 +113,17 @@ if ($user_id > 0) {
 	</div>
 
     <div class="sidebar" id="sidebar-two">
-        <?php
-
-// Fetch logo from profile_info
-$logoQuery = "SELECT company_logo FROM company_info WHERE is_deleted = 0 LIMIT 1";
-$logoResult = mysqli_query($conn, $logoQuery);
-$logoRow = mysqli_fetch_assoc($logoResult);
-
-// Use default if not set
-$logo = !empty($logoRow['company_logo']) ? '../uploads/' . $logoRow['company_logo'] : 'assets/img/logocrm.png';
-?>
-<div class="sidebar-logo">
-    <a href="admin-dashboard.php" class="logo logo-normal">
-        <img src="<?php echo $logo; ?>" alt="Logo" style="max-height:40px;">
-    </a>
-    <a href="admin-dashboard.php" class="logo-small">
-        <img src="<?php echo $logo; ?>" alt="Logo">
-    </a>
-    <a id="toggle_btn" href="javascript:void(0);">
-        <i class="isax isax-menu-1"></i>
-    </a>
-</div>
-
+        <div class="sidebar-logo">
+            <a href="admin-dashboard.php" class="logo logo-normal">
+                <img src="<?php echo $logo; ?>" alt="Logo" style="max-height:40px;">
+            </a>
+            <a href="admin-dashboard.php" class="logo-small">
+                <img src="<?php echo $logo; ?>" alt="Logo">
+            </a>
+            <a id="toggle_btn" href="javascript:void(0);">
+                <i class="isax isax-menu-1"></i>
+            </a>
+        </div>
 
         <div class="sidebar-search">
             <div class="input-icon-end position-relative">
