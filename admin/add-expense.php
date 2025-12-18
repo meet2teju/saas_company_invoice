@@ -1,6 +1,23 @@
 <?php include 'layouts/session.php'; ?>
 <?php
 include '../config/config.php';
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -73,22 +90,42 @@ include '../config/config.php';
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">Client Name</label>
-                                                    <select class="form-select select2" name="client_id" id="client_id">
-                                                        <option value="">Select Client</option>
-                                                         <?php                                                         
-                                                            // Fixed query: Fetch all active clients (non-deleted)
-                                                            $result = mysqli_query($conn, "
-                                                                SELECT id, first_name, last_name ,salutation
-                                                                FROM client 
-                                                                WHERE is_deleted = 0
-                                                                ORDER BY first_name, last_name ,salutation
-                                                            ");                                                                   
-                                                                while ($row = mysqli_fetch_assoc($result)) {
-                                                            $fullName = trim($row['salutation'] . ' ' .$row['first_name'] . ' ' . ($row['last_name'] ?? ''));
-                                                            echo '<option value="' . $row['id'] . '">' . htmlspecialchars($fullName) . '</option>';
-                                                        }
-                                                        ?>  
-                                                    </select>
+                                                  <select class="form-select select2" name="client_id" id="client_id">
+    <option value="">Select Client</option>
+    <?php
+    // Get selected client ID from URL
+    $selectedClient = isset($_GET['client_id']) ? intval($_GET['client_id']) : 0;
+
+    // MODIFIED: Apply access control to clients dropdown
+    $clients_query = "SELECT * FROM client WHERE is_deleted = 0";
+    if ($currentOrgId > 0) {
+        $clients_query .= " AND org_id = $currentOrgId";
+    }
+    // Add role-based filtering for non-admin users
+    if ($userRoleId != 1) {
+        $clients_query .= " AND (user_id = $currentUserId OR EXISTS (
+            SELECT 1 FROM login u 
+            WHERE u.id = client.user_id 
+            AND u.role_id = 1 
+            AND u.org_id = $currentOrgId
+        ))";
+    }
+    $clients_query .= " ORDER BY first_name ASC";
+    
+    $result = mysqli_query($conn, $clients_query);
+    while ($row = mysqli_fetch_assoc($result)) {
+        $isSelected = ($row['id'] == $selectedClient) ? 'selected' : '';
+        
+        // Build the display name with salutation, first name, last name, and company
+        $displayName = trim($row['salutation'] . ' ' . $row['first_name'] . ' ' . $row['last_name']);
+        if (!empty($row['company_name'])) {
+            $displayName .= ' - ' . $row['company_name'];
+        }
+        
+        echo '<option value="' . $row['id'] . '" ' . $isSelected . '>' . htmlspecialchars($displayName) . '</option>';
+    }
+    ?>
+</select>
                                                     <span class="text-danger error-text" id="clientname_error"></span>
                                                 </div>
                                             </div>

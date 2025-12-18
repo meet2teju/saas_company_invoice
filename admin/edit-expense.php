@@ -2,6 +2,24 @@
 <?php
 include '../config/config.php';
 
+// Get current user info
+$currentUserId = $_SESSION['crm_user_id'] ?? 0;
+$currentOrgId = $_SESSION['org_id'] ?? 0;
+$userRoleId = $_SESSION['role_id'] ?? 0;
+
+// Get the correct org_id from database if session org_id is 0
+if ($currentOrgId == 0 && $currentUserId > 0) {
+    $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
+    $fixResult = mysqli_query($conn, $fixQuery);
+    if ($fixResult && mysqli_num_rows($fixResult) > 0) {
+        $userData = mysqli_fetch_assoc($fixResult);
+        $_SESSION['org_id'] = $userData['org_id'];
+        $_SESSION['role_id'] = $userData['role_id'];
+        $currentOrgId = $userData['org_id'];
+        $userRoleId = $userData['role_id'];
+    }
+}
+
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     $_SESSION['message'] = "Invalid expense ID.";
     $_SESSION['message_type'] = "danger";
@@ -31,10 +49,6 @@ $documents = mysqli_query($conn, "SELECT * FROM expense_document WHERE expense_i
     <?php include 'layouts/title-meta.php'; ?> 
     <?php include 'layouts/head-css.php'; ?>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <!-- <style>
-        .error-text { color: red; font-size: 0.85rem; }
-        .is-invalid { border-color: red !important; }
-    </style> -->
 </head>
 <body>
 <div class="main-wrapper">
@@ -56,9 +70,6 @@ $documents = mysqli_query($conn, "SELECT * FROM expense_document WHERE expense_i
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6>Edit Expense</h6>
-                            <!-- <a href="" class="btn btn-outline-white d-inline-flex align-items-center">
-                                <i class="isax isax-eye me-1"></i>Preview
-                            </a> -->
                         </div>
                         <div class="card">
                             <div class="card-body">
@@ -93,11 +104,34 @@ $documents = mysqli_query($conn, "SELECT * FROM expense_document WHERE expense_i
                                                     <label class="form-label">Client Name</label>
                                                     <select class="form-select select2" name="client_id" id="client_id">
                                                         <option value="">Select Client</option>
-                                                         <?php
-                                                        $clientResult = mysqli_query($conn, "SELECT id,salutation, first_name, last_name FROM client");
+                                                        <?php
+                                                        // MODIFIED: Apply access control to clients dropdown
+                                                        $clients_query = "SELECT * FROM client WHERE is_deleted = 0";
+                                                        if ($currentOrgId > 0) {
+                                                            $clients_query .= " AND org_id = $currentOrgId";
+                                                        }
+                                                        // Add role-based filtering for non-admin users
+                                                        if ($userRoleId != 1) {
+                                                            $clients_query .= " AND (user_id = $currentUserId OR EXISTS (
+                                                                SELECT 1 FROM login u 
+                                                                WHERE u.id = client.user_id 
+                                                                AND u.role_id = 1 
+                                                                AND u.org_id = $currentOrgId
+                                                            ))";
+                                                        }
+                                                        $clients_query .= " ORDER BY first_name ASC";
+                                                        
+                                                        $clientResult = mysqli_query($conn, $clients_query);
                                                         while ($row = mysqli_fetch_assoc($clientResult)) {
                                                             $selected = ($expense['client_id'] == $row['id']) ? 'selected' : '';
-                                                            echo '<option value="' . $row['id'] . '" ' . $selected . '>' . $row['salutation'] . ' ' .  $row['first_name'] . ' ' . ($row['last_name'] ?? '') . '</option>';
+                                                            
+                                                            // Build the display name with salutation, first name, last name, and company
+                                                            $displayName = trim($row['salutation'] . ' ' . $row['first_name'] . ' ' . $row['last_name']);
+                                                            if (!empty($row['company_name'])) {
+                                                                $displayName .= ' - ' . $row['company_name'];
+                                                            }
+                                                            
+                                                            echo '<option value="' . $row['id'] . '" ' . $selected . '>' . htmlspecialchars($displayName) . '</option>';
                                                         }
                                                         ?>
                                                     </select>
