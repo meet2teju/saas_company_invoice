@@ -2,12 +2,14 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
+// Get company currency (added this line)
+$companyCurrency = getCompanyCurrency($conn);
+
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     die("Invalid Client ID.");
 }
 
 $clientId = intval($_GET['id']);
-// $query = "SELECT * FROM client WHERE id = $clientId AND is_deleted = 0";
 $query = "SELECT c.*, ca.billing_address1 , ca.billing_address2
           FROM client c
           LEFT JOIN client_address ca ON c.id = ca.client_id
@@ -18,8 +20,6 @@ $result = mysqli_query($conn, $query);
 if (!$result || mysqli_num_rows($result) == 0) {
     die("Client not found.");
 }
-
-// $client = mysqli_fetch_assoc($result);
 
 $client = mysqli_fetch_assoc($result);
 
@@ -68,8 +68,14 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
 
 <head>
 	<?php include 'layouts/title-meta.php'; ?> 
-
 	<?php include 'layouts/head-css.php'; ?>
+    <style>
+        .price-currency {
+            display: inline-block;
+            min-width: 20px;
+            text-align: left;
+        }
+    </style>
 </head>
 
 <body>
@@ -92,6 +98,10 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                 <div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3 mb-3">
                     <div>
                         <h6>Clients Detail</h6>
+                        <!-- Display current company currency -->
+                        <!-- <small class="text-muted">
+                            Company Currency: <?php echo $companyCurrency['currency_name'] . ' (' . $companyCurrency['currency_symbol'] . ')'; ?>
+                        </small> -->
                     </div>
                     <div class="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
                         <div class="dropdown">
@@ -144,22 +154,21 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
 
                                         <div class="">
                                             <p class="text-primary fs-14 fw-medium mb-1">Cl-<?= htmlspecialchars($client['id']) ?></p>
-                                            <!-- <h6 class="mb-2"> <?= htmlspecialchars($client['first_name']) ?><img src="assets/img/icons/confirme.svg" alt="confirme" class="ms-1">  </h6> -->
-                                   <h6 class="mb-2"> 
-    <?= htmlspecialchars("{$client['salutation']} {$client['first_name']} {$client['last_name']}") ?>
-    <img src="assets/img/icons/confirme.svg" alt="confirme" class="ms-1">  
-</h6>
+                                            <h6 class="mb-2"> 
+                                                <?= htmlspecialchars("{$client['salutation']} {$client['first_name']} {$client['last_name']}") ?>
+                                                <img src="assets/img/icons/confirme.svg" alt="confirme" class="ms-1">  
+                                            </h6>
                                             <p class="fs-14 fw-regular">
-                                        <i class="isax isax-location fs-14 me-1 text-gray-9"></i>
-                                        <?= htmlspecialchars($client['billing_address1']) ?>
-                                        <?= !empty($client['billing_address2']) ? '<br>' . htmlspecialchars($client['billing_address2']) : '' ?>
-                                    </p>
+                                                <i class="isax isax-location fs-14 me-1 text-gray-9"></i>
+                                                <?= htmlspecialchars($client['billing_address1']) ?>
+                                                <?= !empty($client['billing_address2']) ? '<br>' . htmlspecialchars($client['billing_address2']) : '' ?>
+                                            </p>
                                         </div>
                                     </div>
-                                            <a href="javascript:void(0);" class="btn btn-outline-white border border-1 border-grey border-sm bg-white"
-                                            data-bs-toggle="modal" data-bs-target="#editClientModal">
-                                            <i class="isax isax-edit-2 fs-13 fw-semibold text-dark me-1"></i> Edit Profile
-                                            </a>
+                                    <a href="javascript:void(0);" class="btn btn-outline-white border border-1 border-grey border-sm bg-white"
+                                       data-bs-toggle="modal" data-bs-target="#editClientModal">
+                                       <i class="isax isax-edit-2 fs-13 fw-semibold text-dark me-1"></i> Edit Profile
+                                    </a>
                                 </div>
 
                                 <div class="card border-0 shadow shadow-none mb-0 bg-white">
@@ -190,33 +199,48 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                         <!-- End User -->
 
                         <!-- Start Statistics -->
-                          <div class="card">
+                        <div class="card">
                             <div class="card-body">
                                 <h6 class="pb-3 mb-3 border-1 border-bottom border-gray"> Invoice Statistics </h6>
                                 <ul class="d-flex align-items-center justify-content-between flex-wrap gap-2 p-0 m-0 list-unstyled">
                                     <li>
                                         <p class="mb-2"> <i class="fa-solid fa-circle fs-10 text-primary me-2"></i> Total Invoice </p>
-                                        <h6 class="fs-16 fw-600"> $<?= number_format($stats['total_amount'] ?? 0, 2) ?></h6>
+                                        <!-- Updated to use company currency -->
+                                        <h6 class="fs-16 fw-600">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($stats['total_amount'] ?? 0, 2) ?>
+                                        </h6>
                                         <small class="text-muted">(<?= $stats['total_invoices'] ?? 0 ?> invoices)</small>
                                     </li>
                                     <li>
                                         <p class="mb-2"> <i class="fa-solid fa-circle fs-10 text-info me-2"></i> Outstanding </p>
-                                        <h6 class="fs-16 fw-600"> $<?= number_format($stats['outstanding_amount'] ?? 0, 2) ?></h6>
+                                        <!-- Updated to use company currency -->
+                                        <h6 class="fs-16 fw-600">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($stats['outstanding_amount'] ?? 0, 2) ?>
+                                        </h6>
                                         <small class="text-muted">(<?= $stats['unpaid_count'] ?? 0 ?> unpaid)</small>
                                     </li>
                                     <li>
                                         <p class="mb-2"> <i class="fa-solid fa-circle fs-10 text-danger me-2"></i> Overdue </p>
-                                        <h6 class="fs-16 fw-600"> $<?= number_format($stats['overdue_amount'] ?? 0, 2) ?></h6>
+                                        <!-- Updated to use company currency -->
+                                        <h6 class="fs-16 fw-600">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($stats['overdue_amount'] ?? 0, 2) ?>
+                                        </h6>
                                         <small class="text-muted">(<?= $stats['overdue_count'] ?? 0 ?> overdue)</small>
                                     </li>
                                     <li>
                                         <p class="mb-2"> <i class="fa-solid fa-circle fs-10 text-purple me-2"></i> Draft </p>
-                                        <h6 class="fs-16 fw-600"> $<?= number_format($stats['draft_amount'] ?? 0, 2) ?></h6>
+                                        <!-- Updated to use company currency -->
+                                        <h6 class="fs-16 fw-600">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($stats['draft_amount'] ?? 0, 2) ?>
+                                        </h6>
                                         <small class="text-muted">(<?= $stats['draft_count'] ?? 0 ?> drafts)</small>
                                     </li>
                                     <li>
                                         <p class="mb-2"> <i class="fa-solid fa-circle fs-10 text-error me-2"></i> Cancelled </p>
-                                        <h6 class="fs-16 fw-600"> $<?= number_format($stats['cancelled_amount'] ?? 0, 2) ?></h6>
+                                        <!-- Updated to use company currency -->
+                                        <h6 class="fs-16 fw-600">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($stats['cancelled_amount'] ?? 0, 2) ?>
+                                        </h6>
                                         <small class="text-muted">(<?= $stats['cancelled_count'] ?? 0 ?> cancelled)</small>
                                     </li>
                                 </ul>
@@ -225,7 +249,7 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                         <!-- End Statistics -->
 
                         <!-- Start Tablelist -->
-                          <div class="card table-info">
+                        <div class="card table-info">
                             <div class="card-body">
                                 <h6 class="pb-3 mb-3 border-1 border-bottom border-gray"> Invoice </h6>
                                 <div class="table-responsive table-nowrap">
@@ -249,7 +273,10 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                                                             <a href="invoice-details.php?id=<?= $invoice['id'] ?>" class="link-default"><?= htmlspecialchars($invoice['invoice_id']) ?></a>
                                                         </td>
                                                         <td><?= date('d M Y', strtotime($invoice['invoice_date'])) ?></td>
-                                                        <td class="text-dark">$<?= number_format($invoice['total_amount'], 2) ?></td>
+                                                        <!-- Updated Amount column -->
+                                                        <td class="text-dark">
+                                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($invoice['total_amount'], 2) ?>
+                                                        </td>
                                                         <td class="">
                                                             <?php 
                                                             $paidAmount = 0;
@@ -260,7 +287,8 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                                                                 $paidAmount = $invoice['total_amount'] * 0.5; // Example: 50% paid
                                                             }
                                                             ?>
-                                                            $<?= number_format($paidAmount, 2) ?>
+                                                            <!-- Updated Paid column -->
+                                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($paidAmount, 2) ?>
                                                         </td>
                                                         <td>
                                                             <?php
@@ -347,7 +375,7 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                         <!-- End Tablelist -->
 
                     </div><!-- end col -->
-                  <div class="col-xl-4">
+                    <div class="col-xl-4">
                         <!-- Start Notes -->
                         <div class="card">
                             <div class="card-body">
@@ -356,172 +384,173 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
                             </div><!-- end card body -->
                         </div><!-- end card -->
                         <!-- End Notes -->
-                        <!-- End Notes -->
 
                         <!-- Start Payment -->
-                      <!-- Start Payment -->
-<div class="card">
-    <div class="card-body">
-        <h6 class="pb-3 mb-3 border-1 border-bottom border-gray"> Payments History </h6>
-        <?php
-        // Fetch paid invoices for this client
-        $paidInvoicesQuery = "SELECT * FROM invoice WHERE client_id = $clientId AND status = 'paid' AND is_deleted = 0 ORDER BY invoice_date DESC LIMIT 5";
-        $paidInvoicesResult = mysqli_query($conn, $paidInvoicesQuery);
-        
-        if($paidInvoicesResult && mysqli_num_rows($paidInvoicesResult) > 0): 
-            $counter = 0;
-            while($paidInvoice = mysqli_fetch_assoc($paidInvoicesResult)):
-                $counter++;
-                // Alternate between transaction icons for visual variety
-                $transactionIcon = ($counter % 2 == 0) ? 'transaction-02.svg' : 'transaction-01.svg';
-        ?>
-        <!-- Payment Item -->
-        <div class="d-flex align-items-center justify-content-between mb-3">
-            <div class="d-flex align-items-center">
-                <a href="javascript:void(0);" class="avatar avatar-md flex-shrink-0 me-2">
-                    <img src="assets/img/icons/<?= $transactionIcon ?>" class="rounded-circle" alt="img">
-                </a>
-                <div>
-                    <h6 class="fs-14 fw-semibold mb-1"><a href="javascript:void(0);"><?= htmlspecialchars($client['first_name']) ?></a></h6>
-                    <p class="fs-13"><a href="invoice-details.php?id=<?= $paidInvoice['id'] ?>" class="link-default">#<?= htmlspecialchars($paidInvoice['invoice_id']) ?></a></p>
-                </div>
-            </div>
-            <div>
-                <p class="mb-0 fs-13"> Amount </p>
-                <p class="mb-0 fs-14 fw-semibold text-gray-9"> $<?= number_format($paidInvoice['total_amount'], 2) ?> </p>
-            </div>
-            <div class="text-end">
-                <span class="badge badge-sm badge-soft-success"> Paid <i class="isax isax-tick-circle fs-10 fw-semibold ms-1"></i></span>
-            </div>
-        </div>
-        <?php endwhile; ?>
-        <?php else: ?>
-            <!-- Static fallback payments if no paid invoices found -->
-            <div class="d-flex align-items-center justify-content-between mb-3">
-                <div class="d-flex align-items-center">
-                    <a href="javascript:void(0);" class="avatar avatar-md flex-shrink-0 me-2">
-                        <img src="assets/img/icons/transaction-01.svg" class="rounded-circle" alt="img">
-                    </a>
-                    <div>
-                        <h6 class="fs-14 fw-semibold mb-1"><a href="javascript:void(0);"><?= htmlspecialchars($client['first_name']) ?></a></h6>
-                        <p class="fs-13"><a href="invoice-details.php" class="link-default">#INV00001</a></p>
-                    </div>
-                </div>
-                <div>
-                    <p class="mb-0 fs-13"> Amount </p>
-                    <p class="mb-0 fs-14 fw-semibold text-gray-9"> $0.00 </p>
-                </div>
-                <div class="text-end">
-                    <span class="badge badge-sm badge-soft-success"> Paid <i class="isax isax-tick-circle fs-10 fw-semibold ms-1"></i></span>
-                </div>
-            </div>
-            <div class="text-center py-3">
-                <i class="isax isax-money-tick fs-32 text-muted mb-2"></i>
-                <p class="text-muted mb-0">No paid invoices found</p>
-                <small class="text-muted">Payments will appear here when invoices are marked as paid</small>
-            </div>
-        <?php endif; ?>
-    </div><!-- end card body -->
-</div><!-- end card -->
-<!-- End Payment -->
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="pb-3 mb-3 border-1 border-bottom border-gray"> Payments History </h6>
+                                <?php
+                                // Fetch paid invoices for this client
+                                $paidInvoicesQuery = "SELECT * FROM invoice WHERE client_id = $clientId AND status = 'paid' AND is_deleted = 0 ORDER BY invoice_date DESC LIMIT 5";
+                                $paidInvoicesResult = mysqli_query($conn, $paidInvoicesQuery);
+                                
+                                if($paidInvoicesResult && mysqli_num_rows($paidInvoicesResult) > 0): 
+                                    $counter = 0;
+                                    while($paidInvoice = mysqli_fetch_assoc($paidInvoicesResult)):
+                                        $counter++;
+                                        // Alternate between transaction icons for visual variety
+                                        $transactionIcon = ($counter % 2 == 0) ? 'transaction-02.svg' : 'transaction-01.svg';
+                                ?>
+                                <!-- Payment Item -->
+                                <div class="d-flex align-items-center justify-content-between mb-3">
+                                    <div class="d-flex align-items-center">
+                                        <a href="javascript:void(0);" class="avatar avatar-md flex-shrink-0 me-2">
+                                            <img src="assets/img/icons/<?= $transactionIcon ?>" class="rounded-circle" alt="img">
+                                        </a>
+                                        <div>
+                                            <h6 class="fs-14 fw-semibold mb-1"><a href="javascript:void(0);"><?= htmlspecialchars($client['first_name']) ?></a></h6>
+                                            <p class="fs-13"><a href="invoice-details.php?id=<?= $paidInvoice['id'] ?>" class="link-default">#<?= htmlspecialchars($paidInvoice['invoice_id']) ?></a></p>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p class="mb-0 fs-13"> Amount </p>
+                                        <!-- Updated to use company currency -->
+                                        <p class="mb-0 fs-14 fw-semibold text-gray-9">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($paidInvoice['total_amount'], 2) ?>
+                                        </p>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge badge-sm badge-soft-success"> Paid <i class="isax isax-tick-circle fs-10 fw-semibold ms-1"></i></span>
+                                    </div>
+                                </div>
+                                <?php endwhile; ?>
+                                <?php else: ?>
+                                    <!-- Static fallback payments if no paid invoices found -->
+                                    <div class="d-flex align-items-center justify-content-between mb-3">
+                                        <div class="d-flex align-items-center">
+                                            <a href="javascript:void(0);" class="avatar avatar-md flex-shrink-0 me-2">
+                                                <img src="assets/img/icons/transaction-01.svg" class="rounded-circle" alt="img">
+                                            </a>
+                                            <div>
+                                                <h6 class="fs-14 fw-semibold mb-1"><a href="javascript:void(0);"><?= htmlspecialchars($client['first_name']) ?></a></h6>
+                                                <p class="fs-13"><a href="invoice-details.php" class="link-default">#INV00001</a></p>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p class="mb-0 fs-13"> Amount </p>
+                                            <!-- Updated to use company currency -->
+                                            <p class="mb-0 fs-14 fw-semibold text-gray-9">
+                                                <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;0.00
+                                            </p>
+                                        </div>
+                                        <div class="text-end">
+                                            <span class="badge badge-sm badge-soft-success"> Paid <i class="isax isax-tick-circle fs-10 fw-semibold ms-1"></i></span>
+                                        </div>
+                                    </div>
+                                    <div class="text-center py-3">
+                                        <i class="isax isax-money-tick fs-32 text-muted mb-2"></i>
+                                        <p class="text-muted mb-0">No paid invoices found</p>
+                                        <small class="text-muted">Payments will appear here when invoices are marked as paid</small>
+                                    </div>
+                                <?php endif; ?>
+                            </div><!-- end card body -->
+                        </div><!-- end card -->
                         <!-- End Payment -->
 
                         <!-- Start Recent Activities -->
-                       <!-- Start Recent Activities -->
-<div class="card flex-fill overflow-hidden">
-    <div class="card-body pb-0">
-        <div class="mb-0">
-            <h6 class="mb-1 pb-3 mb-3 border-bottom">Recent Activities</h6>
-            <div class="recent-activities recent-activities-two">
-                <?php
-                // Fetch recent invoice activities for this client
-                $activitiesQuery = "SELECT 
-                                    id,
-                                    invoice_id,
-                                    status,
-                                    total_amount,
-                                    invoice_date,
-                                    due_date,
-                                    updated_at,
-                                    created_at
-                                  FROM invoice 
-                                  WHERE client_id = $clientId 
-                                  AND is_deleted = 0 
-                                  ORDER BY GREATEST(created_at, updated_at) DESC 
-                                  LIMIT 4";
-                $activitiesResult = mysqli_query($conn, $activitiesQuery);
-                
-                if($activitiesResult && mysqli_num_rows($activitiesResult) > 0): 
-                    while($activity = mysqli_fetch_assoc($activitiesResult)):
-                        $activityDate = !empty($activity['updated_at']) && $activity['updated_at'] != $activity['created_at'] 
-                                      ? $activity['updated_at'] 
-                                      : $activity['created_at'];
-                        
-                        $activityDescription = '';
-                        $amountDisplay = '$' . number_format($activity['total_amount'], 2);
-                        
-                        switch($activity['status']) {
-                            case 'paid':
-                                $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was fully paid";
-                                break;
-                            case 'partially_paid':
-                                $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was partially paid";
-                                break;
-                            case 'unpaid':
-                                $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was created - Amount: <span class='text-gray-9 fw-semibold'>{$amountDisplay}</span>";
-                                break;
-                            case 'overdue':
-                                $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> is overdue - Amount: <span class='text-gray-9 fw-semibold'>{$amountDisplay}</span>";
-                                break;
-                            case 'draft':
-                                $activityDescription = "Draft invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was created";
-                                break;
-                            case 'cancelled':
-                                $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was cancelled";
-                                break;
-                            default:
-                                $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> status updated to <span class='text-gray-9 fw-semibold'>" . ucfirst($activity['status']) . "</span>";
-                        }
-                ?>
-                <div class="d-flex align-items-center pb-3">
-                    <span class="border z-1 border-primary rounded-circle flex-shrink-0 d-flex align-items-center justify-content-center bg-white p-1">
-                        <i class="fa fa-circle fs-8 text-primary"></i>
-                    </span>
-                    <div class="recent-activities-flow">
-                        <p class="mb-1"><?= $activityDescription ?></p>
-                        <p class="mb-0 d-inline-flex align-items-center fs-13">
-                            <i class="isax isax-calendar-25 me-1"></i>
-                            <?= date('d M Y', strtotime($activityDate)) ?>
-                        </p>
-                    </div>
-                </div>
-                <?php endwhile; ?>
-                <?php else: ?>
-                    <!-- Fallback activities if no invoices found -->
-                    <div class="d-flex align-items-center pb-3">
-                        <span class="border z-1 border-primary rounded-circle flex-shrink-0 d-flex align-items-center justify-content-center bg-white p-1">
-                            <i class="fa fa-circle fs-8 text-primary"></i>
-                        </span>
-                        <div class="recent-activities-flow">
-                            <p class="mb-1">Client <span class="text-gray-9 fw-semibold"><?= htmlspecialchars($client['first_name']) ?></span> was added to the system</p>
-                            <p class="mb-0 d-inline-flex align-items-center fs-13">
-                                <i class="isax isax-calendar-25 me-1"></i>
-                                <?= date('d M Y', strtotime($client['created_at'] ?? 'now')) ?>
-                            </p>
-                        </div>
-                    </div>
-                    <div class="text-center py-3">
-                        <i class="isax isax-activity fs-32 text-muted mb-2"></i>
-                        <p class="text-muted mb-0">No recent invoice activities</p>
-                        <small class="text-muted">Activities will appear here when invoices are created or updated</small>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div><!-- end card body -->
-    <a href="invoice.php?client_id=<?= $clientId ?>" class="btn w-100 fs-14 py-2 shadow-lg fw-medium">View All Invoices</a>
-</div><!-- end card -->
-<!-- End Recent Activities -->
+                        <div class="card flex-fill overflow-hidden">
+                            <div class="card-body pb-0">
+                                <div class="mb-0">
+                                    <h6 class="mb-1 pb-3 mb-3 border-bottom">Recent Activities</h6>
+                                    <div class="recent-activities recent-activities-two">
+                                        <?php
+                                        // Fetch recent invoice activities for this client
+                                        $activitiesQuery = "SELECT 
+                                                            id,
+                                                            invoice_id,
+                                                            status,
+                                                            total_amount,
+                                                            invoice_date,
+                                                            due_date,
+                                                            updated_at,
+                                                            created_at
+                                                          FROM invoice 
+                                                          WHERE client_id = $clientId 
+                                                          AND is_deleted = 0 
+                                                          ORDER BY GREATEST(created_at, updated_at) DESC 
+                                                          LIMIT 4";
+                                        $activitiesResult = mysqli_query($conn, $activitiesQuery);
+                                        
+                                        if($activitiesResult && mysqli_num_rows($activitiesResult) > 0): 
+                                            while($activity = mysqli_fetch_assoc($activitiesResult)):
+                                                $activityDate = !empty($activity['updated_at']) && $activity['updated_at'] != $activity['created_at'] 
+                                                              ? $activity['updated_at'] 
+                                                              : $activity['created_at'];
+                                                
+                                                $activityDescription = '';
+                                                $amountDisplay = '<span class="price-currency">' . $companyCurrency['currency_symbol'] . '</span>&nbsp;' . number_format($activity['total_amount'], 2);
+                                                
+                                                switch($activity['status']) {
+                                                    case 'paid':
+                                                        $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was fully paid - Amount: <span class='text-gray-9 fw-semibold'>{$amountDisplay}</span>";
+                                                        break;
+                                                    case 'partially_paid':
+                                                        $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was partially paid - Amount: <span class='text-gray-9 fw-semibold'>{$amountDisplay}</span>";
+                                                        break;
+                                                    case 'unpaid':
+                                                        $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was created - Amount: <span class='text-gray-9 fw-semibold'>{$amountDisplay}</span>";
+                                                        break;
+                                                    case 'overdue':
+                                                        $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> is overdue - Amount: <span class='text-gray-9 fw-semibold'>{$amountDisplay}</span>";
+                                                        break;
+                                                    case 'draft':
+                                                        $activityDescription = "Draft invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was created - Amount: <span class='text-gray-9 fw-semibold'>{$amountDisplay}</span>";
+                                                        break;
+                                                    case 'cancelled':
+                                                        $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> was cancelled - Amount: <span class='text-gray-9 fw-semibold'>{$amountDisplay}</span>";
+                                                        break;
+                                                    default:
+                                                        $activityDescription = "Invoice <span class='text-gray-9 fw-semibold'>#{$activity['invoice_id']}</span> status updated to <span class='text-gray-9 fw-semibold'>" . ucfirst($activity['status']) . "</span> - Amount: <span class='text-gray-9 fw-semibold'>{$amountDisplay}</span>";
+                                                }
+                                        ?>
+                                        <div class="d-flex align-items-center pb-3">
+                                            <span class="border z-1 border-primary rounded-circle flex-shrink-0 d-flex align-items-center justify-content-center bg-white p-1">
+                                                <i class="fa fa-circle fs-8 text-primary"></i>
+                                            </span>
+                                            <div class="recent-activities-flow">
+                                                <p class="mb-1"><?= $activityDescription ?></p>
+                                                <p class="mb-0 d-inline-flex align-items-center fs-13">
+                                                    <i class="isax isax-calendar-25 me-1"></i>
+                                                    <?= date('d M Y', strtotime($activityDate)) ?>
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <?php endwhile; ?>
+                                        <?php else: ?>
+                                            <!-- Fallback activities if no invoices found -->
+                                            <div class="d-flex align-items-center pb-3">
+                                                <span class="border z-1 border-primary rounded-circle flex-shrink-0 d-flex align-items-center justify-content-center bg-white p-1">
+                                                    <i class="fa fa-circle fs-8 text-primary"></i>
+                                                </span>
+                                                <div class="recent-activities-flow">
+                                                    <p class="mb-1">Client <span class="text-gray-9 fw-semibold"><?= htmlspecialchars($client['first_name']) ?></span> was added to the system</p>
+                                                    <p class="mb-0 d-inline-flex align-items-center fs-13">
+                                                        <i class="isax isax-calendar-25 me-1"></i>
+                                                        <?= date('d M Y', strtotime($client['created_at'] ?? 'now')) ?>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="text-center py-3">
+                                                <i class="isax isax-activity fs-32 text-muted mb-2"></i>
+                                                <p class="text-muted mb-0">No recent invoice activities</p>
+                                                <small class="text-muted">Activities will appear here when invoices are created or updated</small>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div><!-- end card body -->
+                            <a href="invoice.php?client_id=<?= $clientId ?>" class="btn w-100 fs-14 py-2 shadow-lg fw-medium">View All Invoices</a>
+                        </div><!-- end card -->
                         <!-- End Recent Activities -->
                     </div>
                 </div>
@@ -543,105 +572,103 @@ $activitiesResult = mysqli_query($conn, $activitiesQuery);
 			End Page Content
 		========================= -->
         <!-- Edit Client Modal -->
-       <!-- Edit Client Modal -->
-       <div class="modal fade" id="editClientModal" tabindex="-1" aria-labelledby="editClientModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <form action="process/action_edit_clientprofile.php" method="POST" enctype="multipart/form-data" id="editClientForm">
-            <input type="hidden" name="client_id" value="<?= $client['id'] ?>">
-            <input type="hidden" name="old_image" value="<?= $client['customer_image'] ?>">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="editClientModalLabel">Edit Client Profile</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-
-                <div class="modal-body row">
-                    <!-- Image Preview -->
-                    <div class="mb-3 col-md-12 d-flex align-items-center">
-                        <div id="add_image_preview" class="avatar avatar-xxl border border-dashed bg-light me-3 flex-shrink-0">
-                            <?php if (!empty($client['customer_image'])): ?>
-                                <img src="../uploads/<?= htmlspecialchars($client['customer_image']) ?>" class="avatar avatar-xl rounded-circle" alt="Customer Image">
-                            <?php else: ?>
-                                <i class="isax isax-image text-primary fs-24"></i>
-                            <?php endif; ?>
+        <div class="modal fade" id="editClientModal" tabindex="-1" aria-labelledby="editClientModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <form action="process/action_edit_clientprofile.php" method="POST" enctype="multipart/form-data" id="editClientForm">
+                    <input type="hidden" name="client_id" value="<?= $client['id'] ?>">
+                    <input type="hidden" name="old_image" value="<?= $client['customer_image'] ?>">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="editClientModalLabel">Edit Client Profile</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
-                        <div class="flex-grow-1">
-                            <label for="clientImage" class="form-label">Upload Image<span class="text-danger ms-1">*</span></label>
-                            <input type="file" class="form-control" name="image" id="clientImage">
-                            <span class="text-danger small" id="imageError"></span>
+
+                        <div class="modal-body row">
+                            <!-- Image Preview -->
+                            <div class="mb-3 col-md-12 d-flex align-items-center">
+                                <div id="add_image_preview" class="avatar avatar-xxl border border-dashed bg-light me-3 flex-shrink-0">
+                                    <?php if (!empty($client['customer_image'])): ?>
+                                        <img src="../uploads/<?= htmlspecialchars($client['customer_image']) ?>" class="avatar avatar-xl rounded-circle" alt="Customer Image">
+                                    <?php else: ?>
+                                        <i class="isax isax-image text-primary fs-24"></i>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <label for="clientImage" class="form-label">Upload Image<span class="text-danger ms-1">*</span></label>
+                                    <input type="file" class="form-control" name="image" id="clientImage">
+                                    <span class="text-danger small" id="imageError"></span>
+                                </div>
+                            </div>
+
+                            <!-- Salutation -->
+                            <div class="mb-3 col-md-6">
+                                <label for="clientSalutation" class="form-label">Salutation<span class="text-danger ms-1">*</span></label>
+                               <select class="select" name="salutation" id="salutation" onchange="updateDisplayName()">
+                                    <option value="Mr" <?php echo $client['salutation'] == 'Mr' ? 'selected' : ''; ?>>Mr</option>
+                                    <option value="Mrs" <?php echo $client['salutation'] == 'Mrs' ? 'selected' : ''; ?>>Mrs</option>
+                                    <option value="Ms" <?php echo $client['salutation'] == 'Ms' ? 'selected' : ''; ?>>Ms</option>
+                                    <option value="Miss" <?php echo $client['salutation'] == 'Miss' ? 'selected' : ''; ?>>Miss</option>
+                                    <option value="Dr" <?php echo $client['salutation'] == 'Dr' ? 'selected' : ''; ?>>Dr</option>
+                                </select>
+                                <span class="text-danger small" id="salutationError"></span>
+                            </div>
+
+                            <!-- First Name -->
+                            <div class="mb-3 col-md-6">
+                                <label for="clientFirstName" class="form-label">First Name<span class="text-danger ms-1">*</span></label>
+                                <input type="text" class="form-control" id="clientFirstName" name="first_name" value="<?= htmlspecialchars($client['first_name'] ?? '') ?>">
+                                <span class="text-danger small" id="firstNameError"></span>
+                            </div>
+
+                            <!-- Last Name -->
+                            <div class="mb-3 col-md-6">
+                                <label for="clientLastName" class="form-label">Last Name<span class="text-danger ms-1">*</span></label>
+                                <input type="text" class="form-control" id="clientLastName" name="last_name" value="<?= htmlspecialchars($client['last_name'] ?? '') ?>">
+                                <span class="text-danger small" id="lastNameError"></span>
+                            </div>
+
+                            <!-- Company Name -->
+                            <div class="mb-3 col-md-6">
+                                <label for="clientCompany" class="form-label">Company Name</label>
+                                <input type="text" class="form-control" id="clientCompany" name="company_name" value="<?= htmlspecialchars($client['company_name'] ?? '') ?>">
+                                <span class="text-danger small" id="companyError"></span>
+                            </div>
+
+                            <!-- Email -->
+                            <div class="mb-3 col-md-6">
+                                <label for="clientEmail" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="clientEmail" name="email" value="<?= htmlspecialchars($client['email'] ?? '') ?>">
+                                <span class="text-danger small" id="emailError"></span>
+                            </div>
+
+                            <!-- Work Number -->
+                            <div class="mb-3 col-md-6">
+                                <label for="clientWorkNumber" class="form-label">Work Number</label>
+                                <input type="text" class="form-control" id="clientWorkNumber" name="business_number" value="<?= htmlspecialchars($client['business_number'] ?? '') ?>">
+                            </div>
+
+                            <!-- Mobile Number -->
+                            <div class="mb-3 col-md-6">
+                                <label for="clientMobileNumber" class="form-label">Mobile Number</label>
+                                <input type="text" class="form-control" id="clientMobileNumber" name="phone_number" value="<?= htmlspecialchars($client['phone_number'] ?? '') ?>">
+                                <span class="text-danger small" id="mobileError"></span>
+                            </div>
+
+                            <!-- Website -->
+                            <div class="mb-3 col-md-12">
+                                <label for="clientWebsite" class="form-label">Website</label>
+                                <input type="text" class="form-control" id="clientWebsite" name="website_url" value="<?= htmlspecialchars($client['website_url'] ?? '') ?>">
+                            </div>
+                        </div>
+
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Update</button>
                         </div>
                     </div>
-
-                    <!-- Salutation -->
-                    <div class="mb-3 col-md-6">
-                        <label for="clientSalutation" class="form-label">Salutation<span class="text-danger ms-1">*</span></label>
-                       <select class="select" name="salutation" id="salutation" onchange="updateDisplayName()">
-                                                        <option value="Mr" <?php echo $client['salutation'] == 'Mr' ? 'selected' : ''; ?>>Mr</option>
-                                                        <option value="Mrs" <?php echo $client['salutation'] == 'Mrs' ? 'selected' : ''; ?>>Mrs</option>
-                                                        <option value="Ms" <?php echo $client['salutation'] == 'Ms' ? 'selected' : ''; ?>>Ms</option>
-                                                        <option value="Miss" <?php echo $client['salutation'] == 'Miss' ? 'selected' : ''; ?>>Miss</option>
-                                                        <option value="Dr" <?php echo $client['salutation'] == 'Dr' ? 'selected' : ''; ?>>Dr</option>
-                                                    </select>
-                        <span class="text-danger small" id="salutationError"></span>
-                    </div>
-
-                    <!-- First Name -->
-                    <div class="mb-3 col-md-6">
-                        <label for="clientFirstName" class="form-label">First Name<span class="text-danger ms-1">*</span></label>
-                        <input type="text" class="form-control" id="clientFirstName" name="first_name" value="<?= htmlspecialchars($client['first_name'] ?? '') ?>">
-                        <span class="text-danger small" id="firstNameError"></span>
-                    </div>
-
-                    <!-- Last Name -->
-                    <div class="mb-3 col-md-6">
-                        <label for="clientLastName" class="form-label">Last Name<span class="text-danger ms-1">*</span></label>
-                        <input type="text" class="form-control" id="clientLastName" name="last_name" value="<?= htmlspecialchars($client['last_name'] ?? '') ?>">
-                        <span class="text-danger small" id="lastNameError"></span>
-                    </div>
-
-                    <!-- Company Name -->
-                    <div class="mb-3 col-md-6">
-                        <label for="clientCompany" class="form-label">Company Name</label>
-                        <input type="text" class="form-control" id="clientCompany" name="company_name" value="<?= htmlspecialchars($client['company_name'] ?? '') ?>">
-                        <span class="text-danger small" id="companyError"></span>
-                    </div>
-
-                    <!-- Email -->
-                    <div class="mb-3 col-md-6">
-                        <label for="clientEmail" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="clientEmail" name="email" value="<?= htmlspecialchars($client['email'] ?? '') ?>">
-                        <span class="text-danger small" id="emailError"></span>
-                    </div>
-
-                    <!-- Work Number -->
-                    <div class="mb-3 col-md-6">
-                        <label for="clientWorkNumber" class="form-label">Work Number</label>
-                        <input type="text" class="form-control" id="clientWorkNumber" name="business_number" value="<?= htmlspecialchars($client['business_number'] ?? '') ?>">
-                    </div>
-
-                    <!-- Mobile Number -->
-                    <div class="mb-3 col-md-6">
-                        <label for="clientMobileNumber" class="form-label">Mobile Number</label>
-                        <input type="text" class="form-control" id="clientMobileNumber" name="phone_number" value="<?= htmlspecialchars($client['phone_number'] ?? '') ?>">
-                        <span class="text-danger small" id="mobileError"></span>
-                    </div>
-
-                    <!-- Website -->
-                    <div class="mb-3 col-md-12">
-                        <label for="clientWebsite" class="form-label">Website</label>
-                        <input type="text" class="form-control" id="clientWebsite" name="website_url" value="<?= htmlspecialchars($client['website_url'] ?? '') ?>">
-                    </div>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update</button>
-                </div>
+                </form>
             </div>
-        </form>
-    </div>
-</div>
-
+        </div>
 
         <!-- Delete Modal Start -->
         <div class="modal fade" id="delete_modal">
@@ -749,4 +776,4 @@ document.addEventListener("DOMContentLoaded", function () {
 
 </body>
 
-</html>        
+</html>

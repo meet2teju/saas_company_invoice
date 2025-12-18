@@ -3,6 +3,9 @@
 <?php 
 include '../config/config.php'; // DB connection
 
+// Get company currency
+$companyCurrency = getCompanyCurrency($conn);
+
 // Get current user info
 $currentUserId = $_SESSION['crm_user_id'] ?? 0;
 $currentOrgId = $_SESSION['org_id'] ?? 0;
@@ -59,6 +62,9 @@ if ($currentOrgId > 0) {
 if ($userRoleId != 1) {
     $user_where = " AND i.user_id = $currentUserId";
 }
+
+// Get currency symbol
+$currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
 
 // ------------------- Totals for Invoice Analytics -------------------
 $query_invoiced = "SELECT SUM(total_amount) AS total_invoiced FROM invoice i WHERE i.created_at BETWEEN '$start_date_full' AND '$end_date_full' AND i.is_deleted = 0 $org_where $user_where";
@@ -405,7 +411,7 @@ if (!$result) {
                                 <div class="d-flex align-items-center justify-content-between border-bottom mb-2 pb-2">
                                     <div>
                                         <p class="mb-1">Amount Due</p>
-                                         <h6 class="fs-16 fw-semibold">$&nbsp;<?php echo $totalAmount; ?></h6>
+                                         <h6 class="fs-16 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?php echo $totalAmount; ?></h6>
                                     </div>
                                     <span class="avatar avatar-lg bg-primary text-white avatar-rounded">
 										<i class="isax isax-receipt-item fs-16"></i>
@@ -561,15 +567,15 @@ if (!$result) {
                                         <div class="d-flex align-items-center flex-wrap gap-3">
                                             <div>
                                                 <p class="fs-13 mb-1">Total Sales</p>
-                                                    <h6 class="fs-16 fw-semibold text-primary">$&nbsp;<?php echo $totalSales; ?></h6>
+                                                    <h6 class="fs-16 fw-semibold text-primary"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?php echo $totalSales; ?></h6>
                                             </div>
                                             <div>
                                                 <p class="fs-13 mb-1">Expenses</p>
-                                                <h6 class="fs-16 fw-semibold text-danger">$&nbsp;<?php echo $totalExpense; ?></h6>
+                                                <h6 class="fs-16 fw-semibold text-danger"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?php echo $totalExpense; ?></h6>
                                             </div>
                                             <div>
                                                 <p class="fs-13 mb-1">Earnings</p>
-                                                <h6 class="fs-16 fw-semibold">$&nbsp;<?php echo $totalEarnings; ?></h6>
+                                                <h6 class="fs-16 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?php echo $totalEarnings; ?></h6>
                                             </div>
                                         </div>
                                     </div>
@@ -603,19 +609,19 @@ if (!$result) {
                                         <div class="col d-flex border-end ">
                                             <div class="text-center flex-fill">
                                                 <p class="fs-13 mb-1">Invoiced</p>
-                                                <h6 class="fs-16 fw-semibold">  $&nbsp;<?= number_format($total_invoiced, 2) ?></h6>
+                                                <h6 class="fs-16 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($total_invoiced, 2) ?></h6>
                                             </div>
                                         </div>
                                         <div class="col d-flex border-end ">
                                             <div class="text-center flex-fill">
                                                 <p class="fs-13 mb-1">Received</p>
-                                                <h6 class="fs-16 fw-semibold"> $&nbsp;<?= number_format($total_received, 2) ?></h6>
+                                                <h6 class="fs-16 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($total_received, 2) ?></h6>
                                             </div>
                                         </div>
                                         <div class="col d-flex">
                                             <div class="text-center flex-fill">
                                                 <p class="fs-13 mb-1">Pending</p>
-                                                <h6 class="fs-16 fw-semibold">$&nbsp;<?= number_format($total_pending, 2) ?></h6>
+                                                <h6 class="fs-16 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($total_pending, 2) ?></h6>
                                             </div>
                                         </div>
                                     </div>
@@ -664,7 +670,7 @@ if (!$result) {
                                         </div>
                                     </div>
                                 </td>
-                                <td class="text-dark">$&nbsp;<?php echo number_format($row['total_amount'], 2); ?></td>
+                                <td class="text-dark"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?php echo number_format($row['total_amount'], 2); ?></td>
                                 <td><?php echo date('d M Y', strtotime($row['due_date'])); ?></td>
                                 <td>
                                     <?php
@@ -859,7 +865,7 @@ if (!$result) {
             ],
             colors:['#2F80ED','#E2B93B'],
             xaxis:{categories:categories},
-            yaxis:{min:0,max:maxY,labels:{formatter:val=>'$ '+Number(val).toLocaleString()}}
+            yaxis:{min:0,max:maxY,labels:{formatter:val=>'<?= $currencySymbol ?> '+Number(val).toLocaleString()}}
         });
         <?php else: ?>
         // Monthly or Yearly view - show months
@@ -887,7 +893,7 @@ if (!$result) {
             ],
             colors:['#2F80ED','#E2B93B'],
             xaxis:{categories:months},
-            yaxis:{min:0,max:maxY,labels:{formatter:val=>'$ '+Number(val).toLocaleString()}}
+            yaxis:{min:0,max:maxY,labels:{formatter:val=>'<?= $currencySymbol ?> '+Number(val).toLocaleString()}}
         });
         <?php endif; ?>
         salesChart.render();

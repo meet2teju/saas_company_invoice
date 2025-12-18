@@ -2,6 +2,9 @@
 <?php include '../config/config.php'; ?>
 
 <?php
+// Get company currency (added this line)
+$companyCurrency = getCompanyCurrency($conn);
+
 // Get current user info
 $currentUserId = $_SESSION['crm_user_id'] ?? 0;
 $currentOrgId = $_SESSION['org_id'] ?? 0;
@@ -79,6 +82,12 @@ $result = mysqli_query($conn, $query);
         .form-check.form-switch {
             display: inline-block;
         }
+        /* Add currency styling like in products page */
+        .price-currency {
+            display: inline-block;
+            min-width: 20px;
+            text-align: left;
+        }
     </style>
 </head>
 
@@ -96,7 +105,13 @@ $result = mysqli_query($conn, $query);
                 <?php endif;
                 ?>
                 <div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3">
-                    <h6 class="mb-0">Bank Details</h6>
+                    <div>
+                        <h6 class="mb-0">Bank Details</h6>
+                        <!-- Display current company currency -->
+                        <!-- <small class="text-muted">
+                            Company Currency: <?php echo $companyCurrency['currency_name'] . ' (' . $companyCurrency['currency_symbol'] . ')'; ?>
+                        </small> -->
+                    </div>
                     <div class="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
                         <div class="table-search d-flex align-items-center mb-0">
                             <div class="search-input">
@@ -157,6 +172,8 @@ $result = mysqli_query($conn, $query);
                             <?php
                             while ($row = mysqli_fetch_assoc($result)) {
                                 $status = $row['status'] ? 'checked' : '';
+                                // Format opening balance with company currency symbol
+                                $opening_balance = htmlspecialchars(number_format($row['opening_balance'], 2));
                             ?>
                             <tr>
                                 <td>
@@ -169,7 +186,10 @@ $result = mysqli_query($conn, $query);
                                 <td><?= htmlspecialchars($row['account_number']) ?></td>
                                 <td><?= htmlspecialchars($row['ifsc_code']) ?></td>
                                 <td><?= htmlspecialchars($row['swift_code']) ?></td>
-                                <td>$&nbsp;<?= number_format($row['opening_balance'], 2) ?></td>
+                                <!-- Updated Opening Balance Column -->
+                                <td class="text-dark">
+                                    <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= $opening_balance ?>
+                                </td>
                                 <td>
                                     <div class="form-check form-switch">
                                         <input class="form-check-input status-toggle" type="checkbox" role="switch" <?= $status ?> data-id="<?= $row['id'] ?>">
@@ -275,7 +295,10 @@ $result = mysqli_query($conn, $query);
                             </div>
                             <div class="mb-0">
                                 <label class="form-label">Opening Balance</label>
-                                <input type="number" id="opening_balance" name="opening_balance" class="form-control" step="0.01">
+                                <div class="input-group">
+                                    <span class="input-group-text"><?= $companyCurrency['currency_symbol'] ?></span>
+                                    <input type="number" id="opening_balance" name="opening_balance" class="form-control" step="0.01">
+                                </div>
                                 <div class="error-message" id="opening_balance_error"></div>
                             </div>
                         </div>
@@ -331,7 +354,10 @@ $result = mysqli_query($conn, $query);
                             </div>
                             <div class="mb-0">
                                 <label class="form-label">Opening Balance</label>
-                                <input type="number" id="edit_opening_balance" name="opening_balance" class="form-control" step="0.01">
+                                <div class="input-group">
+                                    <span class="input-group-text"><?= $companyCurrency['currency_symbol'] ?></span>
+                                    <input type="number" id="edit_opening_balance" name="opening_balance" class="form-control" step="0.01">
+                                </div>
                                 <div class="error-message" id="edit_opening_balance_error"></div>
                             </div>
                         </div>
