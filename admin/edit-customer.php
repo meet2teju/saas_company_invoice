@@ -228,15 +228,16 @@ $country_codes = [
                                             </div>
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
-                                                    <label class="form-label">Salutation<span class="text-danger ms-1">*</span></label>
+                                                    <label class="form-label">Salutation</label>
                                                     <select class="select" name="salutation" id="salutation" onchange="updateDisplayName()">
-                                                        <option value="Mr" <?php echo $row['salutation'] == 'Mr' ? 'selected' : ''; ?>>Mr</option>
+                                                       <option value="">Select</option>   
+                                                    <option value="Mr" <?php echo $row['salutation'] == 'Mr' ? 'selected' : ''; ?>>Mr</option>
                                                         <option value="Mrs" <?php echo $row['salutation'] == 'Mrs' ? 'selected' : ''; ?>>Mrs</option>
                                                         <option value="Ms" <?php echo $row['salutation'] == 'Ms' ? 'selected' : ''; ?>>Ms</option>
                                                         <option value="Miss" <?php echo $row['salutation'] == 'Miss' ? 'selected' : ''; ?>>Miss</option>
                                                         <option value="Dr" <?php echo $row['salutation'] == 'Dr' ? 'selected' : ''; ?>>Dr</option>
                                                     </select>
-                                                    <span id="salutation_error" class="text-danger error-text"></span>
+                                                    <!-- <span id="salutation_error" class="text-danger error-text"></span> -->
                                                 </div>
                                             </div>
                                             <div class="col-lg-4 col-md-6">
@@ -1114,7 +1115,7 @@ $(document).ready(function () {
         const requiredFields = [
             {name: 'first_name', errorId: 'first_name_error', message: 'First name is required', tab: 'otherTab'},
             {name: 'last_name', errorId: 'last_name_error', message: 'Last name is required', tab: 'otherTab'},
-            {name: 'salutation', errorId: 'salutation_error', message: 'Salutation is required', tab: 'otherTab'}
+            // {name: 'salutation', errorId: 'salutation_error', message: 'Salutation is required', tab: 'otherTab'}
         ];
 
         requiredFields.forEach(field => {

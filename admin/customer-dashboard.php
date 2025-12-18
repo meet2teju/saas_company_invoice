@@ -2,6 +2,9 @@
 include 'layouts/session.php';
 include '../config/config.php'; // DB connection
 
+// Get company currency (added this line)
+$companyCurrency = getCompanyCurrency($conn);
+
 $customer_id = $_SESSION['crm_user_id'] ?? 0;
 
 // Set date filter
@@ -132,6 +135,13 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
     <meta http-equiv="Expires" content="0" />
     <?php include 'layouts/title-meta.php'; ?> 
     <?php include 'layouts/head-css.php'; ?>
+    <style>
+        .price-currency {
+            display: inline-block;
+            min-width: 20px;
+            text-align: left;
+        }
+    </style>
 </head>
 
 <body>
@@ -154,6 +164,10 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                 <div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3 mb-3">
                     <div>
                         <h6>Dashboard</h6>
+                        <!-- Display current company currency -->
+                        <!-- <small class="text-muted">
+                            Company Currency: <?php echo $companyCurrency['currency_name'] . ' (' . $companyCurrency['currency_symbol'] . ')'; ?>
+                        </small> -->
                     </div>
                     <div class="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
                         <div id="reportrange" class="reportrange-picker d-flex align-items-center">
@@ -192,7 +206,10 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div>
                                         <p class="mb-1">Outstanding</p>
-                                        <h6 class="fs-16 fw-semibold">₹<?= number_format($outstandingAmount, 2) ?></h6>
+                                        <!-- Updated to use company currency -->
+                                        <h6 class="fs-16 fw-semibold">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($outstandingAmount, 2) ?>
+                                        </h6>
                                     </div>
                                     <span class="avatar avatar-lg bg-success text-white avatar-rounded">
                                         <i class="isax isax-bag-2 fs-24"></i>
@@ -213,7 +230,10 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div>
                                         <p class="mb-1">Overdue</p>
-                                        <h6 class="fs-16 fw-semibold">₹<?= number_format($overdueAmount, 2) ?></h6>
+                                        <!-- Updated to use company currency -->
+                                        <h6 class="fs-16 fw-semibold">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($overdueAmount, 2) ?>
+                                        </h6>
                                     </div>
                                     <span class="avatar avatar-lg bg-warning text-white avatar-rounded">
                                         <i class="isax isax-wallet-3 fs-24"></i>
@@ -234,7 +254,10 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div>
                                         <p class="mb-1">Cancelled</p>
-                                        <h6 class="fs-16 fw-semibold">₹<?= number_format($cancelledAmount, 2) ?></h6>
+                                        <!-- Updated to use company currency -->
+                                        <h6 class="fs-16 fw-semibold">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($cancelledAmount, 2) ?>
+                                        </h6>
                                     </div>
                                     <span class="avatar avatar-lg bg-danger text-white avatar-rounded">
                                         <i class="isax isax-wallet-money fs-24"></i>
@@ -297,15 +320,27 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                                 <div class="card border-0 bg-light mb-3 shadow-none">
                                     <div class="card-body">
                                         <div class="mb-3 pb-2 border-bottom">
-                                            <p class="text-dark mb-1">Amount <span class="float-end">₹<?= number_format($latestInvoice['total_amount'], 2) ?></span></p>
+                                            <!-- Updated to use company currency -->
+                                            <p class="text-dark mb-1">Amount <span class="float-end">
+                                                <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($latestInvoice['total_amount'], 2) ?>
+                                            </span></p>
                                             <?php if ($latestInvoice['tax_amount'] > 0): ?>
-                                            <p class="text-dark mb-1">Tax <span class="float-end">₹<?= number_format($latestInvoice['tax_amount'], 2) ?></span></p>
+                                            <!-- Updated to use company currency -->
+                                            <p class="text-dark mb-1">Tax <span class="float-end">
+                                                <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($latestInvoice['tax_amount'], 2) ?>
+                                            </span></p>
                                             <?php endif; ?>
                                             <?php if ($latestInvoice['total_amount'] > 0): ?>
-                                            <p class="text-dark mb-1">Discount <span class="text-danger float-end">- ₹<?= number_format($latestInvoice['total_amount'], 2) ?></span></p>
+                                            <!-- Updated to use company currency -->
+                                            <p class="text-dark mb-1">Discount <span class="text-danger float-end">
+                                                - <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($latestInvoice['total_amount'], 2) ?>
+                                            </span></p>
                                             <?php endif; ?>
                                         </div>
-                                        <h6>Total (USD) <span class="float-end">₹<?= number_format($latestInvoice['total_amount'], 2) ?></span></h6>
+                                        <!-- Updated to use company currency -->
+                                        <h6>Total <span class="float-end">
+                                            <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($latestInvoice['total_amount'], 2) ?>
+                                        </span></h6>
                                     </div>
                                 </div>
                                 <div class="row g-2">
@@ -347,25 +382,37 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                                         <div class="col d-flex border-end">
                                             <div class="text-center flex-fill">
                                                 <p class="fs-13 mb-1">Invoiced</p>
-                                                <h6 class="fs-16 fw-semibold">₹<?= number_format($paymentStats['total_invoiced'] ?? 0, 2) ?></h6>
+                                                <!-- Updated to use company currency -->
+                                                <h6 class="fs-16 fw-semibold">
+                                                    <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($paymentStats['total_invoiced'] ?? 0, 2) ?>
+                                                </h6>
                                             </div>
                                         </div>
                                         <div class="col d-flex border-end">
                                             <div class="text-center flex-fill">
                                                 <p class="fs-13 mb-1">Paid</p>
-                                                <h6 class="fs-16 fw-semibold">₹<?= number_format($paymentStats['paid_amount'] ?? 0, 2) ?></h6>
+                                                <!-- Updated to use company currency -->
+                                                <h6 class="fs-16 fw-semibold">
+                                                    <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($paymentStats['paid_amount'] ?? 0, 2) ?>
+                                                </h6>
                                             </div>
                                         </div>
                                         <div class="col d-flex border-end">
                                             <div class="text-center flex-fill">
                                                 <p class="fs-13 mb-1">Partial</p>
-                                                <h6 class="fs-16 fw-semibold">₹<?= number_format($paymentStats['partial_amount'] ?? 0, 2) ?></h6>
+                                                <!-- Updated to use company currency -->
+                                                <h6 class="fs-16 fw-semibold">
+                                                    <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($paymentStats['partial_amount'] ?? 0, 2) ?>
+                                                </h6>
                                             </div>
                                         </div>
                                         <div class="col d-flex">
                                             <div class="text-center flex-fill">
                                                 <p class="fs-13 mb-1">Unpaid</p>
-                                                <h6 class="fs-16 fw-semibold">₹<?= number_format($paymentStats['unpaid_amount'] ?? 0, 2) ?></h6>
+                                                <!-- Updated to use company currency -->
+                                                <h6 class="fs-16 fw-semibold">
+                                                    <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($paymentStats['unpaid_amount'] ?? 0, 2) ?>
+                                                </h6>
                                             </div>
                                         </div>
                                     </div>
@@ -439,7 +486,10 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                                                     <td>
                                                         <a href="invoice-details.php?id=<?= $invoice['id'] ?>" class="link-default"><?= $invoice['invoice_id'] ?></a>
                                                     </td>
-                                                    <td class="text-dark">₹<?= number_format($invoice['total_amount'], 2) ?></td>
+                                                    <!-- Updated to use company currency -->
+                                                    <td class="text-dark">
+                                                        <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($invoice['total_amount'], 2) ?>
+                                                    </td>
                                                     <td>
                                                         <?php
                                                         $statusClass = 'badge-soft-info';
@@ -505,8 +555,9 @@ $recentActivitiesResult = mysqli_query($conn, $recentActivitiesQuery);
                                                     <p><?= date('d M Y', strtotime($invoice['created_at'])) ?></p>
                                                 </div>
                                             </div>
+                                            <!-- Updated to use company currency -->
                                             <span class="badge badge-soft-<?= $invoice['status'] == 'paid' ? 'success' : ($invoice['status'] == 'partially_paid' ? 'warning' : 'danger') ?> badge-lg d-inline-flex align-items-center">
-                                                ₹<?= number_format($invoice['total_amount'], 2) ?>
+                                                <span class="price-currency"><?= $companyCurrency['currency_symbol'] ?></span>&nbsp;<?= number_format($invoice['total_amount'], 2) ?>
                                             </span>
                                         </div>
                                         <?php endwhile; ?>

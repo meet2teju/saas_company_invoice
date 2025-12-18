@@ -171,15 +171,16 @@ $country_codes = [
                                             </div>
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
-                                                    <label class="form-label">Salutation<span class="text-danger ms-1">*</span></label>
+                                                    <label class="form-label">Salutation</label>
                                                     <select class="select" name="salutation" id="salutation" onchange="updateDisplayName()">
-                                                        <option value="Mr">Mr</option>
+                                                       <option value="">Select</option>
+                                                    <option value="Mr">Mr</option>
                                                         <option value="Mrs">Mrs</option>
                                                         <option value="Ms">Ms</option>
                                                         <option value="Miss">Miss</option>
                                                         <option value="Dr">Dr</option>
                                                     </select>
-                                                    <span id="salutation_error" class="text-danger error-text"></span>
+                                                    <!-- <span id="salutation_error" class="text-danger error-text"></span> -->
                                                 </div>
                                             </div>
                                             <div class="col-lg-4 col-md-6">
@@ -813,7 +814,7 @@ function validateTab(tabId) {
     
     if (tabId === 'otherTab') {
         // Validate other tab fields
-        const requiredFields = ['first_name', 'last_name', 'company_name', 'email', 'phone_number', 'business_number', 'pan_number', 'salutation'];
+        const requiredFields = ['first_name', 'last_name', 'company_name', 'email', 'phone_number', 'business_number', 'pan_number'];
         
         requiredFields.forEach(field => {
             const value = $(`[name="${field}"]`).val();
