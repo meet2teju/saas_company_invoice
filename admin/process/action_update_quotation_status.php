@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 include '../../config/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -25,29 +27,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Generate unique invoice ID
             $invoice_id = 'INV-' . date('Ymd') . '-' . rand(1000, 9999);
             
+            // Escape all string values from quotation to prevent SQL injection
+            $escaped_client_id = mysqli_real_escape_string($conn, $quotation['client_id']);
+            $escaped_project_id = mysqli_real_escape_string($conn, $quotation['project_id']);
+            $escaped_reference_name = mysqli_real_escape_string($conn, $quotation['reference_name']);
+            $escaped_quotation_date = mysqli_real_escape_string($conn, $quotation['quotation_date']);
+            $escaped_expiry_date = mysqli_real_escape_string($conn, $quotation['expiry_date']);
+            $escaped_user_id = mysqli_real_escape_string($conn, $quotation['user_id']);
+            $escaped_item_type = mysqli_real_escape_string($conn, $quotation['item_type']);
+            $escaped_gst_type = mysqli_real_escape_string($conn, $quotation['gst_type']);
+            $escaped_description = mysqli_real_escape_string($conn, $quotation['description']);
+            $escaped_amount = mysqli_real_escape_string($conn, $quotation['amount']);
+            $escaped_shipping_charge = mysqli_real_escape_string($conn, $quotation['shipping_charge']);
+            $escaped_tax_amount = mysqli_real_escape_string($conn, $quotation['tax_amount']);
+            $escaped_total_amount = mysqli_real_escape_string($conn, $quotation['total_amount']);
+            $escaped_org_id = mysqli_real_escape_string($conn, $quotation['org_id']);
+            $escaped_created_by = mysqli_real_escape_string($conn, $quotation['created_by']);
+            
             // Insert into invoice table - include item_type and gst_type
             $insert_invoice_sql = "INSERT INTO invoice (
                 client_id, project_id, invoice_id, reference_name, invoice_date, due_date, 
                 user_id, item_type, gst_type, description, amount, shipping_charge, tax_amount, 
                 total_amount, status, org_id, created_by, created_at, updated_at
             ) VALUES (
-                '{$quotation['client_id']}', 
-                '{$quotation['project_id']}', 
+                '$escaped_client_id', 
+                '$escaped_project_id', 
                 '$invoice_id', 
-                '{$quotation['reference_name']}', 
-                '{$quotation['quotation_date']}', 
-                '{$quotation['expiry_date']}', 
-                '{$quotation['user_id']}', 
-                '{$quotation['item_type']}', 
-                '{$quotation['gst_type']}', 
-                '{$quotation['description']}', 
-                '{$quotation['amount']}', 
-                '{$quotation['shipping_charge']}', 
-                '{$quotation['tax_amount']}', 
-                '{$quotation['total_amount']}', 
+                '$escaped_reference_name', 
+                '$escaped_quotation_date', 
+                '$escaped_expiry_date', 
+                '$escaped_user_id', 
+                '$escaped_item_type', 
+                '$escaped_gst_type', 
+                '$escaped_description', 
+                '$escaped_amount', 
+                '$escaped_shipping_charge', 
+                '$escaped_tax_amount', 
+                '$escaped_total_amount', 
                 'unpaid', 
-                '{$quotation['org_id']}', 
-                '{$quotation['created_by']}', 
+                '$escaped_org_id', 
+                '$escaped_created_by', 
                 NOW(), 
                 NOW()
             )";
