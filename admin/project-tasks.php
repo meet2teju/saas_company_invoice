@@ -2,12 +2,12 @@
 include 'layouts/session.php';
 include '../config/config.php';
 
-// Get current user info - SAME AS CLIENTS PAGE
+// Get current user info
 $currentUserId = $_SESSION['crm_user_id'] ?? 0;
 $currentOrgId = $_SESSION['org_id'] ?? 0;
 $userRoleId = $_SESSION['role_id'] ?? 0;
 
-// Get the correct org_id from database if session org_id is 0 - SAME AS CLIENTS PAGE
+// Get the correct org_id from database if session org_id is 0
 if ($currentOrgId == 0 && $currentUserId > 0) {
     $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
     $fixResult = mysqli_query($conn, $fixQuery);
@@ -26,28 +26,23 @@ $selected_projects = $_POST['project'] ?? [];
 $selected_statuses = $_POST['status'] ?? [];
 $date_range        = $_POST['date_range'] ?? '';
 
-// --- ORGANIZATION ISOLATION: NO ONE can see tasks from other organizations ---
+// --- ORGANIZATION ISOLATION ---
 if ($currentOrgId > 0) {
     $filters[] = "p.org_id = $currentOrgId";
 }
 
-// --- ROLE-BASED ACCESS CONTROL - Same as clients page ---
+// --- ROLE-BASED ACCESS CONTROL - SIMPLIFIED VERSION ---
 if ($userRoleId == 1) {
     // Admin users: Can see all tasks from their organization
-    // No additional filters needed as organization filter already applied
+    // No additional filters needed
 } else {
-    // Non-admin users: Can see tasks from projects they're assigned to 
-    // AND tasks from projects created by admin users
-    $filters[] = "(pt.user_id = $currentUserId OR EXISTS (
-        SELECT 1 FROM login u 
-        WHERE u.id = pt.user_id 
-        AND u.role_id = 1 
-        AND u.org_id = $currentOrgId
-    ) OR EXISTS (
+    // Non-admin users: Can see ONLY tasks from projects they're assigned to
+    // via project_users table
+    $filters[] = "EXISTS (
         SELECT 1 FROM project_users pu
-        WHERE pu.project_id = pt.project_id 
+        WHERE pu.project_id = p.id 
         AND pu.user_id = $currentUserId
-    ))";
+    )";
 }
 
 // Project Filter
@@ -80,7 +75,7 @@ if (!empty($filters)) {
     $where .= " AND " . implode(" AND ", $filters);
 }
 
-// Final Query - removed task_status join
+// Final Query
 $sql = "
 SELECT pt.*, 
        p.project_name,
@@ -102,24 +97,27 @@ if (!$result) {
 }
 
 // Fetch projects for filter WITH ORGANIZATION FILTERING
-$projectListQuery = "SELECT id, project_name FROM project WHERE is_deleted = 0";
+$projectListQuery = "SELECT DISTINCT p.id, p.project_name 
+                    FROM project p 
+                    WHERE p.is_deleted = 0";
 if ($currentOrgId > 0) {
-    $projectListQuery .= " AND org_id = $currentOrgId";
+    $projectListQuery .= " AND p.org_id = $currentOrgId";
 }
+
 // Add role-based filtering for non-admin users in project query
 if ($userRoleId != 1) {
-    $projectListQuery .= " AND (user_id = $currentUserId OR EXISTS (
-        SELECT 1 FROM login u 
-        WHERE u.id = project.user_id 
-        AND u.role_id = 1 
-        AND u.org_id = $currentOrgId
-    ) OR EXISTS (
+    // Non-admin users can only see projects they're assigned to
+    $projectListQuery .= " AND EXISTS (
         SELECT 1 FROM project_users pu
-        WHERE pu.project_id = project.id 
+        WHERE pu.project_id = p.id 
         AND pu.user_id = $currentUserId
-    ))";
+    )";
+} else {
+    // Admin users can see all projects in their organization
+    // Already handled by org_id filter
 }
-$projectListQuery .= " ORDER BY project_name";
+
+$projectListQuery .= " ORDER BY p.project_name";
 $projectList = mysqli_query($conn, $projectListQuery);
 
 // --- Fetch statuses from project_status table ---
@@ -174,39 +172,6 @@ foreach ($statuses as $id => $name) {
             <div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3">
                 <div><h6>Tasks</h6></div>
                 <div class="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
-
-                    <!-- Export Dropdown -->
-                    <!-- <div class="dropdown d-inline-block me-2">
-                        <a href="#" class="btn btn-outline-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
-                            <i class="isax isax-export-1 me-1"></i> Export
-                        </a>
-                        <ul class="dropdown-menu p-3" style="min-width: 250px;">
-                            <li>
-                                <a href="#" class="dropdown-item fw-semibold toggle-submenu" data-target="#exportTasks">Export Tasks</a>
-                                <ul class="collapse list-unstyled ps-3 mt-1" id="exportTasks">
-                                    <li><a class="dropdown-item" href="./process/action_export_taskpdf.php">Download as PDF</a></li>
-                                    <li><a class="dropdown-item" href="./process/action_export_taskexcel.php">Download as Excel</a></li>
-                                </ul>
-                            </li>
-                            <li>
-                                <a href="#" class="dropdown-item fw-semibold toggle-submenu" data-target="#exportCurrent">Current View</a>
-                                <ul class="collapse list-unstyled ps-3 mt-1" id="exportCurrent">
-                                    <li><a class="dropdown-item" href="#">Download as PDF</a></li>
-                                    <li><a class="dropdown-item" href="#">Download as Excel</a></li>
-                                </ul>
-                            </li>
-                        </ul>
-                    </div> -->
-
-                    <!-- Import Dropdown -->
-                    <!-- <div class="dropdown d-inline-block">
-                        <a href="javascript:void(0);" class="btn btn-outline-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
-                            <i class="isax isax-import me-1"></i> Import
-                        </a>
-                        <ul class="dropdown-menu p-2">
-                            <li><a class="dropdown-item" href="import_tasks_excel.php">Import Tasks</a></li>
-                        </ul>
-                    </div> -->
                     
                     <div class="table-search d-flex align-items-center mb-0">
                         <div class="search-input">
@@ -344,8 +309,8 @@ foreach ($statuses as $id => $name) {
                                 <div class="d-flex flex-column">
                                     <strong><?= htmlspecialchars($row['task_name']) ?></strong>
                                     <?php if (!empty($row['task_description'])): ?>
-                                    <!-- <small class="text-muted"><?= htmlspecialchars(substr($row['task_description'], 0, 50)) ?>...</small>
-                                    <?php endif; ?> -->
+                                    <small class="text-muted"><?= htmlspecialchars(substr($row['task_description'], 0, 50)) ?>...</small>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                             
@@ -491,9 +456,10 @@ while ($row = mysqli_fetch_assoc($result)):
                                 <a href="javascript:void(0);" class="link-danger fw-medium text-decoration-underline reset-project">Reset</a>
                             </li>
                             <?php
-                            mysqli_data_seek($projectList, 0);
-                            while ($row = mysqli_fetch_assoc($projectList)) {
-                                $isChecked = in_array($row['id'], $selected_projects) ? 'checked' : '';
+                            if (mysqli_num_rows($projectList) > 0) {
+                                mysqli_data_seek($projectList, 0);
+                                while ($row = mysqli_fetch_assoc($projectList)) {
+                                    $isChecked = in_array($row['id'], $selected_projects) ? 'checked' : '';
                             ?>
                             <li>
                                 <label class="dropdown-item px-2 d-flex align-items-center text-dark">
@@ -501,7 +467,11 @@ while ($row = mysqli_fetch_assoc($result)):
                                     <?= htmlspecialchars($row['project_name']) ?>
                                 </label>
                             </li>
-                            <?php } ?>
+                            <?php } 
+                            } else {
+                                echo '<li><div class="dropdown-item text-muted text-center">No projects found</div></li>';
+                            }
+                            ?>
                         </ul>
                     </div>
                 </div>
@@ -582,7 +552,7 @@ while ($row = mysqli_fetch_assoc($result)):
     </div>
 </div>
 
-<!-- Multi Delete Modal - Added this modal -->
+<!-- Multi Delete Modal -->
 <div class="modal fade" id="multideleteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-m">
         <div class="modal-content">
@@ -657,7 +627,7 @@ checkboxes.forEach(checkbox => {
     checkbox.addEventListener('change', toggleDeleteBtn);
 });
 
-// Filter functionality - SAME AS CLIENTS PAGE
+// Filter functionality
 $(document).ready(function() {
     // Initialize date range picker
     if ($('.bookingrange').length > 0) {
@@ -703,7 +673,7 @@ $(document).ready(function() {
         });
     }
 
-    // --- Update dropdown labels function (like clients page) ---
+    // --- Update dropdown labels function ---
     function updateDropdownLabel(type, limit = 3) {
         // Get all checked checkboxes (excluding "Select All")
         const checked = $(`.${type}-list input[type='checkbox']:checked`).not(".select-all");

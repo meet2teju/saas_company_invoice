@@ -154,9 +154,9 @@ $projectCurrencyId = $project['currency_type'] ?? $defaultCurrencyId;
                 <!-- Page Header -->
             <div class="d-flex align-items-center justify-content-between mb-3">
     <h6>Edit Projects</a></h6>
-    <a href="project-details.php?id=<?= $project_id ?>" class="btn btn-outline-white d-inline-flex align-items-center">
+    <!-- <a href="project-details.php?id=<?= $project_id ?>" class="btn btn-outline-white d-inline-flex align-items-center">
         <i class="isax isax-eye me-1"></i>Preview
-    </a>
+    </a> -->
 </div>
                 <!-- End Page Header -->
 

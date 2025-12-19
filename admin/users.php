@@ -542,7 +542,7 @@ $users = mysqli_query($conn, $query);
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">Mobile Number<span class="text-danger ms-1">*</span></label></label>
+                                <label class="form-label">Mobile Number</label>
                                 <input type="number" name="phone_number" id="phone_number" class="form-control" minlength="10">
                                     <span id="add_phoneError" class="text-danger error-msg"></span>
 
@@ -578,8 +578,8 @@ $users = mysqli_query($conn, $query);
                                     <?php
                                     mysqli_data_seek($roles, 0);
                                     while ($role = mysqli_fetch_assoc($roles)) {
-                                        // Skip the 4th role ID
-                                        if ($role['id'] != 4) {
+                                        // Skip the 4th role ID and role ID 1
+                                        if ($role['id'] != 4 && $role['id'] != 1) {
                                             echo '<option value="' . htmlspecialchars($role['id']) . '">' . htmlspecialchars($role['name']) . '</option>';
                                         }
                                     }
@@ -679,7 +679,7 @@ $users = mysqli_query($conn, $query);
 
                                     <div class="col-md-6">
                                         <div class="mb-3">
-                                            <label class="form-label">Phone Number<span class="text-danger ms-1">*</span></label></label>
+                                            <label class="form-label">Phone Number</label>
                                             <input type="number" name="phone_number" class="form-control" value="<?= htmlspecialchars($row['phone_number']) ?>" minlength="10">
                                             <span class="text-danger error-msg" id="edit_phoneError_<?php echo $row['id']; ?>"></span>
                                         </div>
@@ -715,8 +715,8 @@ $users = mysqli_query($conn, $query);
             <?php
             mysqli_data_seek($roles, 0);
             while ($role = mysqli_fetch_assoc($roles)): 
-                // Skip the 4th role ID
-                if ($role['id'] != 4): ?>
+                // Skip the 4th role ID and role ID 1
+                if ($role['id'] != 4 && $role['id'] != 1): ?>
                     <option value="<?= htmlspecialchars($role['id']) ?>" <?= ($row['role_id'] == $role['id']) ? 'selected' : '' ?>>
                         <?= htmlspecialchars($role['name']) ?>
                     </option>
@@ -1061,11 +1061,15 @@ async function validateEditUserForm(form) {
         isValid = false;
     }
 
- if (phone === '') {
-        document.getElementById(`edit_phoneError_${userId}`).textContent = 'Phone Number is Required';
-        isValid = false;
+    // Phone validation is now optional, so we remove the required validation
+    // Only validate format if phone is provided
+    if (phone !== '') {
+        const phonePattern = /^[0-9]{10}$/;
+        if (!phonePattern.test(phone)) {
+            document.getElementById(`edit_phoneError_${userId}`).textContent = 'Phone must be 10 digits';
+            isValid = false;
+        }
     }
-
 
     return isValid
 }
@@ -1189,14 +1193,13 @@ async function validateAddUserForm() {
             isValid = false;
         }
     }
-    // Phone validation (10 digits only)
-    const phonePattern = /^[0-9]{10}$/;
-    if (phone === '') {
-        document.getElementById('add_phoneError').textContent = 'Phone Number is Required';
-        isValid = false;
-    } else if (!phonePattern.test(phone)) {
-        document.getElementById('add_phoneError').textContent = 'Phone must be 10 digits';
-        isValid = false;
+    // Phone validation (now optional, only validate format if provided)
+    if (phone !== '') {
+        const phonePattern = /^[0-9]{10}$/;
+        if (!phonePattern.test(phone)) {
+            document.getElementById('add_phoneError').textContent = 'Phone must be 10 digits';
+            isValid = false;
+        }
     }
 
     // Password validation
@@ -1239,10 +1242,11 @@ document.querySelector('#addUserForm input[name="email"]').addEventListener('inp
     }
 });
 
+// Phone real-time validation (now optional)
 document.querySelector('#addUserForm input[name="phone_number"]').addEventListener('input', function() {
     const phonePattern = /^[0-9]{10}$/;
-    if (!this.value.trim()) {
-        document.getElementById('add_phoneError').textContent = 'Phone Number is Required';
+    if (this.value.trim() === '') {
+        document.getElementById('add_phoneError').textContent = '';
     } else if (!phonePattern.test(this.value.trim())) {
         document.getElementById('add_phoneError').textContent = 'Phone must be 10 digits';
     } else {
@@ -1318,7 +1322,7 @@ document.querySelectorAll('.edit-user-form').forEach(form => {
         }
     });
 
-    // Phone real-time validation
+    // Phone real-time validation (now optional)
     const phoneInput = form.querySelector('input[name="phone_number"]');
     if (phoneInput) {
         // Create error span dynamically if missing
@@ -1333,7 +1337,7 @@ document.querySelectorAll('.edit-user-form').forEach(form => {
         phoneInput.addEventListener('input', function() {
             const phonePattern = /^[0-9]{10}$/;
             if (!this.value.trim()) {
-                phoneErrorEl.textContent = 'Phone Number is Required';
+                phoneErrorEl.textContent = '';
             } else if (!phonePattern.test(this.value.trim())) {
                 phoneErrorEl.textContent = 'Phone must be 10 digits';
             } else {

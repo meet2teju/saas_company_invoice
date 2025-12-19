@@ -71,23 +71,17 @@ if (!empty($filters)) {
     $where .= " AND " . implode(" AND ", $filters);
 }
 
-// User-based filtering - IMPLEMENTING THE THREE CONDITIONS
-if ($userRoleId == 1) {
-    // Admin users (role_id = 1): Can see all projects from their organization
-    // No additional conditions needed as org_where already handles organization isolation
-} else {
-    // Non-admin users: Can see their own projects AND projects created by admin users
+// USER-BASED FILTERING - CORRECTED VERSION
+// Admin (role_id = 1): Show all projects in their organization
+// Non-admin users: Show only projects they're assigned to OR created by themselves
+if ($role_name !== 'admin') { 
+    // For non-admin users, show only projects they're assigned to OR created by themselves
     $where .= " AND (
         p.created_by = $currentUserId 
         OR 
         EXISTS (
             SELECT 1 FROM project_users pu 
             WHERE pu.project_id = p.id AND pu.user_id = $currentUserId
-        )
-        OR
-        p.created_by IN (
-            SELECT id FROM login 
-            WHERE org_id = $currentOrgId AND role_id = 1
         )
     )";
 }
@@ -107,7 +101,7 @@ $customers_query = "SELECT id, first_name, customer_image FROM client WHERE is_d
 if ($currentOrgId > 0) {
     $customers_query .= " AND org_id = $currentOrgId";
 }
-// For non-admin users, also filter by user_id
+// For non-admin users, also filter by user_id (users can only see their own clients)
 if ($userRoleId != 1) {
     $customers_query .= " AND user_id = $currentUserId";
 }
@@ -122,19 +116,15 @@ if ($currentOrgId > 0) {
 // Apply the same project visibility rules for the filter dropdown
 if ($userRoleId == 1) {
     // Admin can see all projects in their organization
+    // No additional conditions needed
 } else {
-    // Non-admin users can see their own projects AND projects created by admin users
+    // Non-admin users can see only projects they're assigned to OR created by themselves
     $projectList_query .= " AND (
         created_by = $currentUserId 
         OR 
         EXISTS (
             SELECT 1 FROM project_users pu 
             WHERE pu.project_id = project.id AND pu.user_id = $currentUserId
-        )
-        OR
-        created_by IN (
-            SELECT id FROM login 
-            WHERE org_id = $currentOrgId AND role_id = 1
         )
     )";
 }
@@ -175,47 +165,7 @@ $projectList = mysqli_query($conn, $projectList_query);
                     <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
                         <i class="isax isax-filter me-1"></i>Filter
                     </a>
-                    <!-- Export Dropdown -->
-                    <!-- <div class="dropdown d-inline-block me-2">
-                        <a href="#" class="btn btn-outline-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
-                            <i class="isax isax-export-1 me-1"></i> Export
-                        </a>
-                        <ul class="dropdown-menu p-3" style="min-width: 250px;">
-                            <li>
-                                <a href="#" class="dropdown-item fw-semibold toggle-submenu" data-target="#exportClient">Export Client</a>
-                                <ul class="collapse list-unstyled ps-3 mt-1" id="exportClient">
-                                    <li><a class="dropdown-item" href="./process/action_export_clinetpdf.php">Download as PDF</a></li>
-                                    <li><a class="dropdown-item" href="./process/action_export_clinetexcle.php">Download as Excel</a></li>
-                                </ul>
-                            </li>
-                            <li>
-                                <a href="#" class="dropdown-item fw-semibold toggle-submenu" data-target="#exportContact">Export Contact Person</a>
-                                <ul class="collapse list-unstyled ps-3 mt-1" id="exportContact">
-                                    <li><a class="dropdown-item" href="#">Download as PDF</a></li>
-                                    <li><a class="dropdown-item" href="#">Download as Excel</a></li>
-                                </ul>
-                            </li>
-                            <li>
-                                <a href="#" class="dropdown-item fw-semibold toggle-submenu" data-target="#exportCurrent">Current View</a>
-                                <ul class="collapse list-unstyled ps-3 mt-1" id="exportCurrent">
-                                    <li><a class="dropdown-item" href="#">Download as PDF</a></li>
-                                    <li><a class="dropdown-item" href="#">Download as Excel</a></li>
-                                </ul>
-                            </li>
-                        </ul>
-                    </div> -->
-
-                    <!-- Import Dropdown -->
-                    <!-- <div class="dropdown d-inline-block">
-                        <a href="javascript:void(0);" class="btn btn-outline-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
-                            <i class="isax isax-import me-1"></i> Import
-                        </a>
-                        <ul class="dropdown-menu p-2">
-                            <li><a class="dropdown-item" href="import_client_excel.php">Import Clients</a></li>
-                            <li><a class="dropdown-item" href="import_contact_excel.php">Import Contacts</a></li>
-                        </ul>
-                    </div> -->
-                     <!-- Multiple Delete Button -->
+                    <!-- Multiple Delete Button -->
             <a href="#" class="btn btn-outline-danger delete-multiple d-none">
                 <i class="fa-regular fa-trash-can me-1"></i>Delete
             </a>
@@ -230,18 +180,9 @@ $projectList = mysqli_query($conn, $projectList_query);
             </div>
 
             <!-- Search & Actions -->
-<!-- Search & Actions -->
-<div class="mb-3">
+            <div class="mb-3">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
         <div class="d-flex align-items-center flex-wrap gap-2">
-            <!-- <div class="table-search d-flex align-items-center mb-0">
-                <div class="search-input">
-                    <a href="javascript:void(0);" class="btn-searchset"><i class="isax isax-search-normal fs-12"></i></a>
-                </div>
-            </div>
-            <a class="btn btn-outline-white fw-normal d-inline-flex align-items-center" href="javascript:void(0);" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
-                <i class="isax isax-filter me-1"></i>Filter
-            </a> -->
             
             <!-- Display Active Filters -->
             <?php 
@@ -302,13 +243,10 @@ $projectList = mysqli_query($conn, $projectList_query);
                     </a>
                 </div>
             <?php endif; ?>
-
-           
         </div>
     </div>
 </div>
            
-
             <!-- Table -->
 <div class="table-responsive">
     <table class="table table-nowrap datatable">

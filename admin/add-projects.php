@@ -120,7 +120,7 @@ if ($defaultCurrencyId == 0 && count($currencies) > 0) {
                 <!-- Page Header -->
                <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6>Add Projects</h6>
-                            <a href="#" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a>
+                            <!-- <a href="#" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a> -->
                 </div>
                 <!-- End Page Header -->
 

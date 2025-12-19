@@ -191,7 +191,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                     <!-- <div class="currency-badge">
                                         Company Currency: <?php echo $companyCurrency['currency_symbol'] . ' (' . $companyCurrency['currency_name'] . ')'; ?>
                                     </div> -->
-                                    <div class="gst-toggle-group">
+                                    <!-- <div class="gst-toggle-group">
                                         <span class="gst-toggle-label">GST Type:</span>
                                         <div class="form-check form-check-inline">
                                             <input class="form-check-input" type="radio" name="gst_type" id="gst-enabled" value="gst" checked>
@@ -201,7 +201,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                             <input class="form-check-input" type="radio" name="gst_type" id="gst-disabled" value="non_gst">
                                             <label class="form-check-label" for="gst-disabled">Non-GST</label>
                                         </div>
-                                    </div>
+                                    </div> -->
                                 </div>
                             </div>
                             <div class="card">
