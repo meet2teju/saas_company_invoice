@@ -31,7 +31,7 @@ $query = "
     SELECT login.id, login.name, login.email 
     FROM login
     JOIN user_role ON login.role_id = user_role.id
-    WHERE login.is_deleted = 0
+    WHERE login.is_deleted = 0  AND login.role_id != 1 
 ";
 
 // Add organization filter

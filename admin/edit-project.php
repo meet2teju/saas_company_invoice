@@ -36,6 +36,7 @@ $user_query = "
     FROM login l
     INNER JOIN user_role ur ON l.role_id = ur.id
     WHERE l.is_deleted = 0
+    AND l.role_id != 1 
     AND ur.is_deleted = 0
 ";
 
