@@ -32,6 +32,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $product_img = isset($_POST['current_image']) ? $_POST['current_image'] : '';
     $remove_main_image = isset($_POST['remove_main_image']) ? (int)$_POST['remove_main_image'] : 0;
 
+    // Get current organization ID from session
+    $orgId = $_SESSION['org_id'] ?? 1;
+
+    // ---------------------------
+    // ✅ Check duplicate HSN code (excluding current product)
+    // ---------------------------
+    $checkQuery = "SELECT id FROM product WHERE code = '$code' AND org_id = '$orgId' AND is_deleted = 0 AND id != $id";
+    $checkResult = mysqli_query($conn, $checkQuery);
+    
+    if ($checkResult && mysqli_num_rows($checkResult) > 0) {
+        $_SESSION['message'] = 'HSN code already exists in your organization.';
+        $_SESSION['message_type'] = 'error';
+        header("Location: ../edit-product.php?id=$id");
+        exit();
+    }
+
     // ---------------------------
     // ✅ Remove main image if requested
     // ---------------------------
@@ -119,11 +135,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         header("Location: ../edit-product.php?id=$id");
         exit();
     } else {
-        // ---------------------------
-        // ✅ Set error message and redirect to SAME edit page
-        // ---------------------------
-        $_SESSION['message'] = 'Error updating product: ' . mysqli_error($conn);
-        $_SESSION['message_type'] = 'error';
+        // Check if error is due to duplicate entry
+        $error = mysqli_error($conn);
+        if (mysqli_errno($conn) == 1062) { // MySQL duplicate entry error code
+            $_SESSION['message'] = 'HSN code already exists in your organization.';
+            $_SESSION['message_type'] = 'error';
+        } else {
+            $_SESSION['message'] = 'Error updating product: ' . $error;
+            $_SESSION['message_type'] = 'error';
+        }
         header("Location: ../edit-product.php?id=$id");
         exit();
     }

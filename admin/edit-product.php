@@ -542,7 +542,6 @@ $category_type = $row['item_type'] ?? 1;
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <!-- <button type="button" class="btn btn-primary" onclick="document.getElementById('productForm').submit()">Save Changes</button> -->
                 </div>
             </div>
         </div>
@@ -563,12 +562,6 @@ $category_type = $row['item_type'] ?? 1;
     // Set Quill content from database (PHP)
     var existingDescription = <?= json_encode($row['description']) ?>;
     quill.root.innerHTML = existingDescription;
-
-    // Copy content to hidden textarea on form submit
-    $('#productForm').on('submit', function () {
-        const html = quill.root.innerHTML.trim();
-        $('#productDescription').val(html);
-    });
 </script>
 
     <script>
@@ -606,44 +599,43 @@ $(document).ready(function() {
         }
     });
 
-     
-        // Gallery images preview
-        $('#gallery_images').on('change', function() {
-            const preview = $('#gallery_preview');
-            const files = this.files;
-            
-            // Validate each file
-            let hasError = false;
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                if (file.size > 5 * 1024 * 1024) {
-                    $('#gallery_error').text('One or more files exceed 5MB limit');
-                    $(this).addClass('is-invalid');
-                    hasError = true;
-                    continue;
-                }
-                
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const box = `<div class="avatar avatar-xl border gallery-img p-1 position-relative">
-                        <img src="${e.target.result}" style="width:80px; height:80px; object-fit:cover;" alt="New Image">
-                        <a href="javascript:void(0);" class="rounded-trash gallery-trash d-flex align-items-center justify-content-center">
-                            <i class="isax isax-trash"></i>
-                        </a>
-                    </div>`;
-                    preview.append(box);
-                    $('#gallery_error').text('');
-                    $('#gallery_images').removeClass('is-invalid');
-                }
-                reader.readAsDataURL(file);
+    // Gallery images preview
+    $('#gallery_images').on('change', function() {
+        const preview = $('#gallery_preview');
+        const files = this.files;
+        
+        // Validate each file
+        let hasError = false;
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (file.size > 5 * 1024 * 1024) {
+                $('#gallery_error').text('One or more files exceed 5MB limit');
+                $(this).addClass('is-invalid');
+                hasError = true;
+                continue;
             }
             
-            if (hasError) {
-                $(this).val('');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const box = `<div class="avatar avatar-xl border gallery-img p-1 position-relative">
+                    <img src="${e.target.result}" style="width:80px; height:80px; object-fit:cover;" alt="New Image">
+                    <a href="javascript:void(0);" class="rounded-trash gallery-trash d-flex align-items-center justify-content-center">
+                        <i class="isax isax-trash"></i>
+                    </a>
+                </div>`;
+                preview.append(box);
+                $('#gallery_error').text('');
+                $('#gallery_images').removeClass('is-invalid');
             }
-        });
+            reader.readAsDataURL(file);
+        }
+        
+        if (hasError) {
+            $(this).val('');
+        }
+    });
 
-   $('#selling_price, #purchase_price, #quantity, #alert_quantity, #code').on('input', function () {
+   $('#selling_price, #purchase_price, #quantity, #alert_quantity').on('input', function () {
         this.value = this.value.replace(/[^0-9.]/g, ''); // only numbers and dot
     });
 
@@ -651,13 +643,19 @@ $(document).ready(function() {
         this.value = this.value.replace(/[0-9]/g, ''); // block numbers
     });
 
-        // Form validation
-       $('#productForm').submit(function(e) {
+    // Form validation
+    $('#productForm').submit(async function(e) {
+        e.preventDefault(); // Prevent immediate submission
+        
         let isValid = true;
 
         // Reset errors
         $('.error-message').text('');
-        $('.is-invalid');
+        $('.is-invalid').removeClass('is-invalid');
+
+        // Copy Quill content to hidden textarea
+        const html = quill.root.innerHTML.trim();
+        $('#productDescription').val(html);
 
         // Required field checks
         if ($('#name').val().trim() === '') {
@@ -666,11 +664,23 @@ $(document).ready(function() {
             isValid = false;
         }
 
-        // if ($('#code').val().trim() === '') {
-        //     $('#code_error').text('Product HSNcode is required');
-        //     $('#code').addClass('is-invalid');
-        //     isValid = false;
-        // }
+        // Check for duplicate HSN code
+        const codeValue = $('#code').val().trim();
+        const productId = <?php echo $row['id']; ?>;
+        
+        if (codeValue) {
+            try {
+                const res = await checkDuplicate('code', codeValue, productId);
+                if (res.status === 'exists') {
+                    $('#code_error').text(res.message);
+                    $('#code').addClass('is-invalid');
+                    isValid = false;
+                }
+            } catch(err) {
+                console.error('Error checking duplicate:', err);
+                // Don't block form submission if AJAX check fails
+            }
+        }
 
         if ($('#category_id').val() === '') {
             $('#category_error').text('Category is required');
@@ -696,12 +706,6 @@ $(document).ready(function() {
                 $('#image_upload').addClass('is-invalid');
                 isValid = false;
             }
-            
-            // Clear previous errors if validation passes
-            if (isValid) {
-                $('#image_error').text('');
-                $('#image_upload').removeClass('is-invalid');
-            }
         }
    
         // Validate gallery image sizes
@@ -717,12 +721,54 @@ $(document).ready(function() {
             }
         }
 
-        if (!isValid) {
-            e.preventDefault();
+        if (isValid) {
+            // Submit the form if all validations pass
+            $(this).unbind('submit').submit();
+        } else {
             // Scroll to first error if any
             $('html, body').animate({
                 scrollTop: $('.is-invalid:first').offset().top - 100
             }, 500);
+        }
+    });
+    
+    // Check duplicates via AJAX
+    function checkDuplicate(field, value, id=0) {
+        return $.ajax({
+            url: 'process/check_product_duplicate.php',
+            type: 'POST',
+            dataType: 'json',
+            data: { field: field, value: value, id: id }
+        });
+    }
+
+    // HSN code validation on blur
+    $('#code').on('blur', async function() {
+        const codeValue = $(this).val().trim();
+        const productId = <?php echo $row['id']; ?>;
+        
+        if (codeValue) {
+            try {
+                const res = await checkDuplicate('code', codeValue, productId);
+                if (res.status === 'exists') {
+                    $('#code_error').text(res.message);
+                    $('#code').addClass('is-invalid');
+                } else {
+                    $('#code_error').text('');
+                    $('#code').removeClass('is-invalid');
+                }
+            } catch(err) {
+                console.error('Error checking duplicate:', err);
+            }
+        }
+    });
+
+    // Clear error when user starts typing
+    $('#code').on('input', function() {
+        const currentError = $('#code_error').text();
+        if (currentError === 'HSN code already exists!' || currentError === 'Error checking HSN code. Please try again.') {
+            $('#code_error').text('');
+            $('#code').removeClass('is-invalid');
         }
     });
     

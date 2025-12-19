@@ -89,6 +89,9 @@
                                 <div class="card-body">
                                     <form action="process/action_add_product.php" method="POST" id="form" enctype="multipart/form-data">
                                         <input type="hidden" name="user_id" value="<?php echo $_SESSION['crm_user_id'] ?? 1; ?>">
+                                        <!-- Hidden field to ensure 'product' parameter is sent -->
+                                        <input type="hidden" name="product" value="1">
+                                        
                                         <div class="row gx-3">
                                             <div class="col-lg-6 col-md-6">
                                                 <div class="mb-3">
@@ -113,7 +116,7 @@
                                                     <label class="form-label">Item Type</label>
                                                     <div class="d-flex align-items-center mb-3">
                                                         <div class="form-check me-3">
-                                                            <input class="form-check-input" value="1" type="radio" name="item_type"  id="product_type" checked>
+                                                            <input class="form-check-input" value="1" type="radio" name="item_type" id="product_type" checked>
                                                             <label class="form-check-label">Product</label>
                                                         </div>
                                                         <div class="form-check">
@@ -143,12 +146,11 @@
                                                     <select class="form-select" name="category_id" id="category_id">
                                                         <option value="">Select Category</option>
                                                         <?php 
-                                                        // Get current user info (same as reference code)
+                                                        // Get current user info
                                                         $currentUserId = $_SESSION['crm_user_id'] ?? 0;
                                                         $currentOrgId = $_SESSION['org_id'] ?? 0;
                                                         $userRoleId = $_SESSION['role_id'] ?? 0;
                                                         
-                                                        // Get the correct org_id from database if session org_id is 0
                                                         if ($currentOrgId == 0 && $currentUserId > 0) {
                                                             $fixQuery = "SELECT org_id, role_id FROM login WHERE id = $currentUserId";
                                                             $fixResult = mysqli_query($conn, $fixQuery);
@@ -161,16 +163,13 @@
                                                             }
                                                         }
                                                         
-                                                        // Load initial categories (default is product type = 1)
                                                         $category_type = 1;
                                                         $categoryQuery = "SELECT * FROM category WHERE category_type = $category_type AND is_deleted = 0 AND status = 1";
                                                         
-                                                        // Add organization filter
                                                         if ($currentOrgId > 0) {
                                                             $categoryQuery .= " AND org_id = $currentOrgId";
                                                         }
                                                         
-                                                        // For non-admin users: Can see their own categories AND categories created by admin users
                                                         if ($userRoleId != 1 && $currentOrgId > 0) {
                                                             $categoryQuery .= " AND (
                                                                 created_by = $currentUserId 
@@ -220,15 +219,12 @@
                                                     <select class="form-select" name="unit_id" id="unit_id">
                                                         <option value="">Select unit</option>
                                                         <?php 
-                                                        // Build query for units with organization filtering
                                                         $unitQuery = "SELECT * FROM units WHERE status = 1";
                                                         
-                                                        // Add organization filter
                                                         if ($currentOrgId > 0) {
                                                             $unitQuery .= " AND org_id = $currentOrgId";
                                                         }
                                                         
-                                                        // For non-admin users: Can see their own units AND units created by admin users
                                                         if ($userRoleId != 1 && $currentOrgId > 0) {
                                                             $unitQuery .= " AND (
                                                                 created_by = $currentUserId 
@@ -268,15 +264,12 @@
                                                     <select class="form-select" name="tax_id" id="tax_id">
                                                         <option value="">Select</option>
                                                         <?php 
-                                                        // Build query for tax with organization filtering
                                                         $taxQuery = "SELECT * FROM tax WHERE status = 1";
                                                         
-                                                        // Add organization filter
                                                         if ($currentOrgId > 0) {
                                                             $taxQuery .= " AND org_id = $currentOrgId";
                                                         }
                                                         
-                                                        // For non-admin users: Can see their own tax AND tax created by admin users
                                                         if ($userRoleId != 1 && $currentOrgId > 0) {
                                                             $taxQuery .= " AND (
                                                                 created_by = $currentUserId 
@@ -310,16 +303,14 @@
                                             <div class="col-lg-12 product-only">
                                                 <div class="mb-3">
                                                     <label class="form-label">Product Description</label>
-                                                    <!-- Quill Editor Container -->
                                                     <div id="editorContainer" style="height: 200px; background-color: #fff;"></div>
-                                                    <!-- Hidden Textarea to store HTML content on submit -->
                                                     <textarea name="description" id="productDescription" class="form-control d-none"></textarea>
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="d-flex align-items-center justify-content-between">
                                             <button type="button" class="btn btn-outline-white" onclick="window.location.href='products.php'">Cancel</button>
-                                            <button type="submit" name="product" class="btn btn-primary">Create New</button>
+                                            <button type="submit" class="btn btn-primary">Create New</button>
                                         </div>
                                     </form>
                                 </div>
@@ -445,112 +436,99 @@
     </div>
 
     <?php include 'layouts/vendor-scripts.php'; ?>
-<!-- Include Quill JS if not already -->
-<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+    <!-- Include Quill JS -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 
-<script>
-var quill = new Quill('#editorContainer', {
-    theme: 'snow'
-});
+    <script>
+    // Initialize Quill editor
+    var quill = new Quill('#editorContainer', {
+        theme: 'snow'
+    });
 
-$('#form').on('submit', function (e) {
-    const html = quill.root.innerHTML.trim();
-    $('#productDescription').val(html);
-});
-
-// Preview functionality
-document.getElementById('previewBtn').addEventListener('click', function() {
-    // Get form values
-    const itemType = document.querySelector('input[name="item_type"]:checked').value;
-    const name = document.getElementById('name').value;
-    const code = document.getElementById('code').value;
-    const categorySelect = document.getElementById('category_id');
-    const category = categorySelect.options[categorySelect.selectedIndex].text;
-    const sellingPrice = document.getElementById('selling_price').value;
-    const purchasePrice = document.getElementById('purchase_price').value;
-    const quantity = document.getElementById('quantity').value;
-    const unitSelect = document.getElementById('unit_id');
-    const unit = unitSelect.options[unitSelect.selectedIndex].text;
-    const discountTypeSelect = document.getElementById('discount_type');
-    const discountType = discountTypeSelect.options[discountTypeSelect.selectedIndex].text;
-    const taxSelect = document.getElementById('tax_id');
-    const tax = taxSelect.options[taxSelect.selectedIndex].text;
-    const alertQuantity = document.getElementById('alert_quantity').value;
-    const description = quill.root.innerHTML;
-    
-    // Get image preview
-    const imagePreview = document.querySelector('#add_image_preview img');
-    const imageSrc = imagePreview ? imagePreview.src : '';
-    
-    // Set preview values
-    document.getElementById('previewItemType').textContent = itemType == 1 ? 'Product' : 'Service';
-    document.getElementById('previewName').textContent = name || 'Not provided';
-    document.getElementById('previewCode').textContent = code || 'Not provided';
-    document.getElementById('previewCategory').textContent = category || 'Not selected';
-    document.getElementById('previewSellingPrice').textContent = sellingPrice ? '$' + sellingPrice : 'Not provided';
-    document.getElementById('previewPurchasePrice').textContent = purchasePrice ? '$' + purchasePrice : 'Not provided';
-    document.getElementById('previewQuantity').textContent = quantity || 'Not provided';
-    document.getElementById('previewUnit').textContent = unit || 'Not selected';
-    document.getElementById('previewDiscountType').textContent = discountType || 'Not selected';
-    document.getElementById('previewTax').textContent = tax || 'Not selected';
-    document.getElementById('previewAlertQuantity').textContent = alertQuantity || 'Not provided';
-    document.getElementById('previewDescription').innerHTML = description || 'No description provided';
-    
-    // Show/hide product-specific fields based on item type
-    if (itemType == 1) {
-        document.querySelectorAll('.product-preview').forEach(el => el.style.display = 'block');
-        document.querySelectorAll('.stock-preview').forEach(el => el.style.display = 'block');
-    } else {
-        document.querySelectorAll('.product-preview').forEach(el => el.style.display = 'none');
-        document.querySelectorAll('.stock-preview').forEach(el => el.style.display = 'none');
-    }
-    
-    // Set image preview
-    const previewImageContainer = document.getElementById('preview_image_container');
-    if (imageSrc) {
-        previewImageContainer.innerHTML = `
-            <div class="preview-image-container">
-                <img src="${imageSrc}" class="preview-image" alt="Preview">
-            </div>
-        `;
-    } else {
-        previewImageContainer.innerHTML = `
-            <div class="preview-image-container">
-                <i class="isax isax-image text-primary fs-24"></i>
-            </div>
-        `;
-    }
-    
-    // Show the modal
-    const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
-    previewModal.show();
-});
-
-// Toggle fields based on item type in the actual form
-$(document).ready(function () {
-    function toggleProductFields() {
-        const itemType = $('input[name="item_type"]:checked').val();
-        if (itemType === '1') {
-            $('.product-only').show();
-            $('.stock-only').show();
+    // Preview functionality
+    document.getElementById('previewBtn').addEventListener('click', function() {
+        const itemType = document.querySelector('input[name="item_type"]:checked').value;
+        const name = document.getElementById('name').value;
+        const code = document.getElementById('code').value;
+        const categorySelect = document.getElementById('category_id');
+        const category = categorySelect.options[categorySelect.selectedIndex].text;
+        const sellingPrice = document.getElementById('selling_price').value;
+        const purchasePrice = document.getElementById('purchase_price').value;
+        const quantity = document.getElementById('quantity').value;
+        const unitSelect = document.getElementById('unit_id');
+        const unit = unitSelect.options[unitSelect.selectedIndex].text;
+        const discountTypeSelect = document.getElementById('discount_type');
+        const discountType = discountTypeSelect.options[discountTypeSelect.selectedIndex].text;
+        const taxSelect = document.getElementById('tax_id');
+        const tax = taxSelect.options[taxSelect.selectedIndex].text;
+        const alertQuantity = document.getElementById('alert_quantity').value;
+        const description = quill.root.innerHTML;
+        
+        const imagePreview = document.querySelector('#add_image_preview img');
+        const imageSrc = imagePreview ? imagePreview.src : '';
+        
+        document.getElementById('previewItemType').textContent = itemType == 1 ? 'Product' : 'Service';
+        document.getElementById('previewName').textContent = name || 'Not provided';
+        document.getElementById('previewCode').textContent = code || 'Not provided';
+        document.getElementById('previewCategory').textContent = category || 'Not selected';
+        document.getElementById('previewSellingPrice').textContent = sellingPrice ? '$' + sellingPrice : 'Not provided';
+        document.getElementById('previewPurchasePrice').textContent = purchasePrice ? '$' + purchasePrice : 'Not provided';
+        document.getElementById('previewQuantity').textContent = quantity || 'Not provided';
+        document.getElementById('previewUnit').textContent = unit || 'Not selected';
+        document.getElementById('previewDiscountType').textContent = discountType || 'Not selected';
+        document.getElementById('previewTax').textContent = tax || 'Not selected';
+        document.getElementById('previewAlertQuantity').textContent = alertQuantity || 'Not provided';
+        document.getElementById('previewDescription').innerHTML = description || 'No description provided';
+        
+        if (itemType == 1) {
+            document.querySelectorAll('.product-preview').forEach(el => el.style.display = 'block');
+            document.querySelectorAll('.stock-preview').forEach(el => el.style.display = 'block');
         } else {
-            $('.product-only').hide();
-            $('.stock-only').hide();
+            document.querySelectorAll('.product-preview').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.stock-preview').forEach(el => el.style.display = 'none');
         }
-    }
+        
+        const previewImageContainer = document.getElementById('preview_image_container');
+        if (imageSrc) {
+            previewImageContainer.innerHTML = `
+                <div class="preview-image-container">
+                    <img src="${imageSrc}" class="preview-image" alt="Preview">
+                </div>
+            `;
+        } else {
+            previewImageContainer.innerHTML = `
+                <div class="preview-image-container">
+                    <i class="isax isax-image text-primary fs-24"></i>
+                </div>
+            `;
+        }
+        
+        const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+        previewModal.show();
+    });
 
-    // Run on page load
-    toggleProductFields();
+    // Toggle fields based on item type
+    $(document).ready(function () {
+        function toggleProductFields() {
+            const itemType = $('input[name="item_type"]:checked').val();
+            if (itemType === '1') {
+                $('.product-only').show();
+                $('.stock-only').show();
+            } else {
+                $('.product-only').hide();
+                $('.stock-only').hide();
+            }
+        }
 
-    // Run when item_type is changed
-    $('input[name="item_type"]').on('change', toggleProductFields);
-});
-</script>
+        toggleProductFields();
+        $('input[name="item_type"]').on('change', toggleProductFields);
+    });
+    </script>
 
-<script>
+    <script>
     // Allow only numbers and dot in numeric fields
-    $('#selling_price, #purchase_price, #quantity, #alert_quantity, #code').on('input', function () {
+    $('#selling_price, #purchase_price, #quantity, #alert_quantity').on('input', function () {
         this.value = this.value.replace(/[^0-9.]/g, '');
     });
 
@@ -564,24 +542,11 @@ $(document).ready(function () {
             let valid = true;
             $('.error-text').text('');
 
-            // Image validation
-            // if (!$('#add_image').val()) {
-            //     $('#add_image_error').text('Please upload a product image.');
-            //     valid = false;
-            // }
-
-            // Text inputs
             if (!$('#name').val().trim()) {
                 $('#name_error').text('Product name is required.');
                 valid = false;
             }
 
-            //if (!$('#code').val().trim()) {
-             //   $('#code_error').text('Product HSNcode is required.');
-          //      valid = false;
-           // }
-
-            // Dropdowns
             if (!$('#category_id').val()) {
                 $('#category_error').text('Please select a category.');
                 valid = false;
@@ -590,67 +555,194 @@ $(document).ready(function () {
             if (!valid) {
                 e.preventDefault();
                 $('html, body').animate({
-                    scrollTop: $('.error-text:contains("required")').first().offset().top - 100
+                    scrollTop: $('.error-text:visible').first().offset().top - 100
                 }, 400);
             }
         });
     });
-</script>
+    </script>
 
-
-<script>
-$(document).ready(function () {
-    $('#add_image').change(function () {
-        const file = this.files[0];
-        if (file) {
-            if (file.size > 5 * 1024 * 1024) {
-                $('#add_image_error').text('File size must be less than 5MB');
-                $(this).val('');
-                $('#add_image_preview').empty();
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                $('#add_image_preview').html(`
-                    <img src="${e.target.result}" class="avatar avatar-xl border rounded" alt="Preview" style="max-width: 150px;">
-                `);
-                $('#add_image_error').text('');
-            };
-            reader.readAsDataURL(file);
-        }
-    });
-});
-</script>
-
-<script>
+    <script>
     $(document).ready(function () {
-    // Load category on page load (default = product)
-    loadCategory(1);
+        $('#add_image').change(function () {
+            const file = this.files[0];
+            if (file) {
+                if (file.size > 5 * 1024 * 1024) {
+                    $('#add_image_error').text('File size must be less than 5MB');
+                    $(this).val('');
+                    $('#add_image_preview').empty();
+                    return;
+                }
 
-    // On radio change
-    $('input[name="item_type"]').change(function () {
-        let itemType = $(this).val();
-        loadCategory(itemType);
-    });
-
-    function loadCategory(type) {
-        $.ajax({
-            url: 'process/get_categories_by_type.php',
-            type: 'POST',
-            data: { 
-                category_type: type,
-                user_id: <?php echo $_SESSION['crm_user_id'] ?? 0; ?>,
-                org_id: <?php echo $_SESSION['org_id'] ?? 0; ?>,
-                role_id: <?php echo $_SESSION['role_id'] ?? 0; ?>
-            },
-            success: function (response) {
-                $('#category_id').html(response);
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    $('#add_image_preview').html(`
+                        <img src="${e.target.result}" class="avatar avatar-xl border rounded" alt="Preview" style="max-width: 150px;">
+                    `);
+                    $('#add_image_error').text('');
+                };
+                reader.readAsDataURL(file);
             }
         });
-    }
-});
-</script>
+    });
+    </script>
+
+    <script>
+    $(document).ready(function () {
+        // Load category on page load (default = product)
+        loadCategory(1);
+
+        // On radio change
+        $('input[name="item_type"]').change(function () {
+            let itemType = $(this).val();
+            loadCategory(itemType);
+        });
+
+        function loadCategory(type) {
+            $.ajax({
+                url: 'process/get_categories_by_type.php',
+                type: 'POST',
+                data: { 
+                    category_type: type,
+                    user_id: <?php echo $_SESSION['crm_user_id'] ?? 0; ?>,
+                    org_id: <?php echo $_SESSION['org_id'] ?? 0; ?>,
+                    role_id: <?php echo $_SESSION['role_id'] ?? 0; ?>
+                },
+                success: function (response) {
+                    $('#category_id').html(response);
+                }
+            });
+        }
+    });
+    </script>
+
+    <!-- HSN Code Duplicate Validation Script -->
+    <script>
+    $(document).ready(function() {
+        // Check duplicates via AJAX
+        function checkDuplicate(field, value, id=0) {
+            return $.ajax({
+                url: 'process/check_product_duplicate.php',
+                type: 'POST',
+                dataType: 'json',
+                data: { field: field, value: value, id: id }
+            });
+        }
+
+        // HSN code validation function
+        async function validateHSNCode() {
+            var codeValue = $('#code').val().trim();
+            var errorElement = $('#code_error');
+            
+            // Clear previous error
+            errorElement.text('');
+            
+            if (codeValue) {
+                try {
+                    var res = await checkDuplicate('code', codeValue, 0);
+                    if (res.status === 'exists') {
+                        errorElement.text(res.message);
+                        return false;
+                    } else {
+                        return true;
+                    }
+                } catch(err) {
+                    console.error('Error checking duplicate:', err);
+                    // Don't block form if AJAX fails
+                    return true;
+                }
+            }
+            return true; // Allow empty HSN code
+        }
+
+        // Validate form before submission
+        $('#form').on('submit', async function(e) {
+            // Get Quill editor content
+            const html = quill.root.innerHTML.trim();
+            $('#productDescription').val(html);
+            
+            // Clear all error messages
+            $('.error-text').text('');
+            
+            let valid = true;
+            
+            // Basic validations
+            if (!$('#name').val().trim()) {
+                $('#name_error').text('Product name is required.');
+                valid = false;
+            }
+            
+            if (!$('#category_id').val()) {
+                $('#category_error').text('Please select a category.');
+                valid = false;
+            }
+            
+            // Check for duplicate HSN code
+            const codeValue = $('#code').val().trim();
+            if (codeValue) {
+                const codeValid = await validateHSNCode();
+                if (!codeValid) {
+                    valid = false;
+                }
+            }
+            
+            if (!valid) {
+                e.preventDefault(); // Only prevent if invalid
+                $('html, body').animate({
+                    scrollTop: $('.error-text:visible').first().offset().top - 100
+                }, 400);
+            }
+            // If valid, form will submit normally
+        });
+
+        // Real-time validation for HSN code on blur
+        $('#code').on('blur', async function() {
+            var codeValue = $(this).val().trim();
+            if (codeValue) {
+                await validateHSNCode();
+            }
+        });
+
+        // Clear error when user starts typing
+        $('#code').on('input', function() {
+            var currentError = $('#code_error').text();
+            if (currentError === 'HSN code already exists!' || currentError === 'Error checking HSN code. Please try again.') {
+                $('#code_error').text('');
+            }
+        });
+
+        // Repopulate form data if there was a duplicate error
+        <?php 
+        if (isset($_SESSION['old_product_data'])): 
+            $oldData = $_SESSION['old_product_data'];
+        ?>
+        $(document).ready(function() {
+            var oldData = <?php echo json_encode($oldData); ?>;
+            
+            if (oldData.name) $('#name').val(oldData.name);
+            if (oldData.code) $('#code').val(oldData.code);
+            if (oldData.category_id) $('#category_id').val(oldData.category_id);
+            if (oldData.item_type) $('input[name="item_type"][value="' + oldData.item_type + '"]').prop('checked', true);
+            if (oldData.selling_price) $('#selling_price').val(oldData.selling_price);
+            if (oldData.purchase_price) $('#purchase_price').val(oldData.purchase_price);
+            if (oldData.quantity) $('#quantity').val(oldData.quantity);
+            if (oldData.unit_id) $('#unit_id').val(oldData.unit_id);
+            if (oldData.discount_type) $('#discount_type').val(oldData.discount_type);
+            if (oldData.tax_id) $('#tax_id').val(oldData.tax_id);
+            if (oldData.alert_quantity) $('#alert_quantity').val(oldData.alert_quantity);
+            
+            $('input[name="item_type"]:checked').trigger('change');
+            
+            if (window.location.search.includes('error=duplicate')) {
+                $('#code_error').text('HSN code already exists!');
+            }
+        });
+        <?php 
+            unset($_SESSION['old_product_data']);
+        endif; 
+        ?>
+    });
+    </script>
 
 </body>
 </html>
