@@ -2,153 +2,170 @@
 session_start();
 include '../../config/config.php';
 
-// Enable error reporting for debugging
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+// Show PHP errors
 error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-
-    // ---------------------------
-    // ✅ Collect form data safely
-    // ---------------------------
-    $id             = isset($_POST['id']) ? (int)$_POST['id'] : 0;
-    $name           = isset($_POST['name']) ? mysqli_real_escape_string($conn, $_POST['name']) : '';
-    $code           = isset($_POST['code']) ? mysqli_real_escape_string($conn, $_POST['code']) : '';
-    $item_type      = isset($_POST['item_type']) && $_POST['item_type'] == "1" ? 1 : 0;
-    $category_id    = !empty($_POST['category_id']) ? (int)$_POST['category_id'] : "NULL";
-    $selling_price  = !empty($_POST['selling_price']) ? (float)$_POST['selling_price'] : 0.00;
-    $purchase_price = !empty($_POST['purchase_price']) ? (float)$_POST['purchase_price'] : 0.00;
-    $quantity       = !empty($_POST['quantity']) ? (int)$_POST['quantity'] : 0;
-    $unit_id        = !empty($_POST['unit_id']) ? (int)$_POST['unit_id'] : "NULL";
-    $discount_type  = (!empty($_POST['discount_type']) && in_array($_POST['discount_type'], ['%', 'fixed'])) 
-                      ? "'" . mysqli_real_escape_string($conn, $_POST['discount_type']) . "'"
-                      : "NULL";
-    $alert_quantity = !empty($_POST['alert_quantity']) ? (int)$_POST['alert_quantity'] : 0;
-    $tax_id         = !empty($_POST['tax_id']) ? (int)$_POST['tax_id'] : "NULL";
-    $description    = isset($_POST['description']) ? mysqli_real_escape_string($conn, $_POST['description']) : '';
-    $updated_at     = date('Y-m-d H:i:s');
-
-    $product_img = isset($_POST['current_image']) ? $_POST['current_image'] : '';
-    $remove_main_image = isset($_POST['remove_main_image']) ? (int)$_POST['remove_main_image'] : 0;
-
-    // Get current organization ID from session
-    $orgId = $_SESSION['org_id'] ?? 1;
-
-    // ---------------------------
-    // ✅ Check duplicate HSN code (excluding current product)
-    // ---------------------------
-    $checkQuery = "SELECT id FROM product WHERE code = '$code' AND org_id = '$orgId' AND is_deleted = 0 AND id != $id";
-    $checkResult = mysqli_query($conn, $checkQuery);
+// Check if form was submitted
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
-    if ($checkResult && mysqli_num_rows($checkResult) > 0) {
-        $_SESSION['message'] = 'HSN code already exists in your organization.';
-        $_SESSION['message_type'] = 'error';
-        header("Location: ../edit-product.php?id=$id");
-        exit();
+    // Get logged-in user ID and organization ID from session
+    $currentUserId = $_SESSION['crm_user_id'] ?? 1;
+    $orgId = $_SESSION['org_id'] ?? 1;
+    
+    // Get form data
+    $product_id = (int)$_POST['id'];
+    $name = mysqli_real_escape_string($conn, $_POST['name'] ?? '');
+    $code = mysqli_real_escape_string($conn, $_POST['code'] ?? '');
+    $item_type = isset($_POST['item_type']) && $_POST['item_type'] == "1" ? 1 : 0;
+
+    $category_id     = !empty($_POST['category_id']) ? (int)$_POST['category_id'] : NULL;
+    $selling_price   = !empty($_POST['selling_price']) ? (float)$_POST['selling_price'] : 0.00;
+    $purchase_price  = !empty($_POST['purchase_price']) ? (float)$_POST['purchase_price'] : 0.00;
+    $quantity        = !empty($_POST['quantity']) ? (int)$_POST['quantity'] : 0;
+    $unit_id         = !empty($_POST['unit_id']) ? (int)$_POST['unit_id'] : NULL;
+
+    // Handle discount_type
+    $discount_type = NULL;
+    if (!empty($_POST['discount_type']) && in_array($_POST['discount_type'], ['%', 'Fixed', 'fixed'])) {
+        $discount_type = mysqli_real_escape_string($conn, $_POST['discount_type']);
     }
 
-    // ---------------------------
-    // ✅ Remove main image if requested
-    // ---------------------------
-    if ($remove_main_image === 1 && !empty($product_img)) {
-        $old_path = '../../uploads/' . $product_img;
-        if (file_exists($old_path)) unlink($old_path);
-        $product_img = '';
-    }
-
-    // ---------------------------
-    // ✅ Handle new main image upload
-    // ---------------------------
-    if (isset($_FILES['product_img']['name']) && $_FILES['product_img']['name'] != '') {
-        $img_name = time() . '_' . basename($_FILES['product_img']['name']);
-        $img_path = '../../uploads/' . $img_name;
-        if (move_uploaded_file($_FILES['product_img']['tmp_name'], $img_path)) {
-            // Delete previous image if exists
-            if (!empty($product_img) && file_exists('../../uploads/' . $product_img)) {
-                unlink('../../uploads/' . $product_img);
+    $tax_id          = !empty($_POST['tax_id']) ? (int)$_POST['tax_id'] : NULL;
+    $alert_quantity  = !empty($_POST['alert_quantity']) ? (int)$_POST['alert_quantity'] : 0;
+    $description     = mysqli_real_escape_string($conn, $_POST['description'] ?? '');
+    
+    $current_image = mysqli_real_escape_string($conn, $_POST['current_image'] ?? '');
+    $remove_main_image = isset($_POST['remove_main_image']) ? (int)$_POST['remove_main_image'] : 0;
+    
+    // REMOVED DUPLICATE HSN CODE CHECK HERE (Same as add product)
+    
+    // Handle main image upload/removal
+    $image_name = $current_image;
+    
+    // If remove flag is set, delete the image
+    if ($remove_main_image == 1) {
+        if (!empty($current_image)) {
+            $old_image_path = "../../uploads/" . $current_image;
+            if (file_exists($old_image_path)) {
+                unlink($old_image_path);
             }
-            $product_img = $img_name;
+        }
+        $image_name = '';
+    }
+    
+    // If a new image is uploaded
+    if (isset($_FILES['product_img']) && $_FILES['product_img']['error'] == 0) {
+        // Delete old image if exists
+        if (!empty($current_image)) {
+            $old_image_path = "../../uploads/" . $current_image;
+            if (file_exists($old_image_path)) {
+                unlink($old_image_path);
+            }
+        }
+        
+        $targetDir = "../../uploads/";
+        
+        // Check if uploads directory exists
+        if (!file_exists($targetDir)) {
+            mkdir($targetDir, 0777, true);
+        }
+        
+        $image_name = time() . '_' . basename($_FILES["product_img"]["name"]);
+        $targetFile = $targetDir . $image_name;
+
+        $validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+        if (in_array($_FILES["product_img"]["type"], $validTypes) && $_FILES["product_img"]["size"] <= 5 * 1024 * 1024) {
+            if (!move_uploaded_file($_FILES["product_img"]["tmp_name"], $targetFile)) {
+                $image_name = $current_image; // Keep old image if upload fails
+            }
+        } else {
+            $image_name = $current_image; // Keep old image if validation fails
         }
     }
 
-    // ---------------------------
-    // ✅ Update product in database
-    // ---------------------------
-    $update = "UPDATE product SET 
+    // Build the UPDATE query
+    $query = "UPDATE product SET 
         name = '$name',
+        item_type = '$item_type',
         code = '$code',
-        item_type = $item_type,
-        category_id = $category_id,
-        selling_price = $selling_price,
-        purchase_price = $purchase_price,
-        quantity = $quantity,
-        unit_id = $unit_id,
-        discount_type = $discount_type,
-        alert_quantity = $alert_quantity,
-        tax_id = $tax_id,
-        product_img = '$product_img',
+        category_id = " . (is_null($category_id) ? "NULL" : "'$category_id'") . ",
+        selling_price = '$selling_price',
+        purchase_price = '$purchase_price',
+        quantity = '$quantity',
+        unit_id = " . (is_null($unit_id) ? "NULL" : "'$unit_id'") . ",
+        discount_type = " . (is_null($discount_type) ? "NULL" : "'$discount_type'") . ",
+        tax_id = " . (is_null($tax_id) ? "NULL" : "'$tax_id'") . ",
+        alert_quantity = '$alert_quantity',
         description = '$description',
-        updated_at = '$updated_at'
-        WHERE id = $id";
+        product_img = '$image_name',
+        updated_by = '$currentUserId',
+        updated_at = NOW()
+        WHERE id = '$product_id' AND org_id = '$orgId'";
 
-    if (mysqli_query($conn, $update)) {
-        $productId = $id;
-
-        // ---------------------------
-        // ✅ Upload new gallery images
-        // ---------------------------
-        if (!empty($_FILES['gallery_img']['name'][0])) {
-            foreach ($_FILES['gallery_img']['tmp_name'] as $key => $tmp_name) {
-                if ($_FILES['gallery_img']['error'][$key] === 0) {
-                    $file_name = time() . '_' . basename($_FILES['gallery_img']['name'][$key]);
-                    $target_path = '../../uploads/' . $file_name;
-                    if (move_uploaded_file($tmp_name, $target_path)) {
-                        $insert = "INSERT INTO product_images (product_id, gallery_img, created_at) 
-                                   VALUES ($productId, '$file_name', NOW())";
-                        mysqli_query($conn, $insert);
-                    }
-                }
-            }
-        }
-
-        // ---------------------------
-        // ✅ Delete removed gallery images
-        // ---------------------------
+    // Execute the update query
+    if (mysqli_query($conn, $query)) {
+        
+        // Handle gallery images deletion
         if (!empty($_POST['deleted_images'])) {
             $deleted_ids = explode(',', $_POST['deleted_images']);
             foreach ($deleted_ids as $img_id) {
                 $img_id = (int)$img_id;
-                $res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT gallery_img FROM product_images WHERE id = $img_id"));
-                if ($res && file_exists('../../uploads/' . $res['gallery_img'])) {
-                    unlink('../../uploads/' . $res['gallery_img']);
+                if ($img_id > 0) {
+                    // Get image filename before deleting
+                    $get_img_query = "SELECT gallery_img FROM product_images WHERE id = $img_id";
+                    $img_result = mysqli_query($conn, $get_img_query);
+                    if ($img_result && mysqli_num_rows($img_result) > 0) {
+                        $img_data = mysqli_fetch_assoc($img_result);
+                        $img_path = "../../uploads/" . $img_data['gallery_img'];
+                        if (file_exists($img_path)) {
+                            unlink($img_path);
+                        }
+                    }
+                    // Delete from database
+                    mysqli_query($conn, "DELETE FROM product_images WHERE id = $img_id");
                 }
-                mysqli_query($conn, "DELETE FROM product_images WHERE id = $img_id");
             }
         }
-
-        // ---------------------------
-        // ✅ Set success message and redirect to SAME edit page
-        // ---------------------------
+        
+        // Handle new gallery image uploads
+        if (!empty($_FILES['gallery_img']['name'][0])) {
+            $targetDir = "../../uploads/";
+            
+            foreach ($_FILES['gallery_img']['tmp_name'] as $key => $tmp_name) {
+                if ($_FILES['gallery_img']['error'][$key] == 0) {
+                    $file_name = time() . '_' . $key . '_' . basename($_FILES['gallery_img']['name'][$key]);
+                    $targetFile = $targetDir . $file_name;
+                    
+                    $validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+                    if (in_array($_FILES['gallery_img']['type'][$key], $validTypes) && 
+                        $_FILES['gallery_img']['size'][$key] <= 5 * 1024 * 1024) {
+                        
+                        if (move_uploaded_file($tmp_name, $targetFile)) {
+                            $insert_gallery = "INSERT INTO product_images (product_id, gallery_img) 
+                                            VALUES ('$product_id', '$file_name')";
+                            mysqli_query($conn, $insert_gallery);
+                        }
+                    }
+                }
+            }
+        }
+        
         $_SESSION['message'] = 'Product updated successfully';
         $_SESSION['message_type'] = 'success';
-        header("Location: ../edit-product.php?id=$id");
+        header("Location: ../edit-product.php?id=$product_id");
         exit();
     } else {
-        // Check if error is due to duplicate entry
         $error = mysqli_error($conn);
-        if (mysqli_errno($conn) == 1062) { // MySQL duplicate entry error code
-            $_SESSION['message'] = 'HSN code already exists in your organization.';
-            $_SESSION['message_type'] = 'error';
-        } else {
-            $_SESSION['message'] = 'Error updating product: ' . $error;
-            $_SESSION['message_type'] = 'error';
-        }
-        header("Location: ../edit-product.php?id=$id");
+        $_SESSION['message'] = 'Error updating product: ' . $error;
+        $_SESSION['message_type'] = 'error';
+         header("Location: ../edit-product.php?id=$product_id");
         exit();
     }
+    
 } else {
-    echo "Invalid request method!";
+    // If not POST request, redirect
+    header('Location: ../products.php');
     exit();
 }
 ?>

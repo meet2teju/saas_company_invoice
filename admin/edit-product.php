@@ -564,7 +564,7 @@ $category_type = $row['item_type'] ?? 1;
     quill.root.innerHTML = existingDescription;
 </script>
 
-    <script>
+   <script>
 $(document).ready(function() {
     // Image upload preview
     $('#image_upload').change(function() {
@@ -643,8 +643,8 @@ $(document).ready(function() {
         this.value = this.value.replace(/[0-9]/g, ''); // block numbers
     });
 
-    // Form validation
-    $('#productForm').submit(async function(e) {
+    // Form validation - SIMPLIFIED (REMOVED HSN DUPLICATE CHECK)
+    $('#productForm').submit(function(e) {
         e.preventDefault(); // Prevent immediate submission
         
         let isValid = true;
@@ -657,31 +657,15 @@ $(document).ready(function() {
         const html = quill.root.innerHTML.trim();
         $('#productDescription').val(html);
 
-        // Required field checks
+        // Required field checks - ONLY BASIC VALIDATIONS
         if ($('#name').val().trim() === '') {
             $('#name_error').text('Product name is required');
             $('#name').addClass('is-invalid');
             isValid = false;
         }
 
-        // Check for duplicate HSN code
-        const codeValue = $('#code').val().trim();
-        const productId = <?php echo $row['id']; ?>;
+        // REMOVED: HSN code duplicate validation
         
-        if (codeValue) {
-            try {
-                const res = await checkDuplicate('code', codeValue, productId);
-                if (res.status === 'exists') {
-                    $('#code_error').text(res.message);
-                    $('#code').addClass('is-invalid');
-                    isValid = false;
-                }
-            } catch(err) {
-                console.error('Error checking duplicate:', err);
-                // Don't block form submission if AJAX check fails
-            }
-        }
-
         if ($('#category_id').val() === '') {
             $('#category_error').text('Category is required');
             $('#category_id').addClass('is-invalid');
@@ -732,45 +716,11 @@ $(document).ready(function() {
         }
     });
     
-    // Check duplicates via AJAX
-    function checkDuplicate(field, value, id=0) {
-        return $.ajax({
-            url: 'process/check_product_duplicate.php',
-            type: 'POST',
-            dataType: 'json',
-            data: { field: field, value: value, id: id }
-        });
-    }
-
-    // HSN code validation on blur
-    $('#code').on('blur', async function() {
-        const codeValue = $(this).val().trim();
-        const productId = <?php echo $row['id']; ?>;
-        
-        if (codeValue) {
-            try {
-                const res = await checkDuplicate('code', codeValue, productId);
-                if (res.status === 'exists') {
-                    $('#code_error').text(res.message);
-                    $('#code').addClass('is-invalid');
-                } else {
-                    $('#code_error').text('');
-                    $('#code').removeClass('is-invalid');
-                }
-            } catch(err) {
-                console.error('Error checking duplicate:', err);
-            }
-        }
-    });
-
-    // Clear error when user starts typing
-    $('#code').on('input', function() {
-        const currentError = $('#code_error').text();
-        if (currentError === 'HSN code already exists!' || currentError === 'Error checking HSN code. Please try again.') {
-            $('#code_error').text('');
-            $('#code').removeClass('is-invalid');
-        }
-    });
+    // REMOVED: checkDuplicate function for HSN validation
+    
+    // REMOVED: HSN code validation on blur
+    
+    // REMOVED: Clear error when user starts typing for HSN
     
     // Preview functionality
     $('#previewBtn').click(function() {

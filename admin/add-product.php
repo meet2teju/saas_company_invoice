@@ -617,7 +617,7 @@
     </script>
 
     <!-- HSN Code Duplicate Validation Script -->
-    <script>
+    <!-- <script>
     $(document).ready(function() {
         // Check duplicates via AJAX
         function checkDuplicate(field, value, id=0) {
@@ -742,7 +742,36 @@
         endif; 
         ?>
     });
-    </script>
+    </script> -->
+<script>
+$(document).ready(function () {
+    $('#form').on('submit', function (e) {
+        // Get Quill editor content
+        const html = quill.root.innerHTML.trim();
+        $('#productDescription').val(html);
+        
+        $('.error-text').text('');
+        let valid = true;
 
+        // Basic validations only
+        if (!$('#name').val().trim()) {
+            $('#name_error').text('Product name is required.');
+            valid = false;
+        }
+
+        if (!$('#category_id').val()) {
+            $('#category_error').text('Please select a category.');
+            valid = false;
+        }
+
+        if (!valid) {
+            e.preventDefault();
+            $('html, body').animate({
+                scrollTop: $('.error-text:visible').first().offset().top - 100
+            }, 400);
+        }
+    });
+});
+</script>
 </body>
 </html>

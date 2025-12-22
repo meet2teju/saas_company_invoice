@@ -34,7 +34,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $alert_quantity  = !empty($_POST['alert_quantity']) ? (int)$_POST['alert_quantity'] : 0;
     $description     = mysqli_real_escape_string($conn, $_POST['description'] ?? '');
 
-    // Check duplicate code WITH org_id filter
+    // REMOVED DUPLICATE HSN CODE CHECK HERE
+    /*
     $checkQuery = "SELECT id FROM product WHERE code = '$code' AND org_id = '$orgId' AND is_deleted = 0";
     $checkResult = mysqli_query($conn, $checkQuery);
 
@@ -53,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: ../add_product.php?error=duplicate');
         exit();
     }
+    */
 
     // Handle image upload
     $image_name = '';
@@ -101,10 +103,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $error = mysqli_error($conn);
         if (mysqli_errno($conn) == 1062) { // 1062 is MySQL error code for duplicate entry
+            // This will still catch database-level duplicates if you have a unique constraint
             $_SESSION['old_product_data'] = $_POST;
-            $_SESSION['message'] = 'HSN code already exists in your organization.';
+            $_SESSION['message'] = 'Error adding product: ' . $error;
             $_SESSION['message_type'] = 'error';
-            header('Location: ../add_product.php?error=duplicate');
+            header('Location: ../add_product.php?error=database');
             exit();
         } else {
             $_SESSION['old_product_data'] = $_POST;
