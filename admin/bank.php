@@ -88,6 +88,11 @@ $result = mysqli_query($conn, $query);
             min-width: 20px;
             text-align: left;
         }
+        /* Highlight duplicate error */
+        .duplicate-error {
+            border-color: #dc3545 !important;
+            background-color: #fff5f5 !important;
+        }
     </style>
 </head>
 
@@ -103,7 +108,16 @@ $result = mysqli_query($conn, $query);
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                     </div>
                 <?php endif;
+                
+                // Display duplicate error message if exists
+                if (isset($_GET['error']) && $_GET['error'] == 'duplicate_account' && isset($_SESSION['old_bank_data'])): 
                 ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        Account number already exists!
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
+                
                 <div class="d-flex d-block align-items-center justify-content-between flex-wrap gap-3">
                     <div>
                         <h6 class="mb-0">Bank Details</h6>
@@ -260,44 +274,51 @@ $result = mysqli_query($conn, $query);
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <form id="add-bank-form" method="POST" action="process/action_add_bank.php">
-                         <input type="hidden" name="org_id" value="<?php echo $currentOrgId; ?>">
-    <input type="hidden" name="created_by" value="<?php echo $currentUserId; ?>">
+                        <input type="hidden" name="org_id" value="<?php echo $currentOrgId; ?>">
+                        <input type="hidden" name="created_by" value="<?php echo $currentUserId; ?>">
                         <div class="modal-body">
                             <div class="mb-2">
                                 <label class="form-label">Bank Name<span class="text-danger">*</span></label>
-                                <input type="text" id="bank_name" name="bank_name" class="form-control">
+                                <input type="text" id="bank_name" name="bank_name" class="form-control" 
+                                    value="<?php echo isset($_SESSION['old_bank_data']['bank_name']) ? htmlspecialchars($_SESSION['old_bank_data']['bank_name']) : ''; ?>">
                                 <div class="error-message" id="bank_name_error"></div>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label">Account Holder Name<span class="text-danger">*</span></label>
-                                <input type="text" id="account_holder" name="account_holder" class="form-control">
+                                <input type="text" id="account_holder" name="account_holder" class="form-control"
+                                    value="<?php echo isset($_SESSION['old_bank_data']['account_holder']) ? htmlspecialchars($_SESSION['old_bank_data']['account_holder']) : ''; ?>">
                                 <div class="error-message" id="account_holder_error"></div>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label">Account Number<span class="text-danger">*</span></label>
-                                <input type="text" id="account_number" name="account_number" class="form-control">
+                                <input type="text" id="account_number" name="account_number" class="form-control"
+                                    value="<?php echo isset($_SESSION['old_bank_data']['account_number']) ? htmlspecialchars($_SESSION['old_bank_data']['account_number']) : ''; ?>">
                                 <div class="error-message" id="account_number_error"></div>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label">Routing Number</label>
-                                <input type="text" id="routing_number" name="routing_number" class="form-control">
+                                <input type="text" id="routing_number" name="routing_number" class="form-control"
+                                    value="<?php echo isset($_SESSION['old_bank_data']['routing_number']) ? htmlspecialchars($_SESSION['old_bank_data']['routing_number']) : ''; ?>">
                                 <div class="error-message" id="routing_number_error"></div>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label">IFSC Code</label>
-                                <input type="text" id="ifsc_code" name="ifsc_code" class="form-control">
+                                <input type="text" id="ifsc_code" name="ifsc_code" class="form-control"
+                                    value="<?php echo isset($_SESSION['old_bank_data']['ifsc_code']) ? htmlspecialchars($_SESSION['old_bank_data']['ifsc_code']) : ''; ?>">
                                 <div class="error-message" id="ifsc_code_error"></div>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label">SWIFT Code</label>
-                                <input type="text" id="swift_code" name="swift_code" class="form-control">
+                                <input type="text" id="swift_code" name="swift_code" class="form-control"
+                                    value="<?php echo isset($_SESSION['old_bank_data']['swift_code']) ? htmlspecialchars($_SESSION['old_bank_data']['swift_code']) : ''; ?>">
                                 <div class="error-message" id="swift_code_error"></div>
                             </div>
                             <div class="mb-0">
                                 <label class="form-label">Opening Balance</label>
                                 <div class="input-group">
                                     <span class="input-group-text"><?= $companyCurrency['currency_symbol'] ?></span>
-                                    <input type="number" id="opening_balance" name="opening_balance" class="form-control" step="0.01">
+                                    <input type="number" id="opening_balance" name="opening_balance" class="form-control" step="0.01"
+                                        value="<?php echo isset($_SESSION['old_bank_data']['opening_balance']) ? htmlspecialchars($_SESSION['old_bank_data']['opening_balance']) : ''; ?>">
                                 </div>
                                 <div class="error-message" id="opening_balance_error"></div>
                             </div>
@@ -393,182 +414,244 @@ $result = mysqli_query($conn, $query);
 
     </div>
     <?php include 'layouts/vendor-scripts.php'; ?>
+    
+    <!-- JavaScript for Account Number Duplicate Validation -->
     <script>
-$(document).ready(function() {
-    // Multiple Delete Functionality
-    const multiDeleteModal = new bootstrap.Modal(document.getElementById('multiDeleteModal'));
-    const deleteBtn = document.querySelector('.delete-multiple');
-    const selectAll = document.getElementById('select-all');
-    const checkboxes = document.querySelectorAll('.bank-checkbox');
+    $(document).ready(function() {
+        // Clear old session data when page loads
+        <?php if (isset($_SESSION['old_bank_data'])): ?>
+        setTimeout(function() {
+            $.ajax({
+                url: 'process/clear_session_data.php',
+                type: 'POST',
+                data: { clear_bank_data: 1 }
+            });
+        }, 100);
+        <?php endif; ?>
 
-    // Function to toggle delete button visibility
-    function toggleDeleteBtn() {
-        const anyChecked = document.querySelectorAll('.bank-checkbox:checked').length > 0;
-        deleteBtn.classList.toggle('d-none', !anyChecked);
-    }
+        // Multiple Delete Functionality
+        const multiDeleteModal = new bootstrap.Modal(document.getElementById('multiDeleteModal'));
+        const deleteBtn = document.querySelector('.delete-multiple');
+        const selectAll = document.getElementById('select-all');
+        const checkboxes = document.querySelectorAll('.bank-checkbox');
 
-    // Show modal on delete button click
-    deleteBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        const selectedCheckboxes = document.querySelectorAll('.bank-checkbox:checked');
-        const form = document.getElementById('multiDeleteForm');
-
-        // Remove previous hidden inputs
-        form.querySelectorAll('input[name="bank_ids[]"]').forEach(el => el.remove());
-
-        // Add new hidden inputs
-        selectedCheckboxes.forEach(checkbox => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'bank_ids[]';
-            input.value = checkbox.value;
-            form.appendChild(input);
-        });
-
-        // Update modal text based on selection count
-        const modalTitle = document.querySelector('#multiDeleteModal h6');
-        const modalMessage = document.querySelector('#multiDeleteModal p');
-
-        if (selectedCheckboxes.length === 1) {
-            modalTitle.textContent = 'Delete Bank';
-            modalMessage.textContent = 'Are you sure you want to delete the selected bank?';
-        } else {
-            modalTitle.textContent = 'Delete Banks';
-            modalMessage.textContent = `Are you sure you want to delete the ${selectedCheckboxes.length} selected banks?`;
+        // Function to toggle delete button visibility
+        function toggleDeleteBtn() {
+            const anyChecked = document.querySelectorAll('.bank-checkbox:checked').length > 0;
+            deleteBtn.classList.toggle('d-none', !anyChecked);
         }
 
-        multiDeleteModal.show();
-    });
+        // Show modal on delete button click
+        deleteBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const selectedCheckboxes = document.querySelectorAll('.bank-checkbox:checked');
+            const form = document.getElementById('multiDeleteForm');
 
-    // Select All functionality
-    selectAll.addEventListener('change', function() {
-        checkboxes.forEach(checkbox => checkbox.checked = this.checked);
+            // Remove previous hidden inputs
+            form.querySelectorAll('input[name="bank_ids[]"]').forEach(el => el.remove());
+
+            // Add new hidden inputs
+            selectedCheckboxes.forEach(checkbox => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'bank_ids[]';
+                input.value = checkbox.value;
+                form.appendChild(input);
+            });
+
+            // Update modal text based on selection count
+            const modalTitle = document.querySelector('#multiDeleteModal h6');
+            const modalMessage = document.querySelector('#multiDeleteModal p');
+
+            if (selectedCheckboxes.length === 1) {
+                modalTitle.textContent = 'Delete Bank';
+                modalMessage.textContent = 'Are you sure you want to delete the selected bank?';
+            } else {
+                modalTitle.textContent = 'Delete Banks';
+                modalMessage.textContent = `Are you sure you want to delete the ${selectedCheckboxes.length} selected banks?`;
+            }
+
+            multiDeleteModal.show();
+        });
+
+        // Select All functionality
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(checkbox => checkbox.checked = this.checked);
+            toggleDeleteBtn();
+        });
+
+        // Individual checkbox change
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', toggleDeleteBtn);
+        });
+
+        // Initialize button visibility on page load
         toggleDeleteBtn();
-    });
 
-    // Individual checkbox change
-    checkboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', toggleDeleteBtn);
-    });
-
-    // Initialize button visibility on page load
-    toggleDeleteBtn();
-
-    // Status toggle functionality
-    $('.status-toggle').on('change', function() {
-        var id = $(this).data('id');
-        var status = $(this).is(':checked') ? 1 : 0;
-        $.ajax({
-            url: 'process/action_toggle_bank_status.php',
-            type: 'POST',
-            data: { id: id, status: status },
-            success: function() { console.log('Status updated'); },
-            error: function(xhr, status, error) { console.error('Error:', error); }
+        // Status toggle functionality
+        $('.status-toggle').on('change', function() {
+            var id = $(this).data('id');
+            var status = $(this).is(':checked') ? 1 : 0;
+            $.ajax({
+                url: 'process/action_toggle_bank_status.php',
+                type: 'POST',
+                data: { id: id, status: status },
+                success: function() { console.log('Status updated'); },
+                error: function(xhr, status, error) { console.error('Error:', error); }
+            });
         });
-    });
 
-    // Populate edit modal
-    $('.edit-bank-btn').on('click', function() {
-        $('#edit_id').val($(this).data('id'));
-        $('#edit_bank_name').val($(this).data('bank-name'));
-        $('#edit_account_holder').val($(this).data('account-holder'));
-        $('#edit_account_number').val($(this).data('account-number'));
-        $('#edit_routing_number').val($(this).data('routing-number'));
-        $('#edit_ifsc_code').val($(this).data('ifsc-code'));
-        $('#edit_swift_code').val($(this).data('swift-code'));
-        $('#edit_opening_balance').val($(this).data('opening-balance'));
-        $('.error-message').text('');
-        $('#edit_bank_modal').modal('show');
-    });
-
-    // Input restrictions
-    $('#account_number, #edit_account_number').on('input', function() { this.value = this.value.replace(/[^0-9]/g,''); });
-    $('#routing_number, #edit_routing_number').on('input', function() { this.value = this.value.replace(/[^0-9]/g,''); });
-    $('#opening_balance, #edit_opening_balance').on('input', function() { this.value = this.value.replace(/[^0-9.]/g,''); });
-    $('#bank_name, #account_holder, #edit_bank_name, #edit_account_holder').on('input', function() { this.value = this.value.replace(/[^a-zA-Z\s]/g,''); });
-
-    // Field validation function
-    function validateField(value, fieldName, required, type) {
-        if(required && !value) return fieldName + ' is required.';
-        if(value){
-            switch(type){
-                case 'text': if(!/^[a-zA-Z\s]+$/.test(value)) return fieldName + ' should contain only letters and spaces.'; break;
-                case 'number': if(!/^\d+$/.test(value)) return fieldName + ' should contain only numbers.'; break;
-                case 'decimal': if(!/^\d+(\.\d{1,2})?$/.test(value)) return fieldName + ' should be a valid decimal number.'; break;
-                case 'ifsc': if(!/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(value)) return 'Invalid IFSC format.'; break;
-            }
-        }
-        return '';
-    }
-
-    // Check duplicates via AJAX
-    function checkDuplicate(field, value, id=0) {
-        return $.ajax({
-            url: 'process/check_bank_duplicate.php',
-            type: 'POST',
-            dataType: 'json',
-            data: { field: field, value: value, id: id }
+        // Populate edit modal
+        $('.edit-bank-btn').on('click', function() {
+            $('#edit_id').val($(this).data('id'));
+            $('#edit_bank_name').val($(this).data('bank-name'));
+            $('#edit_account_holder').val($(this).data('account-holder'));
+            $('#edit_account_number').val($(this).data('account-number'));
+            $('#edit_routing_number').val($(this).data('routing-number'));
+            $('#edit_ifsc_code').val($(this).data('ifsc-code'));
+            $('#edit_swift_code').val($(this).data('swift-code'));
+            $('#edit_opening_balance').val($(this).data('opening-balance'));
+            $('.error-message').text('');
+            $('#edit_bank_modal').modal('show');
         });
-    }
 
-    // Validate entire form (async for duplicate check)
-    async function validateForm(formType){
-        var isValid = true;
-        var prefix = formType === 'add' ? '' : 'edit_';
-        var id = formType === 'add' ? 0 : $('#edit_id').val();
+        // Input restrictions
+        $('#account_number, #edit_account_number').on('input', function() { 
+            this.value = this.value.replace(/[^0-9]/g,''); 
+            $(this).removeClass('duplicate-error');
+        });
+        $('#routing_number, #edit_routing_number').on('input', function() { 
+            this.value = this.value.replace(/[^0-9]/g,''); 
+        });
+        $('#opening_balance, #edit_opening_balance').on('input', function() { 
+            this.value = this.value.replace(/[^0-9.]/g,''); 
+        });
+        $('#bank_name, #account_holder, #edit_bank_name, #edit_account_holder').on('input', function() { 
+            this.value = this.value.replace(/[^a-zA-Z\s]/g,''); 
+        });
 
-        var fields = [
-            {id: prefix+'bank_name', name:'Bank name', type:'text', required: true},
-            {id: prefix+'account_holder', name:'Account holder', type:'text', required: true},
-            {id: prefix+'account_number', name:'Account number', type:'number', required: true},
-            {id: prefix+'routing_number', name:'Routing number', type:'number', required: false},
-            {id: prefix+'ifsc_code', name:'IFSC code', type:'ifsc', required: false},
-            {id: prefix+'opening_balance', name:'Opening balance', type:'decimal', required: false}
-        ];
-
-        // Validate each field
-        for(var i=0; i<fields.length; i++){
-            var val = $('#'+fields[i].id).val();
-            // var error = validateField(val, fields[i].name, true, fields[i].type);
-            var error = validateField(val, fields[i].name, fields[i].required, fields[i].type);
-            if(error){ $('#'+fields[i].id+'_error').text(error); isValid=false; }
-            else{ $('#'+fields[i].id+'_error').text(''); }
-        }
-
-        // Duplicate check for account_number and ifsc_code
-        var dupFields = ['account_number','ifsc_code'];
-        for(var j=0;j<dupFields.length;j++){
-            var fieldId = prefix + dupFields[j];
-            var value = $('#'+fieldId).val().trim();
+        // Field validation function
+        function validateField(value, fieldName, required, type) {
+            if(required && !value) return fieldName + ' is required.';
             if(value){
-                try{
-                    var res = await checkDuplicate(dupFields[j], value, id);
-                    if(res.status === 'exists'){
-                        $('#'+fieldId+'_error').text(res.message);
-                        isValid = false;
-                    } else{ $('#'+fieldId+'_error').text(''); }
-                }catch(err){ console.error(err); isValid=false; }
+                switch(type){
+                    case 'text': if(!/^[a-zA-Z\s]+$/.test(value)) return fieldName + ' should contain only letters and spaces.'; break;
+                    case 'number': if(!/^\d+$/.test(value)) return fieldName + ' should contain only numbers.'; break;
+                    case 'decimal': if(!/^\d+(\.\d{1,2})?$/.test(value)) return fieldName + ' should be a valid decimal number.'; break;
+                    case 'ifsc': if(!/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(value)) return 'Invalid IFSC format.'; break;
+                }
             }
+            return '';
         }
 
-        return isValid;
-    }
+        // Check duplicates via AJAX - UPDATED FOR ACCOUNT NUMBER
+        function checkDuplicate(field, value, id=0) {
+            return $.ajax({
+                url: 'process/check_bank_duplicate.php',
+                type: 'POST',
+                dataType: 'json',
+                data: { 
+                    field: field, 
+                    value: value, 
+                    id: id,
+                    org_id: <?php echo $currentOrgId; ?> // Include organization ID
+                }
+            });
+        }
 
-    // Add/Edit form submission
-    $('#add-bank-form, #edit-bank-form').on('submit', async function(e){
-        e.preventDefault();
-        var formType = $(this).attr('id') === 'add-bank-form' ? 'add' : 'edit';
-        if(await validateForm(formType)){ this.submit(); }
+        // Validate account number for duplicates
+        async function validateAccountNumber(formType) {
+            var prefix = formType === 'add' ? '' : 'edit_';
+            var fieldId = prefix + 'account_number';
+            var inputElement = $('#' + fieldId);
+            var value = inputElement.val().trim();
+            var id = formType === 'add' ? 0 : $('#edit_id').val();
+            var errorElement = $('#' + fieldId + '_error');
+            
+            // Clear previous error
+            errorElement.text('');
+            inputElement.removeClass('duplicate-error');
+            
+            if (value) {
+                try {
+                    var res = await checkDuplicate('account_number', value, id);
+                    if (res.status === 'exists') {
+                        errorElement.text(res.message);
+                        inputElement.addClass('duplicate-error');
+                        return false;
+                    } else {
+                        return true;
+                    }
+                } catch(err) {
+                    console.error('Error checking duplicate:', err);
+                    errorElement.text('Error checking account number. Please try again.');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Validate entire form (async for duplicate check)
+        async function validateForm(formType){
+            var isValid = true;
+            var prefix = formType === 'add' ? '' : 'edit_';
+            var id = formType === 'add' ? 0 : $('#edit_id').val();
+
+            var fields = [
+                {id: prefix+'bank_name', name:'Bank name', type:'text', required: true},
+                {id: prefix+'account_holder', name:'Account holder', type:'text', required: true},
+                {id: prefix+'account_number', name:'Account number', type:'number', required: true},
+                {id: prefix+'routing_number', name:'Routing number', type:'number', required: false},
+                {id: prefix+'ifsc_code', name:'IFSC code', type:'ifsc', required: false},
+                {id: prefix+'opening_balance', name:'Opening balance', type:'decimal', required: false}
+            ];
+
+            // Validate each field
+            for(var i=0; i<fields.length; i++){
+                var val = $('#'+fields[i].id).val();
+                var error = validateField(val, fields[i].name, fields[i].required, fields[i].type);
+                if(error){ 
+                    $('#'+fields[i].id+'_error').text(error); 
+                    isValid=false; 
+                } else { 
+                    $('#'+fields[i].id+'_error').text(''); 
+                }
+            }
+
+            // Check for duplicate account number
+            const accountValid = await validateAccountNumber(formType);
+            if (!accountValid) {
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Add/Edit form submission
+        $('#add-bank-form, #edit-bank-form').on('submit', async function(e){
+            e.preventDefault();
+            var formType = $(this).attr('id') === 'add-bank-form' ? 'add' : 'edit';
+            if(await validateForm(formType)){ 
+                this.submit(); 
+            }
+        });
+
+        // Real-time validation on blur for account number
+        $('#account_number, #edit_account_number').on('blur', async function(){
+            var formType = $(this).closest('form').attr('id') === 'add-bank-form' ? 'add' : 'edit';
+            await validateAccountNumber(formType);
+        });
+
+        // Clear error when user starts typing
+        $('#account_number, #edit_account_number').on('input', function() {
+            var currentError = $(this).next('.error-message').text();
+            if (currentError === 'Account number already exists!' || currentError.includes('Error checking')) {
+                $(this).next('.error-message').text('');
+                $(this).removeClass('duplicate-error');
+            }
+        });
     });
-
-    // Real-time validation on blur
-    $('#bank_name, #account_holder, #account_number,#routing_number, #ifsc_code, #opening_balance, #edit_bank_name, #edit_account_holder, #edit_account_number, #edit_ifsc_code, #edit_opening_balance').on('blur', async function(){
-        var formType = $(this).closest('form').attr('id') === 'add-bank-form' ? 'add' : 'edit';
-        await validateForm(formType);
-    });
-
-});
-</script>
+    </script>
 
     <script>
         $(document).ready(function() {
@@ -587,7 +670,7 @@ $(document).ready(function() {
                 $(errorSelector).text('');
             }
         }
- if ($(input).attr('id') === 'routing_number' || $(input).attr('id') === 'edit_routing_number') {
+        if ($(input).attr('id') === 'routing_number' || $(input).attr('id') === 'edit_routing_number') {
             fieldName = 'Routing number';
             errorSelector = '#' + $(input).attr('id') + '_error';
             if (!/^\d*$/.test(value)) {
@@ -620,11 +703,13 @@ $(document).ready(function() {
     $('#add_bank_modal, #edit_bank_modal').on('hidden.bs.modal', function () {
         $(this).find('form')[0].reset();  // Reset all fields
         $(this).find('.error-message').text(''); // Clear all error messages
+        $(this).find('input').removeClass('duplicate-error'); // Remove duplicate error styling
     });
 
     // Also clear when modal is opened (optional, to be extra safe)
     $('#add_bank_modal, #edit_bank_modal').on('show.bs.modal', function () {
         $(this).find('.error-message').text('');
+        $(this).find('input').removeClass('duplicate-error');
     });
 });
     </script>
@@ -635,7 +720,56 @@ $(document).ready(function() {
         myModal.show();
     });
 </script>
-
+<script>
+    // Handle edit form repopulation from session
+$(document).ready(function() {
+    // Check if there's edit session data and we need to open edit modal
+    <?php if (isset($_GET['edit_id']) && isset($_SESSION['edit_bank_data']) && $_SESSION['edit_bank_data']['id'] == $_GET['edit_id']): ?>
+        var editData = <?php echo json_encode($_SESSION['edit_bank_data']); ?>;
+        
+        // Populate edit form
+        $('#edit_id').val(editData.id);
+        $('#edit_bank_name').val(editData.bank_name);
+        $('#edit_account_holder').val(editData.account_holder);
+        $('#edit_account_number').val(editData.account_number);
+        $('#edit_routing_number').val(editData.routing_number);
+        $('#edit_ifsc_code').val(editData.ifsc_code);
+        $('#edit_swift_code').val(editData.swift_code);
+        $('#edit_opening_balance').val(editData.opening_balance);
+        
+        // Show error messages based on error type
+        <?php if (isset($_GET['error']) && $_GET['error'] == 'duplicate_account'): ?>
+            $('#edit_account_number_error').text('Account number already exists!');
+            $('#edit_account_number').addClass('duplicate-error');
+        <?php elseif (isset($_GET['error']) && $_GET['error'] == 'duplicate_ifsc'): ?>
+            $('#edit_ifsc_code_error').text('IFSC code already exists!');
+            $('#edit_ifsc_code').addClass('duplicate-error');
+        <?php elseif (isset($_GET['error']) && $_GET['error'] == 'duplicate_swift'): ?>
+            $('#edit_swift_code_error').text('SWIFT code already exists!');
+            $('#edit_swift_code').addClass('duplicate-error');
+        <?php endif; ?>
+        
+        // Show the edit modal
+        var editModal = new bootstrap.Modal(document.getElementById('edit_bank_modal'));
+        editModal.show();
+        
+        // Clear session data after showing
+        setTimeout(function() {
+            $.ajax({
+                url: 'process/clear_session_data.php',
+                type: 'POST',
+                data: { clear_edit_bank_data: 1 }
+            });
+        }, 100);
+    <?php endif; ?>
+});
+</script>
 <?php } ?>
 </body>
 </html>
+<?php 
+// Clear old bank data after displaying
+if (isset($_SESSION['old_bank_data'])) {
+    unset($_SESSION['old_bank_data']);
+}
+?>

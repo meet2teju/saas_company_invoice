@@ -37,9 +37,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // Debug: Check form values
-    error_log("DEBUG: Form values - bank_name: $bank_name, opening_balance: $opening_balance");
-    
     // Validate required fields
     $errors = [];
     if (empty($bank_name)) $errors[] = "Bank name is required";
@@ -59,6 +56,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['message'] = 'Database connection failed: ' . mysqli_connect_error();
         $_SESSION['message_type'] = 'danger';
         header("Location: ../bank.php");
+        exit;
+    }
+    
+    // CHECK FOR DUPLICATE ACCOUNT NUMBER WITHIN THE SAME ORGANIZATION
+    $checkDuplicateSql = "SELECT id FROM bank WHERE account_number = '$account_number' AND org_id = $currentOrgId";
+    $duplicateResult = mysqli_query($conn, $checkDuplicateSql);
+    
+    if ($duplicateResult && mysqli_num_rows($duplicateResult) > 0) {
+        // Store form data to repopulate
+        $_SESSION['old_bank_data'] = [
+            'bank_name' => $bank_name,
+            'account_holder' => $account_holder,
+            'account_number' => $account_number,
+            'routing_number' => $routing_number,
+            'ifsc_code' => $ifsc_code,
+            'swift_code' => $swift_code,
+            'opening_balance' => $opening_balance_input ?? ''
+        ];
+        
+        $_SESSION['message'] = 'Account number already exists in your organization.';
+        $_SESSION['message_type'] = 'error';
+        header("Location: ../bank.php?error=duplicate_account&open=add_bank_modal");
         exit;
     }
     
@@ -89,9 +108,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         NOW()
     )";
     
-    // Debug: Log the SQL query
-    error_log("DEBUG: SQL Query: " . $sql);
-    
     // Execute query
     if (mysqli_query($conn, $sql)) {
         $_SESSION['message'] = 'Bank added successfully.';
@@ -99,6 +115,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $error_msg = 'Database error: ' . mysqli_error($conn);
         error_log("ERROR: " . $error_msg);
+        
+        // Check if error is due to duplicate entry
+        if (mysqli_errno($conn) == 1062) { // MySQL duplicate entry error code
+            $_SESSION['old_bank_data'] = [
+                'bank_name' => $bank_name,
+                'account_holder' => $account_holder,
+                'account_number' => $account_number,
+                'routing_number' => $routing_number,
+                'ifsc_code' => $ifsc_code,
+                'swift_code' => $swift_code,
+                'opening_balance' => $opening_balance_input ?? ''
+            ];
+            
+            $_SESSION['message'] = 'Account number already exists in your organization.';
+            $_SESSION['message_type'] = 'error';
+            header("Location: ../bank.php?error=duplicate_account&open=add_bank_modal");
+            exit;
+        }
+        
         $_SESSION['message'] = 'Error adding bank: ' . mysqli_error($conn);
         $_SESSION['message_type'] = 'danger';
     }
