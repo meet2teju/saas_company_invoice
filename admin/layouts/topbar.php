@@ -1,14 +1,11 @@
-
 <!-- Topbar Start -->
 <div class="header">					
     <div class="main-header">
         
         <!-- Logo -->
         <div class="header-left">
-                  <?php
-
-
-// Fetch logo from profile_info
+            <?php
+            // Fetch logo from company_info
             $logoQuery = "SELECT mini_logo FROM company_info WHERE is_deleted = 0 LIMIT 1";
             $logoResult = mysqli_query($conn, $logoQuery);
             $logoRow = mysqli_fetch_assoc($logoResult);
@@ -303,14 +300,41 @@
                     <div class="dropdown profile-dropdown">
                         <a href="javascript:void(0);" class="dropdown-toggle d-flex align-items-center" data-bs-toggle="dropdown"  data-bs-auto-close="outside">
                             <span class="avatar online">
-                            <img src="../uploads/<?php echo $_SESSION['crm_profile_img'] ?? 'default.jpg'; ?>" alt="Img" class="img-fluid rounded-circle">                            </span>
+                                <?php
+                                // Get user profile image from session
+                                $profileImage = $_SESSION['crm_profile_img'] ?? '';
+                                
+                                // Define default image
+                                $defaultImage = 'profileimage.jpg';
+                                
+                                // Check if profile image exists and is not empty
+                                if (!empty($profileImage)) {
+                                    $imagePath = '../uploads/' . $profileImage;
+                                    // Check if file exists on server
+                                    if (file_exists($imagePath) && is_file($imagePath)) {
+                                        $finalImage = $imagePath;
+                                    } else {
+                                        // Use default if file doesn't exist
+                                        $finalImage = '../uploads/' . $defaultImage;
+                                    }
+                                } else {
+                                    // Use default if no image in session
+                                    $finalImage = '../uploads/' . $defaultImage;
+                                }
+                                ?>
+                                <img src="<?php echo $finalImage; ?>" alt="Profile Image" class="img-fluid rounded-circle" onerror="this.src='../uploads/profileimage.jpg'">
+                            </span>
                         </a>
                         <div class="dropdown-menu p-2">
                             <div class="d-flex align-items-center bg-light rounded-1 p-2 mb-2">
                                 <span class="avatar avatar-lg me-2">
-                                <img src="../uploads/<?php echo $_SESSION['crm_profile_img'] ?? 'default.jpg'; ?>" alt="Img" class="img-fluid rounded-circle">                                </span>
+                                    <?php
+                                    // Use the same logic for the larger avatar
+                                    ?>
+                                    <img src="<?php echo $finalImage; ?>" alt="Profile Image" class="img-fluid rounded-circle" onerror="this.src='../uploads/profileimage.jpg'">
+                                </span>
                                 <div>
-                                    <h6 class="fs-14 fw-medium mb-1"><?php echo $_SESSION['crm_user_name'] ; ?></h6>
+                                    <h6 class="fs-14 fw-medium mb-1"><?php echo $_SESSION['crm_user_name']; ?></h6>
                                     <p class="fs-13"><?php echo $_SESSION['crm_user_role'] ?? 'User'; ?></p>
                                 </div>
                             </div>
@@ -348,7 +372,10 @@
         <div class="dropdown mobile-user-menu profile-dropdown">
             <a href="javascript:void(0);" class="dropdown-toggle d-flex align-items-center" data-bs-toggle="dropdown"  data-bs-auto-close="outside">
                 <span class="avatar avatar-md online">
-                    <img src="assets/img/profiles/avatar-01.jpg" alt="Img" class="img-fluid rounded-circle">
+                    <?php
+                    // Use the same image for mobile menu
+                    ?>
+                    <img src="<?php echo $finalImage; ?>" alt="Profile Image" class="img-fluid rounded-circle" onerror="this.src='../uploads/profileimage.jpg'">
                 </span>
             </a>
             <div class="dropdown-menu p-2 mt-0">

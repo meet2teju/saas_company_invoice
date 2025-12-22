@@ -129,7 +129,7 @@
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">Name<span class="text-danger ms-1">*</span></label>
-                                                    <input type="text" name="name" id="name" class="form-control no-numbers">
+                                                    <input type="text" name="name" id="name" class="form-control">
                                                     <span class="text-danger error-text" id="name_error"></span>
                                                 </div>
                                             </div>
@@ -533,9 +533,9 @@
     });
 
     // Disallow digits in product name
-    $('#name').on('input', function () {
-        this.value = this.value.replace(/[0-9]/g, '');
-    });
+    // $('#name').on('input', function () {
+    //     this.value = this.value.replace(/[0-9]/g, '');
+    // });
 
     $(document).ready(function () {
         $('#form').on('submit', function (e) {

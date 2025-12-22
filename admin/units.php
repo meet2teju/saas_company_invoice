@@ -423,13 +423,13 @@
     });
 
     $(document).ready(function() {
-        $('#add_name,#add_short_name').on('input', function () {
-            this.value = this.value.replace(/[0-9]/g, '');
-        });
+        // $('#add_name,#add_short_name').on('input', function () {
+        //     this.value = this.value.replace(/[0-9]/g, '');
+        // });
         
-        $('#edit_name,#edit_short_name').on('input', function () {
-            this.value = this.value.replace(/[0-9]/g, '');
-        });
+        // $('#edit_name,#edit_short_name').on('input', function () {
+        //     this.value = this.value.replace(/[0-9]/g, '');
+        // });
         
         // Add form validation
         $('#addForm').on('submit', function(e) {

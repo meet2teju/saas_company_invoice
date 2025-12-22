@@ -639,9 +639,9 @@ $(document).ready(function() {
         this.value = this.value.replace(/[^0-9.]/g, ''); // only numbers and dot
     });
 
-    $('#name').on('input', function () {
-        this.value = this.value.replace(/[0-9]/g, ''); // block numbers
-    });
+    // $('#name').on('input', function () {
+    //     this.value = this.value.replace(/[0-9]/g, ''); // block numbers
+    // });
 
     // Form validation - SIMPLIFIED (REMOVED HSN DUPLICATE CHECK)
     $('#productForm').submit(function(e) {

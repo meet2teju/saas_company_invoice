@@ -81,7 +81,7 @@ if ($result && mysqli_num_rows($result) > 0) {
                                             <div class="d-flex align-items-center">
                                                 <div id="add_image_preview"  class="avatar avatar-xxl border border-dashed bg-light me-3 flex-shrink-0">
                                                     <div class="position-relative d-flex align-items-center">
-                                                   <img src="../uploads/<?php echo !empty($row['profile_img']) ? $row['profile_img'] : 'default.jpg'; ?>" 
+                                                   <img src="../uploads/<?php echo !empty($row['profile_img']) ? $row['profile_img'] : '../uploads/profileimage.jpg'; ?>" 
                                                         alt="Profile Image" 
                                                         class="avatar avatar-xl me-3" 
                                                         style="border-radius: 8px;">
