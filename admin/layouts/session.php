@@ -9,9 +9,15 @@ include '../config/config.php';
 // Include currency helper (with function_exists check to prevent redeclaration)
 require_once '../config/currency_helper.php';
 
-// Initialize company currency in session if not set
-if (!isset($_SESSION['company_currency']) && isset($conn)) {
-    getCompanyCurrency($conn);
+// Initialize company currency in session if user is logged in
+if (isset($_SESSION['crm_is_login']) && $_SESSION['crm_is_login'] === 1) {
+    if (!isset($_SESSION['company_currency']) || empty($_SESSION['company_currency'])) {
+        // Force fetch from database and cache in session
+        getCompanyCurrency($conn);
+        
+        // Also store a timestamp to track currency initialization
+        $_SESSION['currency_initialized'] = time();
+    }
 }
 
 header("Expires: Tue, 01 Jan 2000 00:00:00 GMT");
