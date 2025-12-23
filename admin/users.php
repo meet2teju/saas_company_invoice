@@ -331,7 +331,10 @@ $users = mysqli_query($conn, $query);
                                         </a>
                                     </li>
                                     <?php } ?>
-                                    <?php if (check_is_access_new("delete_user") == 1) { ?>
+                                    <?php 
+                                    // Hide delete button only if this user has role ID 1
+                                    if (check_is_access_new("delete_user") == 1 && $row['role_id'] != 1) { 
+                                    ?>
                                     <li>
                                         <a href="#" class="dropdown-item" 
                                         data-bs-toggle="modal" 
@@ -711,17 +714,29 @@ $users = mysqli_query($conn, $query);
     <div class="mb-3">
         <label class="form-label">Role<span class="text-danger ms-1">*</span></label>
         <select class="form-select" name="role_id">
-            <option value="">Select</option>
-            <?php
-            mysqli_data_seek($roles, 0);
-            while ($role = mysqli_fetch_assoc($roles)): 
-                // Skip the 4th role ID and role ID 1
-                if ($role['id'] != 4 && $role['id'] != 1): ?>
-                    <option value="<?= htmlspecialchars($role['id']) ?>" <?= ($row['role_id'] == $role['id']) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($role['name']) ?>
-                    </option>
-                <?php endif; ?>
-            <?php endwhile; ?>
+            <?php if ($row['role_id'] == 1): ?>
+                <!-- If this user has role ID 1, force select role ID 1 -->
+                <?php 
+                // Get role name for ID 1
+                $role1_query = mysqli_query($conn, "SELECT name FROM user_role WHERE id = 1 LIMIT 1");
+                $role1_row = mysqli_fetch_assoc($role1_query);
+                $role1_name = htmlspecialchars($role1_row['name'] ?? 'Role 1');
+                ?>
+                <option value="1" selected><?= $role1_name ?></option>
+            <?php else: ?>
+                <!-- Normal dropdown for users with other role IDs -->
+                <option value="">Select</option>
+                <?php
+                mysqli_data_seek($roles, 0);
+                while ($role = mysqli_fetch_assoc($roles)): 
+                    // Skip the 4th role ID
+                  if ($role['id'] != 4 && $role['id'] != 1): ?>
+                        <option value="<?= htmlspecialchars($role['id']) ?>" <?= ($row['role_id'] == $role['id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($role['name']) ?>
+                        </option>
+                    <?php endif; ?>
+                <?php endwhile; ?>
+            <?php endif; ?>
         </select>
         <span class="text-danger error-msg" id="edit_roleError_<?php echo $row['id']; ?>"></span>
     </div>
@@ -977,12 +992,7 @@ document.querySelector('#addUserForm').addEventListener('submit', async function
 
 
 function resetAddFormErrors() {
-    document.getElementById('add_nameError').textContent = '';
-    document.getElementById('add_emailError').textContent = '';
-    document.getElementById('add_passwordError').textContent = '';
-    document.getElementById('add_cpasswordError').textContent = '';
-    document.getElementById('add_roleError').textContent = '';
-    
+    document.querySelectorAll('.error-text').forEach(el => el.textContent = '');
 }
 
 document.addEventListener('submit', async function(event) {
