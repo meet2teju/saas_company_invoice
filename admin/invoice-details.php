@@ -431,7 +431,6 @@ function formatAmount($amount, $currencySymbol = '$') {
                                                     'paid' => '#28a745',
                                                     'unpaid' => '#ffc107',
                                                     'cancelled' => '#dc3545',
-                                                    'partially paid' => '#6f42c1',
                                                     'uncollectable' => '#dc3545',
                                                     default => '#6c757d'
                                                 };
@@ -536,7 +535,7 @@ function formatAmount($amount, $currencySymbol = '$') {
 																default => 'bg-secondary'
 															};
 															?>
-															<p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm"><?= ucfirst($status) ?></span></p>
+															<p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm status-display"><?= ucfirst($status) ?></span></p>
 															<p class="mb-1">Currency : <span class="text-dark"><?= htmlspecialchars($clientCurrency['currency_name']) ?> (<?= htmlspecialchars($clientCurrency['currency_symbol']) ?>)</span></p>
                                             </div>
                                             <div class="col-md-6 text-end">
@@ -951,23 +950,6 @@ document.addEventListener('click', function(event) {
 
 // Update status function for invoice
 function updateStatus(status) {
-    const statusText = document.getElementById('statusText');
-    const statusIndicator = document.getElementById('statusIndicator');
-    
-    // Update status text
-    let displayText = status.charAt(0).toUpperCase() + status.slice(1);
-    statusText.textContent = displayText;
-    
-    // Update indicator color
-    const statusColors = {
-        'paid': '#28a745',
-        'unpaid': '#ffc107',
-        'cancelled': '#dc3545',
-        'uncollectable': '#dc3545'
-    };
-    
-    statusIndicator.style.backgroundColor = statusColors[status] || '#6c757d';
-    
     // Close dropdown
     document.getElementById('statusDropdown').classList.remove('show');
     
@@ -990,25 +972,60 @@ function updateInvoiceStatusViaAjax(status) {
         // Show success message
         showToast('Invoice status updated successfully!', 'success');
         
-        // Update the status badge in the invoice details section if it exists
-        const statusBadge = document.querySelector('.invoice-details-section .badge');
-        if (statusBadge) {
-            const badgeClasses = {
-                'paid': 'bg-success',
-                'unpaid': 'bg-warning text-dark',
-                'cancelled': 'bg-danger',
-                'uncollectable': 'bg-danger'
-            };
-            
-            // Update badge class
-            statusBadge.className = 'badge ' + (badgeClasses[status] || 'bg-secondary') + ' badge-sm';
-            statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
-        }
+        // Update all status displays on the page
+        updateAllStatusDisplays(status);
     })
     .catch(error => {
         console.error('Error:', error);
         showToast('Failed to update status. Please try again.', 'danger');
     });
+}
+
+// Function to update all status displays on the page
+function updateAllStatusDisplays(status) {
+    // Update the dropdown button text and indicator
+    const statusText = document.getElementById('statusText');
+    const statusIndicator = document.getElementById('statusIndicator');
+    
+    let displayText = status.charAt(0).toUpperCase() + status.slice(1);
+    
+    // Update text
+    statusText.textContent = displayText;
+    
+    // Update indicator color
+    const statusColors = {
+        'paid': '#28a745',
+        'unpaid': '#ffc107',
+        'cancelled': '#dc3545',
+        'uncollectable': '#dc3545'
+    };
+    
+    statusIndicator.style.backgroundColor = statusColors[status] || '#6c757d';
+    
+    // Update the status badge in the invoice details section
+    const statusBadge = document.querySelector('.status-display');
+    if (statusBadge) {
+        const badgeClasses = {
+            'paid': 'bg-success',
+            'unpaid': 'bg-warning text-dark',
+            'cancelled': 'bg-danger',
+            'uncollectable': 'bg-danger'
+        };
+        
+        // Update badge class
+        statusBadge.className = 'badge ' + (badgeClasses[status] || 'bg-secondary') + ' badge-sm status-display';
+        
+        // Update badge text
+        let badgeText = status.charAt(0).toUpperCase() + status.slice(1);
+        statusBadge.textContent = badgeText;
+    }
+    
+    // Update the radio button in the offcanvas if it exists
+    const offcanvasStatusRadio = document.querySelector(`input[name="status"][value="${status}"]`);
+    if (offcanvasStatusRadio) {
+        offcanvasStatusRadio.checked = true;
+        updateDropdownBtn(); // Update the dropdown button text in offcanvas
+    }
 }
 
 // Toast notification function for invoice
@@ -1075,7 +1092,7 @@ window.addEventListener("DOMContentLoaded", updateDropdownBtn);
 document.getElementById("invoiceStatusForm").addEventListener("submit", function(e) {
     let statusChecked = document.querySelector("input[name='status']:checked");
     let errorSpan = document.getElementById("statusError");
-    let currencySelected = document.getElementById("currency").value;
+    let currencySelected = document.getElementById("currency");
     let currencyError = document.getElementById("currencyError");
     let isValid = true;
 
@@ -1087,12 +1104,15 @@ document.getElementById("invoiceStatusForm").addEventListener("submit", function
         errorSpan.textContent = "";
     }
     
-    if (!currencySelected) {
-        e.preventDefault();
-        currencyError.textContent = "Please select a currency.";
-        isValid = false;
-    } else {
-        currencyError.textContent = "";
+    // Only validate currency if the element exists
+    if (currencySelected) {
+        if (!currencySelected.value) {
+            e.preventDefault();
+            currencyError.textContent = "Please select a currency.";
+            isValid = false;
+        } else {
+            currencyError.textContent = "";
+        }
     }
     
     return isValid;

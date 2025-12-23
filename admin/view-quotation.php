@@ -485,7 +485,7 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                                 default => 'bg-secondary'
                                                             };
                                                         ?>
-                                                        <p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm"><?= ucfirst($status) ?></span></p>
+                                                        <p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm status-display"><?= ucfirst($status) ?></span></p>
                                             </div>
                                             <div class="col-md-6 text-end">
                                                         <p class="mb-1">Quotation Number : <span class="text-dark"><?= htmlspecialchars($quotation['quotation_id']) ?></span></p>
@@ -890,29 +890,6 @@ document.addEventListener('click', function(event) {
 
 // Update status function
 function updateStatus(status) {
-    const statusText = document.getElementById('statusText');
-    const statusIndicator = document.getElementById('statusIndicator');
-    
-    // Update status text
-    let displayText = status.charAt(0).toUpperCase() + status.slice(1);
-    if (status === 'convert') {
-        displayText = 'Convert to Invoice';
-    }
-    statusText.textContent = displayText;
-    
-    // Update indicator color
-    const statusColors = {
-        'draft': '#6c757d',
-        'sent': '#17a2b8',
-        'convert': '#17a2b8',
-        'accepted': '#28a745',
-        'rejected': '#dc3545',
-        'expired': '#ffc107',
-        'cancel': '#dc3545'
-    };
-    
-    statusIndicator.style.backgroundColor = statusColors[status] || '#6c757d';
-    
     // Close dropdown
     document.getElementById('statusDropdown').classList.remove('show');
     
@@ -942,31 +919,72 @@ function updateStatusViaAjax(status) {
         // Show success message
         showToast('Status updated successfully!', 'success');
         
-        // Update the status badge in the quotation details section if it exists
-        const statusBadge = document.querySelector('.quotation-details-section .badge');
-        if (statusBadge) {
-            const badgeClasses = {
-                'draft': 'bg-secondary',
-                'sent': 'bg-info',
-                'convert': 'bg-info',
-                'accepted': 'bg-success',
-                'rejected': 'bg-danger',
-                'expired': 'bg-warning text-dark',
-                'cancel': 'bg-danger'
-            };
-            
-            // Update badge class
-            statusBadge.className = 'badge ' + (badgeClasses[status] || 'bg-secondary') + ' badge-sm';
-            statusBadge.textContent = status.charAt(0).toUpperCase() + status.slice(1);
-            if (status === 'convert') {
-                statusBadge.textContent = 'Convert to Invoice';
-            }
-        }
+        // Update all status displays on the page
+        updateAllStatusDisplays(status);
     })
     .catch(error => {
         console.error('Error:', error);
         showToast('Failed to update status. Please try again.', 'danger');
     });
+}
+
+// Function to update all status displays on the page
+function updateAllStatusDisplays(status) {
+    // Update the dropdown button text and indicator
+    const statusText = document.getElementById('statusText');
+    const statusIndicator = document.getElementById('statusIndicator');
+    
+    let displayText = status.charAt(0).toUpperCase() + status.slice(1);
+    if (status === 'convert') {
+        displayText = 'Convert to Invoice';
+    }
+    
+    // Update text
+    statusText.textContent = displayText;
+    
+    // Update indicator color
+    const statusColors = {
+        'draft': '#6c757d',
+        'sent': '#17a2b8',
+        'convert': '#17a2b8',
+        'accepted': '#28a745',
+        'rejected': '#dc3545',
+        'expired': '#ffc107',
+        'cancel': '#dc3545'
+    };
+    
+    statusIndicator.style.backgroundColor = statusColors[status] || '#6c757d';
+    
+    // Update the status badge in the quotation details section
+    const statusBadge = document.querySelector('.status-display');
+    if (statusBadge) {
+        const badgeClasses = {
+            'draft': 'bg-secondary',
+            'sent': 'bg-info',
+            'convert': 'bg-info',
+            'accepted': 'bg-success',
+            'rejected': 'bg-danger',
+            'expired': 'bg-warning text-dark',
+            'cancel': 'bg-danger'
+        };
+        
+        // Update badge class
+        statusBadge.className = 'badge ' + (badgeClasses[status] || 'bg-secondary') + ' badge-sm status-display';
+        
+        // Update badge text
+        let badgeText = status.charAt(0).toUpperCase() + status.slice(1);
+        if (status === 'convert') {
+            badgeText = 'Convert to Invoice';
+        }
+        statusBadge.textContent = badgeText;
+    }
+    
+    // Update the radio button in the offcanvas if it exists
+    const offcanvasStatusRadio = document.querySelector(`input[name="status"][value="${status}"]`);
+    if (offcanvasStatusRadio) {
+        offcanvasStatusRadio.checked = true;
+        updateDropdownBtn(); // Update the dropdown button text in offcanvas
+    }
 }
 
 // Toast notification function
