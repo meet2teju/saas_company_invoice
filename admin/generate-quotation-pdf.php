@@ -14,6 +14,48 @@ if ($quotation_id <= 0) {
     die('Invalid Quotation ID!');
 }
 
+// Function to get company currency from your currency table
+function getCompanyCurrency($conn, $org_id) {
+    // First, get the currency_id from company_info for this org
+    $sql = "SELECT currency_symbol_id FROM company_info WHERE org_id = '$org_id' LIMIT 1";
+    $result = mysqli_query($conn, $sql);
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        $companyInfo = mysqli_fetch_assoc($result);
+        $currency_id = $companyInfo['currency_symbol_id'] ?? null;
+        
+        if ($currency_id) {
+            // Get currency details from currency table
+            $sql = "SELECT currency_symbol, currency_name, isocode 
+                    FROM currency 
+                    WHERE id = '$currency_id' 
+                    LIMIT 1";
+            $result = mysqli_query($conn, $sql);
+            
+            if ($result && mysqli_num_rows($result) > 0) {
+                return mysqli_fetch_assoc($result);
+            }
+        }
+    }
+    
+    // If no currency found, get default (first currency)
+    $sql = "SELECT currency_symbol, currency_name, isocode 
+            FROM currency 
+            LIMIT 1";
+    $result = mysqli_query($conn, $sql);
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        return mysqli_fetch_assoc($result);
+    }
+    
+    // Default fallback
+    return [
+        'currency_symbol' => '$',
+        'currency_name' => 'US Dollar',
+        'isocode' => 'USD'
+    ];
+}
+
 // Fetch quotation info
 $sql = "SELECT q.*, c.first_name, c.last_name, c.email, c.customer_image, c.company_name, c.phone_number 
         FROM quotation q
@@ -25,6 +67,18 @@ $quotation = mysqli_fetch_assoc($result);
 if (!$quotation) {
     die('Quotation not found!');
 }
+
+// Get organization ID from quotation
+$org_id = $quotation['org_id'] ?? 1;
+
+// Get company currency using the same function as main file
+$companyCurrency = getCompanyCurrency($conn, $org_id);
+$currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
+$currencyName = $companyCurrency['currency_name'] ?? 'US Dollar';
+
+// Check GST type
+$gstType = $quotation['gst_type'] ?? 'gst';
+$showGSTColumn = ($gstType !== 'non_gst' && $gstType !== null);
 
 // Fetch items with updated structure for products and services
 $items_result = mysqli_query($conn, "
@@ -71,6 +125,7 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
     LEFT JOIN countries co ON co.id = ci.country_id
     LEFT JOIN states s ON s.id = ci.state_id
     LEFT JOIN cities c ON c.id = ci.city_id
+    WHERE ci.org_id = '$org_id'
     LIMIT 1
 "));
 
@@ -159,34 +214,28 @@ while ($item = mysqli_fetch_assoc($items_result)) {
     $itemAmount = $item['amount'];
     $subtotal += $itemAmount;
     
-    // Calculate tax for this item
-    $effectiveTaxRate = $item['item_tax_rate'] ?? $item['tax_rate'] ?? 0;
-    $taxName = $item['tax_name'] ?? 'Tax';
-    
-    // For Non-GST quotations, tax should be 0
-    if (($quotation['gst_type'] ?? 'gst') === 'non_gst') {
-        $effectiveTaxRate = 0;
-        $lineTax = 0;
-    } else {
-        $lineTax = ($itemAmount * $effectiveTaxRate) / 100;
-    }
-    
-    // Build tax label
-    if ($effectiveTaxRate > 0) {
-        $taxKey = $taxName . ' (' . $effectiveTaxRate . '%)';
+    // Calculate tax for this item only if GST type is not non_gst
+    if ($showGSTColumn) {
+        $effectiveTaxRate = $item['item_tax_rate'] ?? $item['tax_rate'] ?? 0;
+        $taxName = $item['tax_name'] ?? 'Tax';
         
-        // Add to summary
-        if (!isset($taxSummary[$taxKey])) {
-            $taxSummary[$taxKey] = 0;
+        if ($effectiveTaxRate > 0) {
+            $lineTax = ($itemAmount * $effectiveTaxRate) / 100;
+            $taxKey = $taxName . ' (' . $effectiveTaxRate . '%)';
+            
+            // Add to summary
+            if (!isset($taxSummary[$taxKey])) {
+                $taxSummary[$taxKey] = 0;
+            }
+            $taxSummary[$taxKey] += $lineTax;
         }
-        $taxSummary[$taxKey] += $lineTax;
     }
 }
 mysqli_data_seek($items_result, 0);
 
 $totalTax = array_sum($taxSummary);
 
-// Start building HTML
+// Start building HTML - USING YOUR ORIGINAL HTML STRUCTURE
 $html = '<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -516,10 +565,6 @@ if (!empty($company['city_name']) || !empty($company['state_name']) || !empty($c
     '</div>';
 }
 
-// if (!empty($company['mobile_number'])) {
-//     $html .= '<div class="address-deatils-box"><span class="bold-text">Phone:</span> ' . htmlspecialchars($company['mobile_number'] ?? '') . '</div>';
-// }
-
 if (!empty($company['email'])) {
     $html .= '<div class="address-deatils-box"><span class="bold-text">Email:</span> ' . htmlspecialchars($company['email'] ?? '') . '</div>';
 }
@@ -554,10 +599,6 @@ if (!empty($client_address['city_name']) || !empty($client_address['state_name']
     '</div>';
 }
 
-// if (!empty($quotation['phone_number'])) {
-//     $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Phone:</span> ' . htmlspecialchars($quotation['phone_number'] ?? '') . '</div>';
-// }
-
 if (!empty($quotation['email'])) {
     $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Email:</span> ' . htmlspecialchars($quotation['email'] ?? '') . '</div>';
 }
@@ -579,8 +620,12 @@ if ($showQuantityColumn) {
     $html .= '<th width="10%" class="text-center">QTY</th>';
 }
 
+// Only show GST column if GST type is not non_gst or null
+if ($showGSTColumn) {
+    $html .= '<th width="15%">Tax</th>';
+}
+
 $html .= '<th width="15%">Selling Price</th>
-                        <th width="10%">Tax</th>
                         <th width="10%">Amount</th>
                     </tr>
                 </thead>
@@ -607,19 +652,15 @@ while ($item = mysqli_fetch_assoc($items_result)) {
         $html .= '<td class="text-center">' . $item['quantity'] . '</td>';
     }
     
-    $html .= '<td>$' . number_format($item['selling_price'], 2) . '</td>
-        <td>';
-    
-    if (($quotation['gst_type'] ?? 'gst') === 'non_gst') {
-        $html .= 'Non-GST';
-    } else {
+    // Show tax column only if GST is enabled
+    if ($showGSTColumn) {
         $effectiveTaxRate = $item['item_tax_rate'] ?? $item['tax_rate'] ?? 0;
         $taxName = $item['tax_name'] ?? 'Tax';
-        $html .= $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '');
+        $html .= '<td>' . $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '') . '</td>';
     }
     
-    $html .= '</td>
-        <td>$' . number_format($item['amount'], 2) . '</td>
+    $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['selling_price'], 2) . '</td>
+        <td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['amount'], 2) . '</td>
     </tr>';
 }
 
@@ -635,39 +676,40 @@ $html .= '</tbody>
                         <table style="width:100%;">
                             <tr class="subtotal-box">
                                 <td class="subtotal-title">Sub Amount:</td>
-                                <td class="subtotal-amount">$' . number_format($subtotal, 2) . '</td>
+                                <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($subtotal, 2) . '</td>
                             </tr>';
                             
-if (($quotation['gst_type'] ?? 'gst') === 'non_gst') {
-    $html .= '<tr class="subtotal-box">
-                    <td class="subtotal-title">Tax (Non-GST):</td>
-                    <td class="subtotal-amount">$0.00</td>
-                </tr>';
-} else {
-    foreach ($taxSummary as $taxLabel => $taxAmount) {
-        $html .= '<tr class="subtotal-box">
-                        <td class="subtotal-title">' . $taxLabel . ':</td>
-                        <td class="subtotal-amount">$' . number_format($taxAmount, 2) . '</td>
-                    </tr>';
+// Show tax rows only if GST is enabled
+if ($showGSTColumn) {
+    if (!empty($taxSummary)) {
+        foreach ($taxSummary as $taxLabel => $taxAmount) {
+            $html .= '<tr class="subtotal-box">
+                            <td class="subtotal-title">' . $taxLabel . ':</td>
+                            <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($taxAmount, 2) . '</td>
+                        </tr>';
+        }
     }
+    // REMOVED: Don't show "Tax: $0.00" when GST is enabled but no taxes
 }
+
+// REMOVED: Don't show "Tax (Non-GST): $0.00" row for non-gst or null
 
 if (!empty($quotation['shipping_charge']) && $quotation['shipping_charge'] > 0) {
     $html .= '<tr class="subtotal-box">
                     <td class="subtotal-title">Shipping Charge:</td>
-                    <td class="subtotal-amount">$' . number_format($quotation['shipping_charge'], 2) . '</td>
+                    <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($quotation['shipping_charge'], 2) . '</td>
                 </tr>';
 }
 
 $html .= '<tr class="subtotal-box">
                     <td class="subtotal-title">Total:</td>
-                    <td class="subtotal-amount">$' . number_format($quotation['total_amount'], 2) . '</td>
+                    <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($quotation['total_amount'], 2) . '</td>
                 </tr>
             </table>
 
             <div class="address-deatils-box text-right">
                 <span class="bold-text">Total In Words:</span>
-                 ' . numberToWords($quotation['total_amount']) . ' Dollars
+                 ' . numberToWords($quotation['total_amount']) . ' ' . htmlspecialchars($currencyName) . '
             </div>
         </td>';
 
