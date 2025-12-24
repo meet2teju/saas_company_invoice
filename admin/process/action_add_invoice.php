@@ -36,7 +36,13 @@ if (isset($_POST['submit'])) {
         $reference_name= mysqli_real_escape_string($conn, $_POST['reference_name'] ?? '');
         $invoice_date  = mysqli_real_escape_string($conn, $_POST['invoice_date'] ?? '');
         $expiry_date   = mysqli_real_escape_string($conn, $_POST['due_date'] ?? '');
-        $order_number  = (int)($_POST['order_number'] ?? 0);
+        
+        // FIX: Handle order_number properly - convert empty string to NULL for integer column
+        $order_number_raw = $_POST['order_number'] ?? '';
+        $order_number_sql = ($order_number_raw !== '' && is_numeric($order_number_raw)) 
+                            ? (int)$order_number_raw 
+                            : 'NULL';
+        
         $item_type     = (int)($_POST['item_type'] ?? 0);
         $user_id       = (int)($_POST['user_id'] ?? 0);
         $gst_type      = mysqli_real_escape_string($conn, $_POST['gst_type'] ?? 'gst');
@@ -51,7 +57,7 @@ if (isset($_POST['submit'])) {
         $shipping_charge= unformat($_POST['shipping_charge'] ?? 0);
         $total_amount  = unformat($_POST['total_amount'] ?? 0);
 
-        // Insert invoice (with gst_type)
+        // Insert invoice (with gst_type) - FIXED: Use $order_number_sql instead of '$order_number'
         $query = "INSERT INTO invoice (
             client_id, project_id, invoice_id, reference_name, invoice_date, due_date,
             order_number, item_type, user_id, bank_id, gst_type,
@@ -59,7 +65,7 @@ if (isset($_POST['submit'])) {
             org_id, is_deleted, created_by, updated_by
         ) VALUES (
             '$client_id', '$project_id', '$invoice_id', '$reference_name', '$invoice_date', '$expiry_date',
-            '$order_number', '$item_type', '$user_id', $bank_id_sql, '$gst_type',
+            $order_number_sql, '$item_type', '$user_id', $bank_id_sql, '$gst_type',
             '$invoice_note', '$description', '$amount', '$tax_amount', '$shipping_charge', '$total_amount',
             '$orgId', 0, '$currentUserId', '$currentUserId'
         )";

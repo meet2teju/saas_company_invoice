@@ -24,14 +24,16 @@ if (isset($_POST['submit'])) {
     // Sanitize email for duplicate check
     $email = mysqli_real_escape_string($conn, $_POST['email']);
 
-    // Check if email already exists
-    $checkEmailQuery = "SELECT id FROM client WHERE email = '$email' AND org_id = '$orgId' AND is_deleted = 0";
-    $result = mysqli_query($conn, $checkEmailQuery);
-    if (mysqli_num_rows($result) > 0) {
-        $_SESSION['message'] = 'Email already exists. Please use another email.';
-        $_SESSION['message_type'] = 'error';
-        header("Location: ../customers.php");
-        exit();
+    // Only check for email duplicates if email is not empty
+    if (!empty($email)) {
+        $checkEmailQuery = "SELECT id FROM client WHERE email = '$email' AND org_id = '$orgId' AND is_deleted = 0";
+        $result = mysqli_query($conn, $checkEmailQuery);
+        if (mysqli_num_rows($result) > 0) {
+            $_SESSION['message'] = 'Email already exists. Please use another email.';
+            $_SESSION['message_type'] = 'error';
+            header("Location: ../customers.php");
+            exit();
+        }
     }
 
     mysqli_begin_transaction($conn);
@@ -182,14 +184,11 @@ if (isset($_POST['submit'])) {
                 $designation = $_POST['contact_designation'][$index] ?? '';
                 $department = $_POST['contact_department'][$index] ?? '';
                 
-                // Get contact country codes if they exist in your form
-                // $contact_work_country_code = mysqli_real_escape_string($conn, $_POST['contact_work_country_code'][$index] ?? '+91');
-                // $contact_mobile_country_code = mysqli_real_escape_string($conn, $_POST['contact_mobile_country_code'][$index] ?? '+91');
-
                 // Only insert if at least one main field has data
                 if (!empty($firstName) || !empty($lastName) || !empty($email) || 
                     !empty($workPhone) || !empty($mobile)) {
                     
+                    // Only check if email is not empty
                     if (!empty($email)) {
                         $checkEmailQuery = "SELECT id FROM client_contact_persons 
                                             WHERE contact_email = '$email' 
@@ -197,7 +196,7 @@ if (isset($_POST['submit'])) {
                                             AND is_deleted = 0";
                         $res = mysqli_query($conn, $checkEmailQuery);
                         if (mysqli_num_rows($res) > 0) {
-                            $_SESSION['message'] = ' Contact Email already exists. Please use another email.';
+                            $_SESSION['message'] = 'Contact Email already exists. Please use another email.';
                             $_SESSION['message_type'] = 'error';
                             header("Location: ../customers.php");
                             exit();

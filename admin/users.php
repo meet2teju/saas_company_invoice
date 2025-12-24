@@ -545,7 +545,7 @@ $users = mysqli_query($conn, $query);
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">Mobile Number</label>
+                                <label class="form-label">Phone Number</label>
                                 <input type="number" name="phone_number" id="phone_number" class="form-control" minlength="10">
                                     <span id="add_phoneError" class="text-danger error-msg"></span>
 

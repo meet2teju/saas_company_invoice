@@ -62,7 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $reference_name  = dbString($conn, $_POST['reference_name'] ?? '');
         $invoice_date    = dbString($conn, $_POST['invoice_date']);
         $due_date        = dbString($conn, $_POST['due_date']);
-        $order_number    = dbString($conn, $_POST['order_number'] ?? '');
+        
+        // FIX: Handle order_number properly - convert empty string to NULL for integer column
+        $order_number_raw = $_POST['order_number'] ?? '';
+        $order_number_sql = ($order_number_raw !== '' && is_numeric($order_number_raw)) 
+                            ? (int)$order_number_raw 
+                            : 'NULL';
+        
         $item_type       = dbInt($_POST['item_type'] ?? 1);
         $user_id         = dbInt($_POST['user_id'] ?? 0);
         $project_id      = dbInt($_POST['project_id'] ?? 0);
@@ -81,12 +87,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         }
 
         // === 1. Update invoice main record ===
+        // FIXED: Use $order_number_sql instead of '$order_number'
         $update_invoice = "UPDATE invoice SET
             client_id = '$client_id',
             reference_name = '$reference_name',
             invoice_date = '$invoice_date',
             due_date = '$due_date',
-            order_number = '$order_number',
+            order_number = $order_number_sql,
             item_type = '$item_type',
             user_id = '$user_id',
             project_id = '$project_id',

@@ -28,20 +28,22 @@ if (isset($_POST['submit'])) {
         // === Get client data ===
         $email = mysqli_real_escape_string($conn, $_POST['email']);
 
-        // === Check if client email exists in other clients ===
-        $checkClientEmail = "SELECT id FROM client 
-                             WHERE email = '$email' 
-                             AND id != '$clientId' 
-                             AND is_deleted = 0";
-        $resClientEmail = mysqli_query($conn, $checkClientEmail);
-        if (mysqli_num_rows($resClientEmail) > 0) {
-            $_SESSION['message'] = "Client email already exists in another client.";
-            $_SESSION['message_type'] = 'danger';
-            header("Location: ../edit-customer.php?id=" . $clientId);
-            exit();
+        // === Check if client email exists in other clients (only if email is not empty) ===
+        if (!empty($email)) {
+            $checkClientEmail = "SELECT id FROM client 
+                                 WHERE email = '$email' 
+                                 AND id != '$clientId' 
+                                 AND is_deleted = 0";
+            $resClientEmail = mysqli_query($conn, $checkClientEmail);
+            if (mysqli_num_rows($resClientEmail) > 0) {
+                $_SESSION['message'] = "Client email already exists in another client.";
+                $_SESSION['message_type'] = 'danger';
+                header("Location: ../edit-customer.php?id=" . $clientId);
+                exit();
+            }
         }
 
-        // === Check if contact emails exist for other clients ===
+        // === Check if contact emails exist for other clients (only if email is not empty) ===
         if (!empty($_POST['contact_first_name'])) {
             foreach ($_POST['contact_email'] as $index => $contactEmail) {
                 $contactEmail = mysqli_real_escape_string($conn, $contactEmail ?? '');

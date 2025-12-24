@@ -24,9 +24,12 @@ if ($currentOrgId == 0 && $currentUserId > 0) {
     }
 }
 
-// Function to format amount with currency symbol
-function formatAmount($amount, $currencySymbol = '$') {
-    return $currencySymbol . number_format($amount, 2);
+// Function to format amount with currency symbol - ALWAYS USE COMPANY CURRENCY
+function formatAmount($amount, $currencySymbol = null) {
+    global $companyCurrency;
+    // Always use company currency symbol
+    $symbol = $companyCurrency['currency_symbol'] ?? '$';
+    return $symbol . number_format($amount, 2);
 }
 
 // Initialize filter variables
@@ -117,8 +120,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get invoice data with filters applied - MODIFIED QUERY TO INCLUDE ROLE-BASED AND ORGANIZATION FILTERING
+// REMOVED: c.currency as client_currency_id since we're using company currency
 $sql = "SELECT i.id, i.invoice_id, i.total_amount, i.invoice_date, i.due_date, i.invoice_date, i.status, 
-               c.first_name, c.customer_image, c.currency as client_currency_id
+               c.first_name, c.customer_image
         FROM invoice i
         LEFT JOIN client c ON i.client_id = c.id
         $filterSql
@@ -366,7 +370,7 @@ $customers = mysqli_query($conn, $customers_query);
                                 <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
                                     <div>
                                         <p class="mb-1">Total Invoices</p>
-                                        <h6 class="fs-16 fw-semibold"><?= formatAmount($total_invoices, $companyCurrency['currency_symbol'] ?? '$') ?></h6>
+                                        <h6 class="fs-16 fw-semibold"><?= formatAmount($total_invoices) ?></h6>
                                     </div>
                                     <div>
                                         <span class="avatar bg-primary rounded-circle">
@@ -395,7 +399,7 @@ $customers = mysqli_query($conn, $customers_query);
                                 <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
                                     <div>
                                         <p class="mb-1">Paid Invoices</p>
-                                        <h6 class="fs-16 fw-semibold"><?= formatAmount($total_paid_invoices, $companyCurrency['currency_symbol'] ?? '$') ?></h6>
+                                        <h6 class="fs-16 fw-semibold"><?= formatAmount($total_paid_invoices) ?></h6>
                                     </div>
                                     <div>
                                         <span class="avatar bg-success rounded-circle">
@@ -424,7 +428,7 @@ $customers = mysqli_query($conn, $customers_query);
                                 <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
                                     <div>
                                         <p class="mb-1">Pending Invoices</p>
-                                        <h6 class="fs-16 fw-semibold"><?= formatAmount($total_pending_invoices, $companyCurrency['currency_symbol'] ?? '$') ?></h6>
+                                        <h6 class="fs-16 fw-semibold"><?= formatAmount($total_pending_invoices) ?></h6>
                                     </div>
                                     <div>
                                         <span class="avatar bg-warning rounded-circle">
@@ -453,7 +457,7 @@ $customers = mysqli_query($conn, $customers_query);
                                 <div class="d-flex align-items-center justify-content-between mb-2 pb-2 border-bottom">
                                     <div>
                                         <p class="mb-1">Overdue Invoices</p>
-                                        <h6 class="fs-16 fw-semibold"><?= formatAmount($total_overdue_invoices, $companyCurrency['currency_symbol'] ?? '$') ?></h6>
+                                        <h6 class="fs-16 fw-semibold"><?= formatAmount($total_overdue_invoices) ?></h6>
                                     </div>
                                     <div>
                                         <span class="avatar bg-danger rounded-circle">
@@ -626,15 +630,7 @@ $customers = mysqli_query($conn, $customers_query);
                                         $invoiceId = $row['id'];
                                         $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
                                         
-                                        // Get currency for this invoice
-                                        $clientCurrency = $companyCurrency;
-                                        if (!empty($row['client_currency_id'])) {
-                                            $currency_id = $row['client_currency_id'];
-                                            $currency_query = mysqli_query($conn, "SELECT * FROM currency WHERE id = $currency_id");
-                                            if ($currency_query && $currency = mysqli_fetch_assoc($currency_query)) {
-                                                $clientCurrency = $currency;
-                                            }
-                                        }
+                                        // Always use company currency for display
                                         ?>
                                         <tr>
                                             <td>
@@ -662,7 +658,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                 </div>
                                             </td>
                                             <td><?= date('d M Y', strtotime($row['invoice_date'])) ?></td>
-                                            <td class="text-dark"><?= formatAmount($row['total_amount'], $clientCurrency['currency_symbol'] ?? '$') ?></td>
+                                            <td class="text-dark"><?= formatAmount($row['total_amount']) ?></td>
 
 
                                             <td>
@@ -810,7 +806,8 @@ $customers = mysqli_query($conn, $customers_query);
                                         ))";
                                     }
                                     
-                                    $sql_paid = "SELECT i.*, c.first_name, c.last_name, c.customer_image, c.currency as client_currency_id
+                                    // REMOVED: c.currency as client_currency_id since we're using company currency
+                                    $sql_paid = "SELECT i.*, c.first_name, c.last_name, c.customer_image
                                     FROM invoice i 
                                     LEFT JOIN client c ON i.client_id = c.id 
                                     $paidFilterSql
@@ -821,16 +818,6 @@ $customers = mysqli_query($conn, $customers_query);
                                     while ($row = mysqli_fetch_assoc($result_paid)) {
                                         $invoiceId = $row['id'];
                                         $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
-                                        
-                                        // Get currency for this invoice
-                                        $clientCurrency = $companyCurrency;
-                                        if (!empty($row['client_currency_id'])) {
-                                            $currency_id = $row['client_currency_id'];
-                                            $currency_query = mysqli_query($conn, "SELECT * FROM currency WHERE id = $currency_id");
-                                            if ($currency_query && $currency = mysqli_fetch_assoc($currency_query)) {
-                                                $clientCurrency = $currency;
-                                            }
-                                        }
                                         ?>
                                         <tr>
                                             <td>
@@ -858,7 +845,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                 </div>
                                             </td>
                                             <td><?= date('d M Y', strtotime($row['invoice_date'])) ?></td>
-                                            <td class="text-dark"><?= formatAmount($row['total_amount'], $clientCurrency['currency_symbol'] ?? '$') ?></td>
+                                            <td class="text-dark"><?= formatAmount($row['total_amount']) ?></td>
 
 
                                             <td>
@@ -1004,7 +991,8 @@ $customers = mysqli_query($conn, $customers_query);
                                         ))";
                                     }
                                     
-                                    $sql_cancelled = "SELECT i.*, c.first_name, c.last_name, c.customer_image, c.currency as client_currency_id
+                                    // REMOVED: c.currency as client_currency_id since we're using company currency
+                                    $sql_cancelled = "SELECT i.*, c.first_name, c.last_name, c.customer_image
                                     FROM invoice i 
                                     LEFT JOIN client c ON i.client_id = c.id 
                                     $cancelledFilterSql
@@ -1015,16 +1003,6 @@ $customers = mysqli_query($conn, $customers_query);
                                     while ($row = mysqli_fetch_assoc($result_cancelled)) {
                                         $invoiceId = $row['id'];
                                         $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
-                                        
-                                        // Get currency for this invoice
-                                        $clientCurrency = $companyCurrency;
-                                        if (!empty($row['client_currency_id'])) {
-                                            $currency_id = $row['client_currency_id'];
-                                            $currency_query = mysqli_query($conn, "SELECT * FROM currency WHERE id = $currency_id");
-                                            if ($currency_query && $currency = mysqli_fetch_assoc($currency_query)) {
-                                                $clientCurrency = $currency;
-                                            }
-                                        }
                                         ?>
                                         <tr>
                                             <td>
@@ -1052,7 +1030,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                 </div>
                                             </td>
                                             <td><?= date('d M Y', strtotime($row['invoice_date'])) ?></td>
-                                            <td class="text-dark"><?= formatAmount($row['total_amount'], $clientCurrency['currency_symbol'] ?? '$') ?></td>
+                                            <td class="text-dark"><?= formatAmount($row['total_amount']) ?></td>
 
 
                                             <td>
@@ -1197,7 +1175,8 @@ $customers = mysqli_query($conn, $customers_query);
                                         ))";
                                     }
                                     
-                                    $sql_unpaid = "SELECT i.*, c.first_name, c.last_name, c.customer_image, c.currency as client_currency_id
+                                    // REMOVED: c.currency as client_currency_id since we're using company currency
+                                    $sql_unpaid = "SELECT i.*, c.first_name, c.last_name, c.customer_image
                                     FROM invoice i 
                                     LEFT JOIN client c ON i.client_id = c.id 
                                     $unpaidFilterSql
@@ -1208,16 +1187,6 @@ $customers = mysqli_query($conn, $customers_query);
                                     while ($row = mysqli_fetch_assoc($result_unpaid)) {
                                         $invoiceId = $row['id'];
                                         $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
-                                        
-                                        // Get currency for this invoice
-                                        $clientCurrency = $companyCurrency;
-                                        if (!empty($row['client_currency_id'])) {
-                                            $currency_id = $row['client_currency_id'];
-                                            $currency_query = mysqli_query($conn, "SELECT * FROM currency WHERE id = $currency_id");
-                                            if ($currency_query && $currency = mysqli_fetch_assoc($currency_query)) {
-                                                $clientCurrency = $currency;
-                                            }
-                                        }
                                         ?>
                                         <tr>
                                             <td>
@@ -1245,7 +1214,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                 </div>
                                             </td>
                                             <td><?= date('d M Y', strtotime($row['invoice_date'])) ?></td>
-                                            <td class="text-dark"><?= formatAmount($row['total_amount'], $clientCurrency['currency_symbol'] ?? '$') ?></td>
+                                            <td class="text-dark"><?= formatAmount($row['total_amount']) ?></td>
 
 
                                             <td>
@@ -1392,7 +1361,8 @@ $customers = mysqli_query($conn, $customers_query);
                                         ))";
                                     }
                                     
-                                    $sql_draft = "SELECT i.*, c.first_name, c.last_name, c.customer_image, c.currency as client_currency_id
+                                    // REMOVED: c.currency as client_currency_id since we're using company currency
+                                    $sql_draft = "SELECT i.*, c.first_name, c.last_name, c.customer_image
                                     FROM invoice i 
                                     LEFT JOIN client c ON i.client_id = c.id 
                                     $draftFilterSql
@@ -1403,16 +1373,6 @@ $customers = mysqli_query($conn, $customers_query);
                                     while ($row = mysqli_fetch_assoc($result_draft)) {
                                         $invoiceId = $row['id'];
                                         $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
-                                        
-                                        // Get currency for this invoice
-                                        $clientCurrency = $companyCurrency;
-                                        if (!empty($row['client_currency_id'])) {
-                                            $currency_id = $row['client_currency_id'];
-                                            $currency_query = mysqli_query($conn, "SELECT * FROM currency WHERE id = $currency_id");
-                                            if ($currency_query && $currency = mysqli_fetch_assoc($currency_query)) {
-                                                $clientCurrency = $currency;
-                                            }
-                                        }
                                         ?>
                                         <tr>
                                             <td>
@@ -1440,7 +1400,7 @@ $customers = mysqli_query($conn, $customers_query);
                                                 </div>
                                             </td>
                                             <td><?= date('d M Y', strtotime($row['invoice_date'])) ?></td>
-                                            <td class="text-dark"><?= formatAmount($row['total_amount'], $clientCurrency['currency_symbol'] ?? '$') ?></td>
+                                            <td class="text-dark"><?= formatAmount($row['total_amount']) ?></td>
 
                                             <td>
                                                 <?php
