@@ -24,6 +24,18 @@ if (isset($_POST['submit'])) {
     // Sanitize email for duplicate check
     $email = mysqli_real_escape_string($conn, $_POST['email']);
 
+    // Store form data in session to repopulate the form if there's an error
+    $_SESSION['form_data'] = $_POST;
+    
+    // Store FILES data separately (can't store in session directly)
+    if (isset($_FILES['customer_image'])) {
+        $_SESSION['form_files']['customer_image'] = $_FILES['customer_image'];
+    }
+    
+    if (isset($_FILES['documents'])) {
+        $_SESSION['form_files']['documents'] = $_FILES['documents'];
+    }
+
     // Only check for email duplicates if email is not empty
     if (!empty($email)) {
         $checkEmailQuery = "SELECT id FROM client WHERE email = '$email' AND org_id = '$orgId' AND is_deleted = 0";
@@ -31,10 +43,16 @@ if (isset($_POST['submit'])) {
         if (mysqli_num_rows($result) > 0) {
             $_SESSION['message'] = 'Email already exists. Please use another email.';
             $_SESSION['message_type'] = 'error';
-            header("Location: ../customers.php");
+            
+            // Instead of redirecting to customers.php, redirect back to add page
+            header("Location: ../add-customer.php");
             exit();
         }
     }
+
+    // Clear session form data if validation passes
+    unset($_SESSION['form_data']);
+    unset($_SESSION['form_files']);
 
     mysqli_begin_transaction($conn);
 
@@ -198,7 +216,7 @@ if (isset($_POST['submit'])) {
                         if (mysqli_num_rows($res) > 0) {
                             $_SESSION['message'] = 'Contact Email already exists. Please use another email.';
                             $_SESSION['message_type'] = 'error';
-                            header("Location: ../customers.php");
+                            header("Location: ../add-customer.php");
                             exit();
                         }
                     }
@@ -231,7 +249,10 @@ if (isset($_POST['submit'])) {
     } 
     catch (Exception $e) {
         mysqli_rollback($conn);
-        echo " Error: " . $e->getMessage();
+        $_SESSION['message'] = "Error: " . $e->getMessage();
+        $_SESSION['message_type'] = 'error';
+        header("Location: ../add-customer.php");
+        exit();
     }
 }
 ?>

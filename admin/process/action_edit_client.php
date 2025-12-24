@@ -21,6 +21,18 @@ if (isset($_POST['submit'])) {
     $currentUserId = $_SESSION['user_id'] ?? 1;
     $orgId = $_SESSION['org_id'] ?? 1;
     $clientId = $_POST['client_id']; // Get client ID from form
+    
+    // Store form data in session to repopulate the form if there's an error
+    $_SESSION['form_data'] = $_POST;
+    
+    // Store FILES data separately (can't store in session directly)
+    if (isset($_FILES['customer_image'])) {
+        $_SESSION['form_files']['customer_image'] = $_FILES['customer_image'];
+    }
+    
+    if (isset($_FILES['documents'])) {
+        $_SESSION['form_files']['documents'] = $_FILES['documents'];
+    }
 
     mysqli_begin_transaction($conn);
 
@@ -33,29 +45,43 @@ if (isset($_POST['submit'])) {
             $checkClientEmail = "SELECT id FROM client 
                                  WHERE email = '$email' 
                                  AND id != '$clientId' 
+                                 AND org_id = '$orgId'
                                  AND is_deleted = 0";
             $resClientEmail = mysqli_query($conn, $checkClientEmail);
             if (mysqli_num_rows($resClientEmail) > 0) {
-                $_SESSION['message'] = "Client email already exists in another client.";
-                $_SESSION['message_type'] = 'danger';
+                $_SESSION['message'] = "Email already exists. Please use another email.";
+                $_SESSION['message_type'] = 'error';
+                
+                // Store active tab in session before redirect
+                if (isset($_POST['active_tab'])) {
+                    $_SESSION['active_tab'] = $_POST['active_tab'];
+                }
+                
                 header("Location: ../edit-customer.php?id=" . $clientId);
                 exit();
             }
         }
 
         // === Check if contact emails exist for other clients (only if email is not empty) ===
-        if (!empty($_POST['contact_first_name'])) {
+        if (!empty($_POST['contact_email'])) {
             foreach ($_POST['contact_email'] as $index => $contactEmail) {
                 $contactEmail = mysqli_real_escape_string($conn, $contactEmail ?? '');
                 if (!empty($contactEmail)) {
                     $checkContactEmail = "SELECT id FROM client_contact_persons 
                                           WHERE contact_email = '$contactEmail' 
                                           AND client_id != '$clientId' 
+                                          AND org_id = '$orgId'
                                           AND is_deleted = 0";
                     $resContact = mysqli_query($conn, $checkContactEmail);
                     if (mysqli_num_rows($resContact) > 0) {
-                        $_SESSION['message'] = "Contact email '$contactEmail' already exists for another client.";
-                        $_SESSION['message_type'] = 'danger';
+                        $_SESSION['message'] = "Contact Email already exists. Please use another email.";
+                        $_SESSION['message_type'] = 'error';
+                        
+                        // Store active tab in session before redirect
+                        if (isset($_POST['active_tab'])) {
+                            $_SESSION['active_tab'] = 'contact-tab'; // Always go to contact tab for contact email errors
+                        }
+                        
                         header("Location: ../edit-customer.php?id=" . $clientId);
                         exit();
                     }
@@ -313,26 +339,31 @@ if (isset($_POST['submit'])) {
             }
         }
 
-        // mysqli_commit($conn);
-        // $_SESSION['message'] = 'Client updated successfully';
-        // $_SESSION['message_type'] = 'success';
-        // header("Location: ../edit-customer.php?id=" . $clientId);
-        // exit();
-mysqli_commit($conn);
-$_SESSION['message'] = 'Client updated successfully';
-$_SESSION['message_type'] = 'success';
+        // Clear session form data if update succeeds
+        unset($_SESSION['form_data']);
+        unset($_SESSION['form_files']);
+        
+        mysqli_commit($conn);
+        $_SESSION['message'] = 'Client updated successfully';
+        $_SESSION['message_type'] = 'success';
 
-// Store active tab in session before redirect
-if (isset($_POST['active_tab'])) {
-    $_SESSION['active_tab'] = $_POST['active_tab'];
-}
+        // Store active tab in session before redirect
+        if (isset($_POST['active_tab'])) {
+            $_SESSION['active_tab'] = $_POST['active_tab'];
+        }
 
-header("Location: ../edit-customer.php?id=" . $clientId);
-exit();
+        header("Location: ../edit-customer.php?id=" . $clientId);
+        exit();
     } catch (Exception $e) {
         mysqli_rollback($conn);
         $_SESSION['message'] = 'Update failed: ' . $e->getMessage();
-        $_SESSION['message_type'] = 'danger';
+        $_SESSION['message_type'] = 'error';
+        
+        // Store active tab in session before redirect
+        if (isset($_POST['active_tab'])) {
+            $_SESSION['active_tab'] = $_POST['active_tab'];
+        }
+        
         header("Location: ../edit-customer.php?id=" . $clientId);
         exit();
     }

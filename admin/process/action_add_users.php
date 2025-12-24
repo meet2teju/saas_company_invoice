@@ -31,6 +31,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $email      = trim($_POST['email'] ?? '');
         $phone      = trim($_POST['phone_number'] ?? '');
         $password   = trim($_POST['password'] ?? '');
+        $mobile_country_code = trim($_POST['mobile_country_code'] ?? '+91');
         $type_id    = $_POST['role_id'] ?? '';
         $status     = $_POST['status'] ?? '';
         $image_name = '';
@@ -53,11 +54,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         // **UPDATED QUERY: Only store org_id (no user_id since this is the user table)**
         $query = "INSERT INTO login (
-            name, email, phone_number, password, role_id, status, profile_img, 
+            name, email, phone_number, password,mobile_country_code, role_id, status, profile_img, 
             org_id, is_deleted, created_at, updated_at,
             reset_token, reset_token_expire
         ) VALUES (
-            '$name', '$email', '$phone', '$hashedPassword', '$type_id', '$status', '$image_name',
+            '$name', '$email', '$phone', '$hashedPassword',' $mobile_country_code', '$type_id', '$status', '$image_name',
             '$orgId', 0, NOW(), NOW(),
             NULL, NULL
         )";

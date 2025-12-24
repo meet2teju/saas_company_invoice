@@ -35,6 +35,51 @@ while ($country = mysqli_fetch_assoc($country_codes_result)) {
 
 // Reset the pointer for later use
 mysqli_data_seek($country_codes_result, 0);
+
+// Check if there's stored form data from a previous submission with error
+$formData = $_SESSION['form_data'] ?? [];
+$formFiles = $_SESSION['form_files'] ?? [];
+
+// Function to get form field value
+function getFormValue($field, $default = '') {
+    global $formData;
+    return isset($formData[$field]) ? htmlspecialchars($formData[$field]) : $default;
+}
+
+// Function to check if a radio/checkbox should be checked
+function isChecked($field, $value) {
+    global $formData;
+    return isset($formData[$field]) && $formData[$field] == $value ? 'checked' : '';
+}
+
+// Function to check if a select option should be selected
+function isSelected($field, $value) {
+    global $formData;
+    return isset($formData[$field]) && $formData[$field] == $value ? 'selected' : '';
+}
+
+// Function to get array field value (for contact persons)
+function getArrayFormValue($field, $index, $default = '') {
+    global $formData;
+    if (isset($formData[$field]) && isset($formData[$field][$index])) {
+        return htmlspecialchars($formData[$field][$index]);
+    }
+    return $default;
+}
+
+// Store the error message before clearing session
+$error_message = '';
+$message_type = '';
+if (isset($_SESSION['message']) && isset($_SESSION['message_type'])) {
+    $error_message = $_SESSION['message'];
+    $message_type = $_SESSION['message_type'];
+    
+    // Clear session messages after storing
+    unset($_SESSION['message']);
+    unset($_SESSION['message_type']);
+    unset($_SESSION['form_data']);
+    unset($_SESSION['form_files']);
+}
 ?>
 
 <!DOCTYPE html>
@@ -68,7 +113,7 @@ mysqli_data_seek($country_codes_result, 0);
         flex-shrink: 0;
     }
     
-    /* Select2 customization for country code */
+    /* Select2 customization for country code - REMOVED SEARCH */
     .country-code-select + .select2 {
         width: 140px !important;
         min-width: 140px;
@@ -119,11 +164,21 @@ mysqli_data_seek($country_codes_result, 0);
         height: 38px !important;
     }
     
-    /* Make country code dropdown searchable */
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    /* Remove search box from country code dropdown */
+    .country-code-select + .select2 .select2-search {
+        display: none !important;
+    }
+    
+    .country-code-select + .select2 .select2-search__field {
+        display: none !important;
+    }
+    
+    /* Error message style */
+    .email-error-message {
+        color: #dc3545;
+        font-size: 0.875em;
+        margin-top: 0.25rem;
+        display: block;
     }
 </style>
 </head>
@@ -142,15 +197,11 @@ mysqli_data_seek($country_codes_result, 0);
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6>Add Client</h6>
-                            <!-- Display current company currency -->
-                            <!-- <div class="badge bg-info">
-                                Company Currency: <?php echo $companyCurrency['currency_symbol'] . ' (' . $companyCurrency['currency_name'] . ')'; ?>
-                            </div> -->
                         </div>
 
                         <div class="card">
                             <div class="card-body">
-                                <form action="process/action_add_client.php" method="POST" enctype="multipart/form-data" id="form" >
+                                <form action="process/action_add_client.php" method="POST" enctype="multipart/form-data" id="form">
                                 <input type="hidden" name="user_id" value="<?php echo $_SESSION['crm_user_id'] ?? 1; ?>">
 
                                     <div class="mb-3">
@@ -175,11 +226,11 @@ mysqli_data_seek($country_codes_result, 0);
                                                     <label class="form-label">Client Type</label>
                                                     <div class="d-flex align-items-center mb-3">
                                                         <div class="form-check me-3">
-                                                            <input class="form-check-input" type="radio" name="client_type" value="1" checked>
+                                                            <input class="form-check-input" type="radio" name="client_type" value="1" <?php echo isChecked('client_type', '1'); ?> <?php echo empty($formData) ? 'checked' : ''; ?>>
                                                             <label class="form-check-label">Business</label>
                                                         </div>
                                                         <div class="form-check">
-                                                            <input class="form-check-input" type="radio" name="client_type" value="0">
+                                                            <input class="form-check-input" type="radio" name="client_type" value="0" <?php echo isChecked('client_type', '0'); ?>>
                                                             <label class="form-check-label">Individual</label>
                                                         </div>
                                                     </div>
@@ -190,11 +241,11 @@ mysqli_data_seek($country_codes_result, 0);
                                                     <label class="form-label">Salutation</label>
                                                     <select class="select" name="salutation" id="salutation" onchange="updateDisplayName()">
                                                        <option value="">Select</option>
-                                                    <option value="Mr">Mr</option>
-                                                        <option value="Mrs">Mrs</option>
-                                                        <option value="Ms">Ms</option>
-                                                        <option value="Miss">Miss</option>
-                                                        <option value="Dr">Dr</option>
+                                                    <option value="Mr" <?php echo isSelected('salutation', 'Mr'); ?>>Mr</option>
+                                                        <option value="Mrs" <?php echo isSelected('salutation', 'Mrs'); ?>>Mrs</option>
+                                                        <option value="Ms" <?php echo isSelected('salutation', 'Ms'); ?>>Ms</option>
+                                                        <option value="Miss" <?php echo isSelected('salutation', 'Miss'); ?>>Miss</option>
+                                                        <option value="Dr" <?php echo isSelected('salutation', 'Dr'); ?>>Dr</option>
                                                     </select>
                                                     <!-- <span id="salutation_error" class="text-danger error-text"></span> -->
                                                 </div>
@@ -202,29 +253,34 @@ mysqli_data_seek($country_codes_result, 0);
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">First Name <span class="text-danger ms-1">*</span></label>
-                                                    <input type="text" class="form-control" name="first_name" id="first_name">
+                                                    <input type="text" class="form-control" name="first_name" id="first_name" value="<?php echo getFormValue('first_name'); ?>">
                                                     <span id="first_name_error" class="text-danger error-text"></span>
                                                 </div>
                                             </div>
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">Last Name <span class="text-danger ms-1">*</span></label>
-                                                    <input type="text" class="form-control" name="last_name" id="last_name">
+                                                    <input type="text" class="form-control" name="last_name" id="last_name" value="<?php echo getFormValue('last_name'); ?>">
                                                     <span id="last_name_error" class="text-danger error-text"></span>
                                                 </div>
                                             </div>
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">Company Name</label>
-                                                    <input type="text" class="form-control" name="company_name" id="company_name">
+                                                    <input type="text" class="form-control" name="company_name" id="company_name" value="<?php echo getFormValue('company_name'); ?>">
                                                     <span id="company_name_error" class="text-danger error-text"></span>
                                                 </div>
                                             </div>
                                             <div class="col-lg-4 col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">Email</label>
-                                                    <input type="email" class="form-control" name="email" id="email">
+                                                    <input type="email" class="form-control" name="email" id="email" value="<?php echo getFormValue('email'); ?>">
                                                     <span id="email_error" class="text-danger error-text"></span>
+                                                    <?php if($message_type == 'error' && strpos($error_message, 'Email already exists') !== false): ?>
+                                                        <span class="email-error-message"><?php echo $error_message; ?></span>
+                                                    <?php elseif($message_type == 'error' && strpos($error_message, 'Contact Email already exists') !== false): ?>
+                                                        <span class="email-error-message"><?php echo $error_message; ?></span>
+                                                    <?php endif; ?>
                                                 </div>
                                             </div>
                                            <div class="col-lg-4 col-md-6">
@@ -240,14 +296,17 @@ mysqli_data_seek($country_codes_result, 0);
                     if (!empty($phonecode) && $phonecode[0] !== '+') {
                         $phonecode = '+' . $phonecode;
                     }
-                    $selected = ($country['iso2'] === 'IN') ? 'selected' : '';
+                    $selected = ($country['iso2'] === 'IN' && !isset($formData['work_country_code'])) ? 'selected' : '';
+                    if (isset($formData['work_country_code']) && $formData['work_country_code'] == $phonecode) {
+                        $selected = 'selected';
+                    }
                 ?>
                     <option value="<?= $phonecode ?>" <?= $selected ?> data-country="<?= $country['iso2'] ?>">
-                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
+                        <?= $phonecode ?>
                     </option>
                 <?php endwhile; ?>
             </select>
-            <input type="text" class="form-control phone-number-input" name="phone_number" id="phone_number" placeholder="Phone Number">
+            <input type="text" class="form-control phone-number-input" name="phone_number" id="phone_number" placeholder="Phone Number" value="<?php echo getFormValue('phone_number'); ?>">
         </div>
         <span id="phone_number_error" class="text-danger error-text">Please enter a valid number (10 digits)</span>
     </div>
@@ -265,14 +324,17 @@ mysqli_data_seek($country_codes_result, 0);
                     if (!empty($phonecode) && $phonecode[0] !== '+') {
                         $phonecode = '+' . $phonecode;
                     }
-                    $selected = ($country['iso2'] === 'IN') ? 'selected' : '';
+                    $selected = ($country['iso2'] === 'IN' && !isset($formData['mobile_country_code'])) ? 'selected' : '';
+                    if (isset($formData['mobile_country_code']) && $formData['mobile_country_code'] == $phonecode) {
+                        $selected = 'selected';
+                    }
                 ?>
                     <option value="<?= $phonecode ?>" <?= $selected ?> data-country="<?= $country['iso2'] ?>">
-                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
+                        <?= $phonecode ?>
                     </option>
                 <?php endwhile; ?>
             </select>
-            <input type="text" class="form-control phone-number-input" name="business_number" id="business_number" placeholder="Mobile Number">
+            <input type="text" class="form-control phone-number-input" name="business_number" id="business_number" placeholder="Mobile Number" value="<?php echo getFormValue('business_number'); ?>">
         </div>
         <span id="business_number_error" class="text-danger error-text">Please enter a valid number (10 digits)</span>
     </div>
@@ -304,7 +366,7 @@ mysqli_data_seek($country_codes_result, 0);
                                                 <div class="row gx-3">
                                                     <div class="col-md-6 mb-3">
                                                         <label class="form-label">PAN Card</label>
-                                                        <input type="text" class="form-control" name="pan_number" id="pan_number">
+                                                        <input type="text" class="form-control" name="pan_number" id="pan_number" value="<?php echo getFormValue('pan_number'); ?>">
                                                         <span id="pan_number_error" class="text-danger error-text"></span>
                                                     </div>
                                                     <div class="col-md-6 mb-3">
@@ -315,23 +377,24 @@ mysqli_data_seek($country_codes_result, 0);
         mysqli_data_seek($currency_result, 0);
         
         while ($currency = mysqli_fetch_assoc($currency_result)) {
-            // Use company currency as default selection
-            $selected = ($currency['id'] == $companyCurrency['id']) ? 'selected' : '';
+            // Use company currency as default selection if no form data
+            $selected = '';
+            if (isset($formData['currency'])) {
+                $selected = ($currency['id'] == $formData['currency']) ? 'selected' : '';
+            } else {
+                $selected = ($currency['id'] == $companyCurrency['id']) ? 'selected' : '';
+            }
             echo "<option value='{$currency['id']}' $selected>
                     {$currency['currency_name']} ({$currency['currency_symbol']})
                   </option>";
         } 
         ?>
     </select>
-    <!-- <small class="text-muted">
-        Default currency: <?php echo $companyCurrency['currency_name']; ?>
-        (<?php echo $companyCurrency['currency_symbol']; ?>)
-    </small> -->
 </div>
 
                                                     <div class="col-md-6 mb-3">
                                                         <label class="form-label">VAT/GST Number</label>
-                                                        <input type="text" class="form-control" name="gst_number" id="gst_number">
+                                                        <input type="text" class="form-control" name="gst_number" id="gst_number" value="<?php echo getFormValue('gst_number'); ?>">
                                                         <span id="gst_number_error" class="text-danger error-text"></span>
                                                     </div>
 
@@ -351,35 +414,35 @@ mysqli_data_seek($country_codes_result, 0);
                                                         <div class="row gx-3">
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Website URL</label>
-                                                                <input type="url" class="form-control" name="website_url" id="website_url" placeholder="https://">
+                                                                <input type="url" class="form-control" name="website_url" id="website_url" placeholder="https://" value="<?php echo getFormValue('website_url'); ?>">
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Department</label>
-                                                                <input type="text" class="form-control" name="department" id="department">
+                                                                <input type="text" class="form-control" name="department" id="department" value="<?php echo getFormValue('department'); ?>">
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Designation</label>
-                                                                <input type="text" class="form-control" name="designation" id="designation">
+                                                                <input type="text" class="form-control" name="designation" id="designation" value="<?php echo getFormValue('designation'); ?>">
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Twitter</label>
                                                                 <div class="input-group">
                                                                     <span class="input-group-text"><i class="fab fa-x-twitter"></i></span>
-                                                                    <input type="text" class="form-control" name="twitter"  id="twitter" placeholder="http://www.twitter.com/">
+                                                                    <input type="text" class="form-control" name="twitter"  id="twitter" placeholder="http://www.twitter.com/" value="<?php echo getFormValue('twitter'); ?>">
                                                                 </div>
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Skype Name/Number</label>
                                                                 <div class="input-group">
                                                                     <span class="input-group-text"><i class="fab fa-skype"></i></span>
-                                                                    <input type="text" class="form-control" name="skype_name_number" id="skype_name_number">
+                                                                    <input type="text" class="form-control" name="skype_name_number" id="skype_name_number" value="<?php echo getFormValue('skype_name_number'); ?>">
                                                                 </div>
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Facebook</label>
                                                                 <div class="input-group">
                                                                     <span class="input-group-text"><i class="fab fa-facebook-f"></i></span>
-                                                                    <input type="text" class="form-control" name="facebook" id="facebook" placeholder="http://www.facebook.com/">
+                                                                    <input type="text" class="form-control" name="facebook" id="facebook" placeholder="http://www.facebook.com/" value="<?php echo getFormValue('facebook'); ?>">
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -395,11 +458,11 @@ mysqli_data_seek($country_codes_result, 0);
                                                         <div class="row">
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 1</label>
-                                                                <input type="text" id="billing_address1" class="form-control" name="billing_address1">
+                                                                <input type="text" id="billing_address1" class="form-control" name="billing_address1" value="<?php echo getFormValue('billing_address1'); ?>">
                                                             </div>
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 2</label>
-                                                                <input type="text" id="billing_address2" class="form-control" name="billing_address2">
+                                                                <input type="text" id="billing_address2" class="form-control" name="billing_address2" value="<?php echo getFormValue('billing_address2'); ?>">
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Country</label>
@@ -408,7 +471,8 @@ mysqli_data_seek($country_codes_result, 0);
                                                                     <?php 
                                                                     mysqli_data_seek($country_result, 0);
                                                                     while ($country = mysqli_fetch_assoc($country_result)) {
-                                                                        echo "<option value='{$country['id']}'>{$country['name']}</option>";
+                                                                        $selected = isSelected('billing_country', $country['id']);
+                                                                        echo "<option value='{$country['id']}' $selected>{$country['name']}</option>";
                                                                     } ?>
                                                                 </select>
                                                             </div>
@@ -416,17 +480,29 @@ mysqli_data_seek($country_codes_result, 0);
                                                                 <label class="form-label">State</label>
                                                                 <select class="select" id="billing_state" name="billing_state" onchange="getCities(this.value, 'billing_city')">
                                                                     <option value="">Select State</option>
+                                                                    <?php
+                                                                    if (isset($formData['billing_state']) && !empty($formData['billing_state'])) {
+                                                                        // We'll populate this via JavaScript
+                                                                        echo "<option value='{$formData['billing_state']}' selected>Loading...</option>";
+                                                                    }
+                                                                    ?>
                                                                 </select>
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">City</label>
                                                                 <select class="select" id="billing_city" name="billing_city">
                                                                     <option value="">Select City</option>
+                                                                    <?php
+                                                                    if (isset($formData['billing_city']) && !empty($formData['billing_city'])) {
+                                                                        // We'll populate this via JavaScript
+                                                                        echo "<option value='{$formData['billing_city']}' selected>Loading...</option>";
+                                                                    }
+                                                                    ?>
                                                                 </select>
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Pincode</label>
-                                                                <input type="text" class="form-control" id="billing_pincode" name="billing_pincode">
+                                                                <input type="text" class="form-control" id="billing_pincode" name="billing_pincode" value="<?php echo getFormValue('billing_pincode'); ?>">
                                                             </div>
                                                         </div>
                                                     </div>
@@ -441,11 +517,11 @@ mysqli_data_seek($country_codes_result, 0);
                                                         <div class="row">
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 1</label>
-                                                                <input type="text" class="form-control" id="shipping_address1" name="shipping_address1">
+                                                                <input type="text" class="form-control" id="shipping_address1" name="shipping_address1" value="<?php echo getFormValue('shipping_address1'); ?>">
                                                             </div>
                                                             <div class="col-12 mb-3">
                                                                 <label class="form-label">Address Line 2</label>
-                                                                <input type="text" class="form-control" id="shipping_address2" name="shipping_address2">
+                                                                <input type="text" class="form-control" id="shipping_address2" name="shipping_address2" value="<?php echo getFormValue('shipping_address2'); ?>">
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Country</label>
@@ -454,7 +530,8 @@ mysqli_data_seek($country_codes_result, 0);
                                                                     <?php 
                                                                     mysqli_data_seek($country_result, 0);
                                                                     while ($country = mysqli_fetch_assoc($country_result)) {
-                                                                        echo "<option value='{$country['id']}'>{$country['name']}</option>";
+                                                                        $selected = isSelected('shipping_country', $country['id']);
+                                                                        echo "<option value='{$country['id']}' $selected>{$country['name']}</option>";
                                                                     } ?>
                                                                 </select>
                                                             </div>
@@ -462,17 +539,29 @@ mysqli_data_seek($country_codes_result, 0);
                                                                 <label class="form-label">State</label>
                                                                 <select class="select" id="shipping_state" name="shipping_state" onchange="getCities(this.value, 'shipping_city')">
                                                                     <option value="">Select State</option>
+                                                                    <?php
+                                                                    if (isset($formData['shipping_state']) && !empty($formData['shipping_state'])) {
+                                                                        // We'll populate this via JavaScript
+                                                                        echo "<option value='{$formData['shipping_state']}' selected>Loading...</option>";
+                                                                    }
+                                                                    ?>
                                                                 </select>
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">City</label>
                                                                 <select class="select" id="shipping_city" name="shipping_city">
                                                                     <option value="">Select City</option>
+                                                                    <?php
+                                                                    if (isset($formData['shipping_city']) && !empty($formData['shipping_city'])) {
+                                                                        // We'll populate this via JavaScript
+                                                                        echo "<option value='{$formData['shipping_city']}' selected>Loading...</option>";
+                                                                    }
+                                                                    ?>
                                                                 </select>
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">Pincode</label>
-                                                                <input type="text" class="form-control" id="shipping_pincode" name="shipping_pincode">
+                                                                <input type="text" class="form-control" id="shipping_pincode" name="shipping_pincode" value="<?php echo getFormValue('shipping_pincode'); ?>">
                                                             </div>
                                                         </div>
                                                     </div>
@@ -497,6 +586,75 @@ mysqli_data_seek($country_codes_result, 0);
                                                         </thead>
                                                         <tbody id="contactTableBody">
                                                             <!-- Rows will be added here dynamically -->
+                                                            <?php
+                                                            // Check if we have contact person data in form data
+                                                            if (isset($formData['contact_first_name']) && is_array($formData['contact_first_name'])) {
+                                                                foreach ($formData['contact_first_name'] as $index => $firstName) {
+                                                                    // Skip if all fields are empty
+                                                                    if (empty($firstName) && 
+                                                                        empty($formData['contact_last_name'][$index]) && 
+                                                                        empty($formData['contact_email'][$index]) && 
+                                                                        empty($formData['contact_work_phone'][$index]) && 
+                                                                        empty($formData['contact_mobile'][$index])) {
+                                                                        continue;
+                                                                    }
+                                                                    ?>
+                                                                    <tr data-row-id="<?php echo $index; ?>">
+                                                                        <td>
+                                                                            <select class="form-select" name="contact_salutation[]">
+                                                                                <option value="Mr" <?php echo isset($formData['contact_salutation'][$index]) && $formData['contact_salutation'][$index] == 'Mr' ? 'selected' : ''; ?>>Mr</option>
+                                                                                <option value="Mrs" <?php echo isset($formData['contact_salutation'][$index]) && $formData['contact_salutation'][$index] == 'Mrs' ? 'selected' : ''; ?>>Mrs</option>
+                                                                                <option value="Ms" <?php echo isset($formData['contact_salutation'][$index]) && $formData['contact_salutation'][$index] == 'Ms' ? 'selected' : ''; ?>>Ms</option>
+                                                                                <option value="Dr" <?php echo isset($formData['contact_salutation'][$index]) && $formData['contact_salutation'][$index] == 'Dr' ? 'selected' : ''; ?>>Dr</option>
+                                                                            </select>
+                                                                        </td>
+                                                                        <td><input type="text" class="form-control" name="contact_first_name[]" placeholder="First Name" value="<?php echo htmlspecialchars($firstName); ?>"></td>
+                                                                        <td><input type="text" class="form-control" name="contact_last_name[]" placeholder="Last Name" value="<?php echo htmlspecialchars($formData['contact_last_name'][$index] ?? ''); ?>"></td>
+                                                                        <td>
+                                                                            <input type="email" class="form-control contact-email" name="contact_email[]" placeholder="Email" value="<?php echo htmlspecialchars($formData['contact_email'][$index] ?? ''); ?>">
+                                                                            <small class="text-danger error-email"></small>
+                                                                        </td>
+                                                                        <td>
+                                                                            <input type="text" class="form-control contact-workphone" name="contact_work_phone[]" placeholder="Work Phone" value="<?php echo htmlspecialchars($formData['contact_work_phone'][$index] ?? ''); ?>">
+                                                                            <small class="text-danger error-workphone"></small>
+                                                                        </td>
+                                                                        <td>
+                                                                            <input type="text" class="form-control contact-mobile" name="contact_mobile[]" placeholder="Mobile" value="<?php echo htmlspecialchars($formData['contact_mobile'][$index] ?? ''); ?>">
+                                                                            <small class="text-danger error-mobile"></small>
+                                                                        </td>
+                                                                        <td class="text-center">
+                                                                            <button type="button" class="btn btn-sm btn-light" onclick="toggleExtraFields(this, <?php echo $index; ?>)">
+                                                                                <i class="isax isax-more"></i>
+                                                                            </button>
+                                                                            <button type="button" class="btn btn-sm btn-light text-danger" onclick="removeRow(this)">
+                                                                                <i class="isax isax-trash"></i>
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <tr class="extra-fields-row d-none" data-row-id="<?php echo $index; ?>">
+                                                                        <td colspan="7">
+                                                                            <div class="p-3 bg-light rounded">
+                                                                                <div class="row gx-3">
+                                                                                    <div class="col-md-4 mb-2">
+                                                                                        <label class="form-label">Skype Name/Number</label>
+                                                                                        <input type="text" class="form-control" name="contact_skype[]" value="<?php echo htmlspecialchars($formData['contact_skype'][$index] ?? ''); ?>">
+                                                                                    </div>
+                                                                                    <div class="col-md-4 mb-2">
+                                                                                        <label class="form-label">Designation</label>
+                                                                                        <input type="text" class="form-control" name="contact_designation[]" value="<?php echo htmlspecialchars($formData['contact_designation'][$index] ?? ''); ?>">
+                                                                                    </div>
+                                                                                    <div class="col-md-4 mb-2">
+                                                                                        <label class="form-label">Department</label>
+                                                                                        <input type="text" class="form-control" name="contact_department[]" value="<?php echo htmlspecialchars($formData['contact_department'][$index] ?? ''); ?>">
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                    <?php
+                                                                }
+                                                            }
+                                                            ?>
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -511,34 +669,34 @@ mysqli_data_seek($country_codes_result, 0);
                                                 <div class="row gx-3">
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Bank Name</label>
-                                                        <input type="text" class="form-control" name="bank_name" >
+                                                        <input type="text" class="form-control" name="bank_name" value="<?php echo getFormValue('bank_name'); ?>">
                                                          <span id="bank_name_error" class="text-danger error-text"></span>
                                                     </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Branch</label>
-                                                        <input type="text" class="form-control" name="bank_branch" >
+                                                        <input type="text" class="form-control" name="bank_branch" value="<?php echo getFormValue('bank_branch'); ?>">
                                                                 <span id="bank_branch_error" class="text-danger error-text"></span>                                                   
                                                     </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Account Holder</label>
-                                                        <input type="text" class="form-control" name="account_holder">
+                                                        <input type="text" class="form-control" name="account_holder" value="<?php echo getFormValue('account_holder'); ?>">
                                                    <span id="account_holder_error" class="text-danger error-text"></span>
                                                     </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Account Number</label>
-                                                        <input type="text" class="form-control" name="account_number">
+                                                        <input type="text" class="form-control" name="account_number" value="<?php echo getFormValue('account_number'); ?>">
                                                           <span id="account_number_error" class="text-danger error-text"></span>
 
                                                     </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">Routing Number</label>
-                                                        <input type="text" class="form-control" name="routing_number">
+                                                        <input type="text" class="form-control" name="routing_number" value="<?php echo getFormValue('routing_number'); ?>">
                                                           <span id="routing_number_error" class="text-danger error-text"></span>
 
                                                     </div>
                                                     <div class="col-lg-4 col-md-6 mb-3">
                                                         <label class="form-label">IFSC</label>
-                                                        <input type="text" class="form-control" name="IFSC_code" >
+                                                        <input type="text" class="form-control" name="IFSC_code" value="<?php echo getFormValue('IFSC_code'); ?>">
                                                        <span id="ifsc_code_error" class="text-danger error-text"></span>
 
                                                     </div>
@@ -549,7 +707,7 @@ mysqli_data_seek($country_codes_result, 0);
                                             <div class="tab-pane fade" id="remarksTab" role="tabpanel">
                                                 <h6 class="mb-3">Remarks (For Internal Use)</h6>
                                                 <div class="mb-3">
-                                                    <textarea class="form-control" rows="5" name="remark" placeholder="Enter any internal remarks about this customer"></textarea>
+                                                    <textarea class="form-control" rows="5" name="remark" placeholder="Enter any internal remarks about this customer"><?php echo getFormValue('remark'); ?></textarea>
                                                 </div>
                                             </div>
                                         </div>
@@ -614,10 +772,10 @@ $(document).ready(function () {
         this.value = this.value.replace(/[^a-zA-Z0-9]/g, '');
     });
 
-    // Initialize country code dropdowns
+    // Initialize country code dropdowns WITHOUT SEARCH
     $('.country-code-select').select2({
         width: '100%',
-        minimumResultsForSearch: 6,
+        minimumResultsForSearch: Infinity, // This disables the search box
         dropdownParent: $('.phone-input-group').parent(),
         templateResult: formatCountryCode,
         templateSelection: formatCountryCode
@@ -640,6 +798,31 @@ $(document).ready(function () {
             }
         </style>
     `);
+
+    // If there was an error, focus on the email field
+    <?php if($message_type == 'error' && !empty($error_message)): ?>
+        setTimeout(function() {
+            $('#email').focus();
+            
+            // If it's a contact email error, switch to contact tab
+            <?php if(strpos($error_message, 'Contact Email already exists') !== false): ?>
+                $('#contact-tab').tab('show');
+            <?php endif; ?>
+        }, 500);
+    <?php endif; ?>
+
+    // Load states and cities from form data if they exist
+    <?php if(isset($formData['billing_country']) && !empty($formData['billing_country'])): ?>
+        setTimeout(function() {
+            getStates('<?php echo $formData['billing_country']; ?>', 'billing_state');
+        }, 300);
+    <?php endif; ?>
+
+    <?php if(isset($formData['shipping_country']) && !empty($formData['shipping_country'])): ?>
+        setTimeout(function() {
+            getStates('<?php echo $formData['shipping_country']; ?>', 'shipping_state');
+        }, 500);
+    <?php endif; ?>
 
     // Form Validation
     $('#form').on('submit', function(e) {
@@ -673,12 +856,12 @@ $(document).ready(function () {
         }
 
         // PAN format validation
-        const pan = $('[name="pan_number"]').val().trim();
-        if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
-            $('#pan_number_error').text('Invalid PAN format (e.g. AAAAA9999A)');
-            isValid = false;
-            $(`[data-bs-target="#otherTab"]`).addClass('has-error');
-        }
+        // const pan = $('[name="pan_number"]').val().trim();
+        // if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
+        //     $('#pan_number_error').text('Invalid PAN format (e.g. AAAAA9999A)');
+        //     isValid = false;
+        //     $(`[data-bs-target="#otherTab"]`).addClass('has-error');
+        // }
 
         // Phone number validation with country code
         const workPhone = $('[name="phone_number"]').val().trim();
@@ -763,16 +946,16 @@ $(document).ready(function () {
     });
 
     // Real-time validation for PAN
-    $('[name="pan_number"]').on('input', function() {
-        const pan = $(this).val().trim();
-        if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
-            $('#pan_number_error').text('Invalid PAN format (e.g. AAAAA9999A)');
-            $(`[data-bs-target="#otherTab"]`).addClass('has-error');
-        } else {
-            $('#pan_number_error').text('');
-            $(`[data-bs-target="#otherTab"]`).removeClass('has-error');
-        }
-    });
+    // $('[name="pan_number"]').on('input', function() {
+    //     const pan = $(this).val().trim();
+    //     if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
+    //         $('#pan_number_error').text('Invalid PAN format (e.g. AAAAA9999A)');
+    //         $(`[data-bs-target="#otherTab"]`).addClass('has-error');
+    //     } else {
+    //         $('#pan_number_error').text('');
+    //         $(`[data-bs-target="#otherTab"]`).removeClass('has-error');
+    //     }
+    // });
 
     // Real-time validation for email
     $('[name="email"]').on('input', function() {
@@ -838,8 +1021,12 @@ $(document).ready(function () {
     });
 
     // Initialize select2 and other components
-    $('.select').select2();
-    addContactRow();
+    $('.select:not(.country-code-select)').select2(); // Initialize all selects except country code
+    
+    // If there are no contact rows yet, add one
+    if ($('#contactTableBody tr[data-row-id]').length === 0) {
+        addContactRow();
+    }
 });
 
 // Function to validate a specific tab
@@ -941,6 +1128,19 @@ function getStates(countryId, targetDropdown) {
         data: {datapost: countryId},
         success: function(result) {
             $('#' + targetDropdown).html('<option value="">Select State</option>' + result).trigger('change');
+            
+            // If there's stored state data, select it
+            <?php if(isset($formData['billing_state']) && !empty($formData['billing_state']) && $targetDropdown == 'billing_state'): ?>
+                setTimeout(function() {
+                    $('#billing_state').val('<?php echo $formData["billing_state"]; ?>').trigger('change');
+                }, 100);
+            <?php endif; ?>
+            
+            <?php if(isset($formData['shipping_state']) && !empty($formData['shipping_state']) && $targetDropdown == 'shipping_state'): ?>
+                setTimeout(function() {
+                    $('#shipping_state').val('<?php echo $formData["shipping_state"]; ?>').trigger('change');
+                }, 100);
+            <?php endif; ?>
         },
         error: function(xhr, status, error) {
             console.error("Error fetching states:", error);
@@ -960,6 +1160,19 @@ function getCities(stateId, targetDropdown) {
         data: {datapost: stateId},
         success: function(result) {
             $('#' + targetDropdown).html('<option value="">Select City</option>' + result).trigger('change');
+            
+            // If there's stored city data, select it
+            <?php if(isset($formData['billing_city']) && !empty($formData['billing_city']) && $targetDropdown == 'billing_city'): ?>
+                setTimeout(function() {
+                    $('#billing_city').val('<?php echo $formData["billing_city"]; ?>').trigger('change');
+                }, 100);
+            <?php endif; ?>
+            
+            <?php if(isset($formData['shipping_city']) && !empty($formData['shipping_city']) && $targetDropdown == 'shipping_city'): ?>
+                setTimeout(function() {
+                    $('#shipping_city').val('<?php echo $formData["shipping_city"]; ?>').trigger('change');
+                }, 100);
+            <?php endif; ?>
         },
         error: function(xhr, status, error) {
             console.error("Error fetching cities:", error);

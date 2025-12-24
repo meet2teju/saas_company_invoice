@@ -53,6 +53,11 @@ $query = "SELECT login.*, user_role.name as role_name FROM login
           LEFT JOIN user_role ON login.role_id = user_role.id 
           WHERE 1=1 AND login.role_id != 4";
 
+// Add condition to hide admin users (role_id = 1) if current user is not admin
+if ($userRoleId != 1) {
+    $query .= " AND login.role_id != 1";
+}
+
 // Add organization filter
 if ($currentOrgId > 0) {
     $query .= " AND login.org_id = $currentOrgId";
@@ -95,12 +100,20 @@ if ($currentOrgId > 0) {
 }
 $roles = mysqli_query($conn, $roles_query);
 
-// Fetch all users with organization filtering
+// Fetch all users with organization filtering for dropdown
 $all_users_query = "SELECT id, name, profile_img FROM login WHERE role_id != 4";
+// Hide admin users (role_id = 1) if current user is not admin
+if ($userRoleId != 1) {
+    $all_users_query .= " AND role_id != 1";
+}
 if ($currentOrgId > 0) {
     $all_users_query .= " AND org_id = $currentOrgId";
 }
 $all_users = mysqli_query($conn, $all_users_query);
+
+// Get country codes from database
+$country_codes_query = "SELECT id, name, phonecode FROM countries ORDER BY name";
+$country_codes_result = mysqli_query($conn, $country_codes_query);
 
 // Execute main users query
 $users = mysqli_query($conn, $query);
@@ -113,20 +126,95 @@ $users = mysqli_query($conn, $query);
 <head>
     <?php include 'layouts/title-meta.php'; ?> 
     <?php include 'layouts/head-css.php'; ?>
-    <style>.password-toggle,
-.toggle-pass-edit,
-.toggle-pass-confirm-edit {
-    position: absolute;
-    top: 50%;
-    right: 10px;
-    transform: translateY(-50%);
-    cursor: pointer;
-    font-size: 18px;
-    color: #888;
-}
-
-
-</style>
+    <style>
+    /* Phone input group styles */
+    .phone-input-group {
+        display: flex;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        overflow: hidden;
+        background: white;
+        width: 100%;
+    }
+    .phone-input-group:focus-within {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Country code select container */
+    .country-code-select {
+        width: 120px !important;
+        min-width: 120px;
+        border: none;
+        border-right: 1px solid #dee2e6;
+        border-radius: 0;
+        background: #f8f9fa;
+        flex-shrink: 0;
+    }
+    
+    /* Select2 customization for country code */
+    .country-code-select + .select2 {
+        width: 120px !important;
+        min-width: 120px;
+        flex-shrink: 0;
+    }
+    
+    .country-code-select + .select2 .select2-selection {
+        border: none !important;
+        background: #f8f9fa !important;
+        height: 100% !important;
+        border-radius: 0 !important;
+        border-right: 1px solid #dee2e6 !important;
+    }
+    
+    .country-code-select + .select2 .select2-selection__rendered {
+        line-height: 38px !important;
+        padding-left: 12px !important;
+        padding-right: 25px !important;
+        color: #495057 !important;
+    }
+    
+    .country-code-select + .select2 .select2-selection__arrow {
+        height: 38px !important;
+        right: 5px !important;
+    }
+    
+    /* Phone number input */
+    .phone-number-input {
+        border: none;
+        border-radius: 0;
+        flex: 1;
+        min-width: 0;
+        padding-left: 12px;
+    }
+    
+    .phone-number-input:focus {
+        outline: none;
+        box-shadow: none;
+        border-color: transparent;
+    }
+    
+    .select2-container--open .select2-dropdown {
+        z-index: 1060;
+    }
+    
+    /* Ensure proper alignment */
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+    }
+    
+    .password-toggle,
+    .toggle-pass-edit,
+    .toggle-pass-confirm-edit {
+        position: absolute;
+        top: 50%;
+        right: 10px;
+        transform: translateY(-50%);
+        cursor: pointer;
+        font-size: 18px;
+        color: #888;
+    }
+    </style>
 </head>
 
 <body>
@@ -285,7 +373,7 @@ $users = mysqli_query($conn, $query);
                                 </div>
                             </td>
                             <?php
-                            $profileImg = !empty($row['profile_img']) ? '../uploads/' . htmlspecialchars($row['profile_img']) : 'assets/img/users/user-16.jpg';
+                            $profileImg = !empty($row['profile_img']) ? '../uploads/' . htmlspecialchars($row['profile_img']) : '../uploads/profileimage.jpg';
                             ?>
                             <td>
                                 <div class="d-flex align-items-center">
@@ -299,7 +387,13 @@ $users = mysqli_query($conn, $query);
                                     </div>
                                 </div>
                             </td>
-                            <td><?= htmlspecialchars($row['phone_number'] ?? '') ?></td>
+                            <td>
+                                <?php 
+                                $phone_country_code = $row['mobile_country_code'] ?? '+91';
+                                $phone_number_only = $row['phone_number'] ?? '';
+                                echo htmlspecialchars($phone_country_code . ' ' . $phone_number_only); 
+                                ?>
+                            </td>
                             <td><?= htmlspecialchars($row['role_name'] ?? '') ?></td>
                             <td><?= timeAgo($row['last_activity']) ?></td>
                             <td><?= !empty($row['created_at']) ? date('d M Y', strtotime($row['created_at'])) : '' ?></td>
@@ -413,7 +507,7 @@ $users = mysqli_query($conn, $query);
                                     while ($user = mysqli_fetch_assoc($all_users)) {
                                         $userId   = $user['id'];
                                         $userName = htmlspecialchars($user['name']);
-                                        $userImg  = !empty($user['profile_img']) ? '../uploads/' . $user['profile_img'] : "assets/img/users/user-16.jpg";
+                                        $userImg  = !empty($user['profile_img']) ? '../uploads/' . $user['profile_img'] : "../uploads/profileimage.jpg";
                                         $isChecked = in_array($userId, $user_filter) ? 'checked' : '';
                                         ?>
                                         <li class="user-item">
@@ -546,32 +640,54 @@ $users = mysqli_query($conn, $query);
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Phone Number</label>
-                                <input type="number" name="phone_number" id="phone_number" class="form-control" minlength="10">
-                                    <span id="add_phoneError" class="text-danger error-msg"></span>
-
+                                <div class="phone-input-group">
+                                    <select class="country-code-select select" name="mobile_country_code" id="add_mobile_country_code">
+                                        <?php 
+                                        mysqli_data_seek($country_codes_result, 0);
+                                        while ($country = mysqli_fetch_assoc($country_codes_result)): 
+                                            $phonecode = $country['phonecode'];
+                                            if (!empty($phonecode) && $phonecode[0] !== '+') {
+                                                $phonecode = '+' . $phonecode;
+                                            }
+                                            $selected = ($phonecode === '+91') ? 'selected' : '';
+                                        ?>
+                                            <option value="<?= $phonecode ?>" <?= $selected ?>>
+                                                <?= $phonecode ?>
+                                            </option>
+                                        <?php endwhile; ?>
+                                    </select>
+                                    <input type="text" class="form-control phone-number-input" 
+                                        name="phone_number" 
+                                        id="add_phone_number" 
+                                        placeholder="Mobile Number"
+                                        maxlength="15">
+                                </div>
+                                <small class="text-muted">Enter mobile number without country code</small>
+                                <span id="add_phoneError" class="text-danger error-msg"></span>
                             </div>
                         </div>
+
                         <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label">Password<span class="text-danger ms-1">*</span></label>
-                            <div class="position-relative">
-                                <input type="password" name="password" class="form-control pass-input" minlength="6">
-                                <span class="isax toggle-pass isax-eye-slash password-toggle"></span>
+                            <div class="mb-3">
+                                <label class="form-label">Password<span class="text-danger ms-1">*</span></label>
+                                <div class="position-relative">
+                                    <input type="password" name="password" class="form-control pass-input" minlength="6">
+                                    <span class="isax toggle-pass isax-eye-slash password-toggle"></span>
+                                </div>
+                                <span class="text-danger error-msg" id="add_passwordError"></span>
                             </div>
-                            <span class="text-danger error-msg" id="add_passwordError"></span>
                         </div>
-                    </div>
 
-                    <div class="col-md-6">
-                        <div class="mb-3">
-                            <label class="form-label">Confirm Password<span class="text-danger ms-1">*</span></label>
-                            <div class="position-relative">
-                                <input type="password" name="cpassword" class="form-control pass-input-confirm">
-                                <span class="isax toggle-pass-confirm isax-eye-slash password-toggle"></span>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Confirm Password<span class="text-danger ms-1">*</span></label>
+                                <div class="position-relative">
+                                    <input type="password" name="cpassword" class="form-control pass-input-confirm">
+                                    <span class="isax toggle-pass-confirm isax-eye-slash password-toggle"></span>
+                                </div>
+                                <span class="text-danger error-msg" id="add_cpasswordError"></span>
                             </div>
-                            <span class="text-danger error-msg" id="add_cpasswordError"></span>
                         </div>
-                    </div>
 
                         <div class="col-md-6">
                             <div class="mb-3">
@@ -639,14 +755,14 @@ $users = mysqli_query($conn, $query);
                                         <div class="mb-3">
                                             <span class="text-gray-9 fw-bold mb-2 d-flex">Image</span>
                                             <div class="d-flex align-items-center">
-                                                <div class="avatar avatar-xxl border border-dashed bg-light me-3 flex-shrink-0" id="edit_image_preview">
+                                                <div class="avatar avatar-xxl border border-dashed bg-light me-3 flex-shrink-0" id="edit_image_preview_<?php echo $row['id']; ?>">
                                                     <div class="position-relative d-flex align-items-center">
                                                         <?php
                                                             $profile_img = !empty($row['profile_img']) && file_exists('../uploads/' . $row['profile_img']) 
                                                                 ? '../uploads/' . htmlspecialchars($row['profile_img']) 
-                                                                : 'assets/img/users/default.png';
+                                                                : '../uploads/profileimage.jpg';
                                                         ?>
-                                                        <img src="<?= $profile_img ?>" class="avatar avatar-xl" alt="User Img" id="edit_display_image">
+                                                        <img src="<?= $profile_img ?>" class="avatar avatar-xl" alt="User Img" id="edit_display_image_<?php echo $row['id']; ?>">
                                                         <a href="javascript:void(0);" class="rounded-trash trash-top d-flex align-items-center justify-content-center">
                                                             <i class="isax isax-trash"></i>
                                                         </a>
@@ -655,10 +771,10 @@ $users = mysqli_query($conn, $query);
                                                 <div class="d-inline-flex flex-column align-items-start">
                                                     <div class="drag-upload-btn btn btn-sm btn-primary position-relative mb-2">
                                                         <i class="isax isax-image me-1"></i>Upload Image
-                                                        <input type="file" name="profile_img" id="edit_image" class="form-control image-sign" accept="image/jpeg,image/png">
+                                                        <input type="file" name="profile_img" id="edit_image_<?php echo $row['id']; ?>" class="form-control image-sign" accept="image/jpeg,image/png">
                                                     </div>
                                                     <span class="text-gray-9 fs-12">JPG or PNG format, not exceeding 5MB.</span>
-                                                    <span class="text-danger error-msg" id="edit_image_error"></span>
+                                                    <span class="text-danger error-msg" id="edit_image_error_<?php echo $row['id']; ?>"></span>
                                                 </div>
                                             </div>
                                         </div>
@@ -667,7 +783,7 @@ $users = mysqli_query($conn, $query);
                                     <div class="col-md-6">
                                  <div class="mb-3">
                                             <label class="form-label">Name<span class="text-danger ms-1">*</span></label>
-                                            <input type="text" name="name" class="form-control" id="namee" value="<?= htmlspecialchars($row['name']) ?>" >
+                                            <input type="text" name="name" class="form-control" id="namee_<?php echo $row['id']; ?>" value="<?= htmlspecialchars($row['name']) ?>" >
                                             <span class="text-danger error-msg" id="edit_nameError_<?php echo $row['id']; ?>"></span>
                                         </div>
                                     </div>
@@ -683,7 +799,35 @@ $users = mysqli_query($conn, $query);
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label class="form-label">Phone Number</label>
-                                            <input type="number" name="phone_number" class="form-control" value="<?= htmlspecialchars($row['phone_number']) ?>" minlength="10">
+                                            <div class="phone-input-group">
+                                                <?php
+                                                $phone_country_code = $row['mobile_country_code'] ?? '+91';
+                                                $phone_number_only = $row['phone_number'] ?? '';
+                                                $phone_number_only = preg_replace('/[^0-9]/', '', $phone_number_only);
+                                                ?>
+                                                <select class="country-code-select select" name="mobile_country_code" id="edit_mobile_country_code_<?php echo $row['id']; ?>">
+                                                    <?php 
+                                                    mysqli_data_seek($country_codes_result, 0);
+                                                    while ($country = mysqli_fetch_assoc($country_codes_result)): 
+                                                        $phonecode = $country['phonecode'];
+                                                        if (!empty($phonecode) && $phonecode[0] !== '+') {
+                                                            $phonecode = '+' . $phonecode;
+                                                        }
+                                                        $selected = ($phonecode === $phone_country_code) ? 'selected' : '';
+                                                    ?>
+                                                        <option value="<?= $phonecode ?>" <?= $selected ?>>
+                                                            <?= $phonecode ?>
+                                                        </option>
+                                                    <?php endwhile; ?>
+                                                </select>
+                                                <input type="text" class="form-control phone-number-input" 
+                                                    name="phone_number" 
+                                                    id="edit_phone_number_<?php echo $row['id']; ?>" 
+                                                    value="<?= htmlspecialchars($phone_number_only) ?>"
+                                                    placeholder="Mobile Number"
+                                                    maxlength="15">
+                                            </div>
+                                            <small class="text-muted">Enter mobile number without country code</small>
                                             <span class="text-danger error-msg" id="edit_phoneError_<?php echo $row['id']; ?>"></span>
                                         </div>
                                     </div>
@@ -692,8 +836,8 @@ $users = mysqli_query($conn, $query);
                                         <div class="mb-3">
                                             <label class="form-label">New Password</label>
                                             <div class="position-relative">
-                                                <input type="password" name="password" class="form-control pass-input-edit" data-userid="<?php echo $row['id']; ?>">
-                                                <span class="isax toggle-pass-edit isax-eye-slash" data-userid="<?php echo $row['id']; ?>"></span>
+                                                <input type="password" name="password" class="form-control pass-input-edit" data-userid="<?php echo $row['id']; ?>" id="edit_password_<?php echo $row['id']; ?>">
+                                                <span class="isax toggle-pass-edit isax-eye-slash password-toggle" data-userid="<?php echo $row['id']; ?>"></span>
                                             </div>
                                             <span class="text-danger error-msg" id="edit_passwordError_<?php echo $row['id']; ?>"></span>
                                         </div>
@@ -703,8 +847,8 @@ $users = mysqli_query($conn, $query);
                                         <div class="mb-3">
                                             <label class="form-label">Confirm Password</label>
                                             <div class="position-relative">
-                                                <input type="password" name="confirm_password" class="form-control pass-input-confirm-edit" data-userid="<?php echo $row['id']; ?>">
-                                                <span class="isax toggle-pass-confirm-edit isax-eye-slash" data-userid="<?php echo $row['id']; ?>"></span>
+                                                <input type="password" name="confirm_password" class="form-control pass-input-confirm-edit" data-userid="<?php echo $row['id']; ?>" id="edit_confirm_password_<?php echo $row['id']; ?>">
+                                                <span class="isax toggle-pass-confirm-edit isax-eye-slash password-toggle" data-userid="<?php echo $row['id']; ?>"></span>
                                             </div>
                                             <span class="text-danger error-msg" id="edit_cpasswordError_<?php echo $row['id']; ?>"></span>
                                         </div>
@@ -815,149 +959,184 @@ $users = mysqli_query($conn, $query);
     <!-- End Main Wrapper -->
 
     <?php include 'layouts/vendor-scripts.php'; ?>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+$(document).ready(function() {
+    // Initialize country code dropdowns
+    $('.country-code-select').select2({
+        width: '100%',
+        minimumResultsForSearch: 6,
+        dropdownParent: $('.phone-input-group').parent(),
+        templateResult: formatCountryCode,
+        templateSelection: formatCountryCode
+    });
+
+    // Format country code display
+    function formatCountryCode(state) {
+        if (!state.id) {
+            return state.text;
+        }
+        return state.text;
+    }
+
+    // Phone number validation - allow only numbers
+    function validatePhoneNumber(input) {
+        input.value = input.value.replace(/[^0-9]/g, '');
+    }
     
-</script>
-    <script>
- 
-
-    // Password toggle functionality
-    document.querySelectorAll('.toggle-passwords').forEach(icon => {
-        icon.addEventListener('click', function() {
-            const input = this.previousElementSibling;
-            const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
-            input.setAttribute('type', type);
-            this.classList.toggle('isax-eye');
-            this.classList.toggle('isax-eye-slash');
-        });
+    // Apply validation to all phone number inputs
+    $('body').on('input', '.phone-number-input', function() {
+        validatePhoneNumber(this);
     });
 
-    document.querySelectorAll('.toggle-passworda').forEach(icon => {
-        icon.addEventListener('click', function() {
-            const input = this.previousElementSibling;
-            const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
-            input.setAttribute('type', type);
-            this.classList.toggle('ti-eye');
-            this.classList.toggle('ti-eye-off');
-        });
+    // Add form phone validation
+    $('#add_phone_number').on('input', function() {
+        validatePhoneNumber(this);
+        const phone = $(this).val().trim();
+        const phonePattern = /^[0-9]{7,15}$/;
+        if (phone && !phonePattern.test(phone)) {
+            $('#add_phoneError').text('Mobile number must be 7-15 digits');
+        } else {
+            $('#add_phoneError').text('');
+        }
     });
 
-    // Initialize date range picker
-    $(document).ready(function() {
-        $('.bookingrange').daterangepicker({
-            startDate: moment().subtract(6, 'days'),
-            endDate: moment(),
-            opens: 'left',
-            ranges: {
-                'Today': [moment(), moment()],
-                'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
-                'Last 7 Days': [moment().subtract(6, 'days'), moment()],
-                'Last 30 Days': [moment().subtract(29, 'days'), moment()],
-               'This Year': [moment().startOf('year'), moment().endOf('year')],
+    // Edit form phone validation (dynamic for each modal)
+    $('body').on('input', '[id^="edit_phone_number_"]', function() {
+        validatePhoneNumber(this);
+        const userId = $(this).attr('id').replace('edit_phone_number_', '');
+        const phone = $(this).val().trim();
+        const phonePattern = /^[0-9]{7,15}$/;
+        if (phone && !phonePattern.test(phone)) {
+            $('#edit_phoneError_' + userId).text('Mobile number must be 7-15 digits');
+        } else {
+            $('#edit_phoneError_' + userId).text('');
+        }
+    });
+
+    // Date range picker initialization
+    $('.bookingrange').daterangepicker({
+        startDate: moment().subtract(6, 'days'),
+        endDate: moment(),
+        opens: 'left',
+        ranges: {
+            'Today': [moment(), moment()],
+            'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+            'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+            'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+           'This Year': [moment().startOf('year'), moment().endOf('year')],
         'Next Year': [moment().add(1, 'year').startOf('year'), moment().add(1, 'year').endOf('year')]
-            },
-            locale: {
-                format: 'YYYY-MM-DD'
+        },
+        locale: {
+            format: 'YYYY-MM-DD'
+        }
+    });
+
+    // Multi-delete functionality
+    const multiDeleteModal = new bootstrap.Modal(document.getElementById('multideleteModal'));
+    const deleteBtn = document.querySelector('.delete-multiple');
+
+    // Function to toggle Delete button visibility
+    function toggleDeleteBtn() {
+        const anyChecked = document.querySelectorAll('.user-checkbox:checked').length > 0;
+        deleteBtn.classList.toggle('d-none', !anyChecked);
+    }
+
+    // Delete button click — open modal directly
+    deleteBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+        const form = document.getElementById('multiDeleteForm');
+
+        // Remove old hidden inputs
+        form.querySelectorAll('input[name="user_ids[]"]').forEach(el => el.remove());
+
+        // Add selected user IDs as hidden inputs
+        checkboxes.forEach(checkbox => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'user_ids[]';
+            input.value = checkbox.value;
+            form.appendChild(input);
+        });
+
+        // Update modal text
+        const modalTitle = document.querySelector('#multideleteModal h6');
+        const modalMessage = document.querySelector('#multideleteModal p');
+
+        if (checkboxes.length === 1) {
+            modalTitle.textContent = 'Delete User';
+            modalMessage.textContent = 'Are you sure you want to delete the selected user?';
+        } else {
+            modalTitle.textContent = 'Delete Users';
+            modalMessage.textContent = `Are you sure you want to delete the ${checkboxes.length} selected users?`;
+        }
+
+        multiDeleteModal.show();
+    });
+
+    // Select All checkbox functionality
+    document.getElementById('select-all').addEventListener('change', function() {
+        document.querySelectorAll('.user-checkbox').forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+        toggleDeleteBtn(); // update Delete button visibility
+    });
+
+    // Individual checkbox change — works even for dynamically generated checkboxes
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('user-checkbox')) {
+            toggleDeleteBtn();
+        }
+    });
+
+    // Run once on page load (in case some checkboxes are pre-checked)
+    toggleDeleteBtn();
+
+    // Select All functionality for user filter
+    document.getElementById('select-all').addEventListener('change', function() {
+        document.querySelectorAll('.user-checkbox').forEach(checkbox => {
+            checkbox.checked = this.checked;
+        });
+    });
+
+    // Image upload preview
+    document.querySelectorAll('.image-sign').forEach(input => {
+        input.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                const avatarContainer = this.closest('.d-flex').querySelector('.avatar');
+                
+                reader.onload = function(event) {
+                    const img = avatarContainer.querySelector('img') || document.createElement('img');
+                    img.src = event.target.result;
+                    img.className = 'avatar avatar-xl';
+                    img.alt = 'Preview';
+                    
+                    if (!avatarContainer.querySelector('img')) {
+                        avatarContainer.innerHTML = '';
+                        avatarContainer.appendChild(img);
+                    }
+                }
+                
+                reader.readAsDataURL(file);
             }
         });
-
-        // Multi-delete functionality
-      const multiDeleteModal = new bootstrap.Modal(document.getElementById('multideleteModal'));
-const deleteBtn = document.querySelector('.delete-multiple');
-
-// Function to toggle Delete button visibility
-function toggleDeleteBtn() {
-    const anyChecked = document.querySelectorAll('.user-checkbox:checked').length > 0;
-    deleteBtn.classList.toggle('d-none', !anyChecked);
-}
-
-// Delete button click — open modal directly
-deleteBtn.addEventListener('click', function(e) {
-    e.preventDefault();
-    const checkboxes = document.querySelectorAll('.user-checkbox:checked');
-    const form = document.getElementById('multiDeleteForm');
-
-    // Remove old hidden inputs
-    form.querySelectorAll('input[name="user_ids[]"]').forEach(el => el.remove());
-
-    // Add selected user IDs as hidden inputs
-    checkboxes.forEach(checkbox => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'user_ids[]';
-        input.value = checkbox.value;
-        form.appendChild(input);
     });
 
-    // Update modal text
-    const modalTitle = document.querySelector('#multideleteModal h6');
-    const modalMessage = document.querySelector('#multideleteModal p');
-
-    if (checkboxes.length === 1) {
-        modalTitle.textContent = 'Delete User';
-        modalMessage.textContent = 'Are you sure you want to delete the selected user?';
-    } else {
-        modalTitle.textContent = 'Delete Users';
-        modalMessage.textContent = `Are you sure you want to delete the ${checkboxes.length} selected users?`;
-    }
-
-    multiDeleteModal.show();
-});
-
-// Select All checkbox functionality
-document.getElementById('select-all').addEventListener('change', function() {
-    document.querySelectorAll('.user-checkbox').forEach(checkbox => {
-        checkbox.checked = this.checked;
+    // Name validation - allow only text
+    $('#name').on('input', function () {
+        this.value = this.value.replace(/[0-9]/g, '');
     });
-    toggleDeleteBtn(); // update Delete button visibility
-});
-
-// Individual checkbox change — works even for dynamically generated checkboxes
-document.addEventListener('change', function(e) {
-    if (e.target.classList.contains('user-checkbox')) {
-        toggleDeleteBtn();
-    }
-});
-
-// Run once on page load (in case some checkboxes are pre-checked)
-toggleDeleteBtn();
-
-
-        // Select All functionality
-        document.getElementById('select-all').addEventListener('change', function() {
-            document.querySelectorAll('.user-checkbox').forEach(checkbox => {
-                checkbox.checked = this.checked;
-            });
-        });
-
-        // Image upload preview
-        document.querySelectorAll('.image-sign').forEach(input => {
-            input.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    const avatarContainer = this.closest('.d-flex').querySelector('.avatar');
-                    
-                    reader.onload = function(event) {
-                        const img = avatarContainer.querySelector('img') || document.createElement('img');
-                        img.src = event.target.result;
-                        img.className = 'avatar avatar-xl';
-                        img.alt = 'Preview';
-                        
-                        if (!avatarContainer.querySelector('img')) {
-                            avatarContainer.innerHTML = '';
-                            avatarContainer.appendChild(img);
-                        }
-                    }
-                    
-                    reader.readAsDataURL(file);
-                }
-            });
-        });
+    
+    $('body').on('input', '[id^="namee_"]', function () {
+        this.value = this.value.replace(/[0-9]/g, '');
     });
-    </script>
-    <script>
-        $(document).ready(function() {
+});
+</script>
+<script>
+    $(document).ready(function() {
     // Update dropdown button text when checkboxes change
     $('.status-checkbox').change(function() {
         const checkedBoxes = $('.status-checkbox:checked');
@@ -979,7 +1158,7 @@ toggleDeleteBtn();
         }
     });
 });
-    </script>
+</script>
 <script>
 // Add User Form Validation
 document.querySelector('#addUserForm').addEventListener('submit', async function (e) {
@@ -989,7 +1168,6 @@ document.querySelector('#addUserForm').addEventListener('submit', async function
         this.submit(); // only submit if valid
     }
 });
-
 
 function resetAddFormErrors() {
     document.querySelectorAll('.error-text').forEach(el => el.textContent = '');
@@ -1013,12 +1191,9 @@ async function validateEditUserForm(form) {
     const name = form.querySelector('input[name="name"]').value.trim();
     const email = form.querySelector('input[name="email"]').value.trim();
     const password = form.querySelector('input[name="password"]').value;
-     const phone = form.querySelector('input[name="phone_number"]').value.trim();
+    const phone = form.querySelector('input[name="phone_number"]').value.trim();
     const confirmPassword = form.querySelector('input[name="confirm_password"]').value;
     const role = form.querySelector('select[name="role_id"]').value;
-  
-
-    
 
     // Name validation
     if (name === '') {
@@ -1035,7 +1210,7 @@ async function validateEditUserForm(form) {
         document.getElementById(`edit_emailError_${userId}`).textContent = 'Invalid email format';
         isValid = false;
     } else {
-        // 🔑 Check duplicate email (ignore current user)
+        // Check duplicate email (ignore current user)
         const res = await fetch('process/check_duplicate_user_email.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1074,24 +1249,23 @@ async function validateEditUserForm(form) {
     // Phone validation is now optional, so we remove the required validation
     // Only validate format if phone is provided
     if (phone !== '') {
-        const phonePattern = /^[0-9]{10}$/;
+        const phonePattern = /^[0-9]{7,15}$/;
         if (!phonePattern.test(phone)) {
-            document.getElementById(`edit_phoneError_${userId}`).textContent = 'Phone must be 10 digits';
+            document.getElementById(`edit_phoneError_${userId}`).textContent = 'Phone must be 7-15 digits';
             isValid = false;
         }
     }
 
-    return isValid
+    return isValid;
 }
 
- function resetEditFormErrors(userId) {
+function resetEditFormErrors(userId) {
     document.getElementById(`edit_nameError_${userId}`).textContent = '';
     document.getElementById(`edit_emailError_${userId}`).textContent = '';
     document.getElementById(`edit_passwordError_${userId}`).textContent = '';
     document.getElementById(`edit_cpasswordError_${userId}`).textContent = '';
     document.getElementById(`edit_roleError_${userId}`).textContent = '';
     document.getElementById(`edit_phoneError_${userId}`).textContent = '';
-    
 }
 
 // Password toggle functionality (using event delegation)
@@ -1141,26 +1315,6 @@ document.addEventListener('hidden.bs.modal', function(event) {
 });
 </script>
 <script>
-    $(document).ready(function () {
-   
-
-    // === Allow only text (no digits) ===
-    $('#name').on('input', function () {
-        this.value = this.value.replace(/[0-9]/g, '');
-    });
-    $('#phone_number').on('input', function () {
-        this.value = this.value.replace(/[^0-9.]/g, '');
-    });
-   $('#namee').on('input', function () {
-        this.value = this.value.replace(/[0-9]/g, '');
-    });
-    $('#phone_numbere').on('input', function () {
-        this.value = this.value.replace(/[^0-9.]/g, '');
-    });
-});
-
-</script>
-<script>
 function resetAddFormErrors() {
     document.querySelectorAll('.error-text').forEach(el => el.textContent = '');
 }
@@ -1191,7 +1345,7 @@ async function validateAddUserForm() {
         document.getElementById('add_emailError').textContent = 'Invalid email format';
         isValid = false;
     } else {
-        // 🔑 AJAX check for duplicate email
+        // AJAX check for duplicate email
         const res = await fetch('process/check_duplicate_user_email.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -1205,9 +1359,9 @@ async function validateAddUserForm() {
     }
     // Phone validation (now optional, only validate format if provided)
     if (phone !== '') {
-        const phonePattern = /^[0-9]{10}$/;
+        const phonePattern = /^[0-9]{7,15}$/;
         if (!phonePattern.test(phone)) {
-            document.getElementById('add_phoneError').textContent = 'Phone must be 10 digits';
+            document.getElementById('add_phoneError').textContent = 'Phone must be 7-15 digits';
             isValid = false;
         }
     }
@@ -1240,7 +1394,7 @@ async function validateAddUserForm() {
     return isValid;
 }
 
-// -------- Real-time Validation --------
+// Real-time Email Validation
 document.querySelector('#addUserForm input[name="email"]').addEventListener('input', function() {
     const emailPattern = /^[^ ]+@[^ ]+\.[a-z]{2,}$/;
     if (!this.value.trim()) {
@@ -1254,11 +1408,11 @@ document.querySelector('#addUserForm input[name="email"]').addEventListener('inp
 
 // Phone real-time validation (now optional)
 document.querySelector('#addUserForm input[name="phone_number"]').addEventListener('input', function() {
-    const phonePattern = /^[0-9]{10}$/;
+    const phonePattern = /^[0-9]{7,15}$/;
     if (this.value.trim() === '') {
         document.getElementById('add_phoneError').textContent = '';
     } else if (!phonePattern.test(this.value.trim())) {
-        document.getElementById('add_phoneError').textContent = 'Phone must be 10 digits';
+        document.getElementById('add_phoneError').textContent = 'Phone must be 7-15 digits';
     } else {
         document.getElementById('add_phoneError').textContent = '';
     }
@@ -1305,10 +1459,11 @@ $('#add_image').change(function() {
 });
 
 // Edit Modal
-$('#edit_image').change(function() {
+$('body').on('change', '[id^="edit_image_"]', function() {
     const file = this.files[0];
+    const userId = $(this).attr('id').replace('edit_image_', '');
     if (file) {
-        if (!validateImage(file, '#edit_image_error', '#edit_image_preview')) {
+        if (!validateImage(file, '#edit_image_error_' + userId, '#edit_image_preview_' + userId)) {
             $(this).val('');
         }
     }
@@ -1345,11 +1500,11 @@ document.querySelectorAll('.edit-user-form').forEach(form => {
         }
 
         phoneInput.addEventListener('input', function() {
-            const phonePattern = /^[0-9]{10}$/;
+            const phonePattern = /^[0-9]{7,15}$/;
             if (!this.value.trim()) {
                 phoneErrorEl.textContent = '';
             } else if (!phonePattern.test(this.value.trim())) {
-                phoneErrorEl.textContent = 'Phone must be 10 digits';
+                phoneErrorEl.textContent = 'Phone must be 7-15 digits';
             } else {
                 phoneErrorEl.textContent = '';
             }
@@ -1466,7 +1621,6 @@ function updateUserDropdownText(limit = 3) {
     });
 });
 </script>
-
 
 <?php if (isset($_GET['open']) && $_GET['open'] === 'add_user') { ?>
 <script>

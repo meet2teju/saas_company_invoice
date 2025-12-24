@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name        = mysqli_real_escape_string($conn, $_POST['name']);
     $email       = mysqli_real_escape_string($conn, $_POST['email']);
     $phone       = mysqli_real_escape_string($conn, $_POST['phone_number']);
+     $mobile_country_code = mysqli_real_escape_string($conn, $_POST['mobile_country_code']);
     $role_id     = mysqli_real_escape_string($conn, $_POST['role_id']);
     $status      = mysqli_real_escape_string($conn, $_POST['status']);
 
@@ -39,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 name = '$name', 
                 email = '$email', 
                 phone_number = '$phone', 
+                mobile_country_code = '$mobile_country_code',
                 role_id = '$role_id', 
                 status = '$status'";
 

@@ -196,13 +196,13 @@ if ($result && mysqli_num_rows($result) > 0) {
 
                                                 <div class="col-lg-4 col-md-6">
                                                     <div class="mb-3">
-                                                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                                                        <label class="form-label">Personal Name <span class="text-danger">*</span></label>
                                                         <input type="text" name="name" id="name" value="<?php echo $row['name']; ?>" class="form-control">
                                                     </div>
                                                 </div><!-- end col -->
                                                 <div class="col-lg-4 col-md-6">
                                                     <div class="mb-3">
-                                                        <label class="form-label">Email <span class="text-danger">*</span></label>
+                                                        <label class="form-label">Personal Email <span class="text-danger">*</span></label>
                                                         <input type="text"  name="email" value="<?php echo $row['email']; ?>" class="form-control">
                                                            <span class="text-danger" id="emailError"></span>
 
@@ -210,7 +210,7 @@ if ($result && mysqli_num_rows($result) > 0) {
                                                 </div><!-- end col -->
                                                 <div class="col-lg-4 col-md-6">
                                                     <div class="mb-3">
-                                                        <label class="form-label">Mobile Number </label>
+                                                        <label class="form-label">Personal Mobile Number </label>
                                                         <div class="phone-input-group">
                                                             <select class="country-code-select select" name="mobile_country_code" id="mobile_country_code">
                                                                 <?php 
@@ -224,7 +224,7 @@ if ($result && mysqli_num_rows($result) > 0) {
                                                                     $selected = ($phonecode === $phone_country_code) ? 'selected' : '';
                                                                 ?>
                                                                     <option value="<?= $phonecode ?>" <?= $selected ?>>
-                                                                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
+                                                                        <?= $phonecode ?>
                                                                     </option>
                                                                 <?php endwhile; ?>
                                                             </select>
@@ -241,7 +241,7 @@ if ($result && mysqli_num_rows($result) > 0) {
                         
                                                 <div class="col-lg-4 col-md-6">
                                                     <div class="mb-3">
-                                                        <label class="form-label">DOB</label>
+                                                        <label class="form-label">Personal DOB</label>
                                                         <div class="input-group position-relative mb-3">
                                                         <input type="date" name="dob" value="<?php echo isset($row['dob']) ? htmlspecialchars($row['dob']) : ''; ?>" class="form-control rounded-end">                                                            <span class="input-icon-addon fs-16 text-gray-9">
 																<i class="isax isax-calendar-2"></i>
@@ -254,7 +254,7 @@ if ($result && mysqli_num_rows($result) > 0) {
                                         <div class="border-bottom mb-3">
                                             <div class="d-flex align-items-center mb-3">
                                                 <span class="bg-dark avatar avatar-sm me-2 flex-shrink-0"><i class="isax isax-info-circle fs-14"></i></span>
-                                                <h6 class="fs-16 fw-semibold mb-0">Address Information</h6>
+                                                <h6 class="fs-16 fw-semibold mb-0">Personal Address Information</h6>
                                             </div>
 
                                             <!-- start row -->

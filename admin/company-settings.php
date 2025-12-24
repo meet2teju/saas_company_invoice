@@ -6,6 +6,12 @@ include '../config/config.php';
 $org_id = $_SESSION['org_id'] ?? 1;
 $user_id = $_SESSION['crm_user_id'] ?? 0;
 
+// CORRECTED: Use the same session variable as in your reference code
+$user_role_id = $_SESSION['role_id'] ?? 0; // Changed from crm_user_role_id to role_id
+
+// Check if user is admin (role_id = 1)
+$is_admin = ($user_role_id == 1);
+
 // Get company information for the current organization
 $company_info = [];
 $company_query = "SELECT * FROM company_info WHERE org_id = '$org_id' LIMIT 1";
@@ -127,6 +133,13 @@ if (!empty($company_info['state_id'])) {
     .select2-container .select2-selection--single {
         height: 38px !important;
     }
+    
+    /* Style for readonly/disabled fields */
+    .readonly-field {
+        background-color: #f8f9fa !important;
+        cursor: not-allowed !important;
+        opacity: 0.8;
+    }
 </style>
 </head>
 
@@ -159,6 +172,12 @@ if (!empty($company_info['state_id'])) {
                                     <div class="alert alert-danger"><?= $_SESSION['error']; unset($_SESSION['error']); ?></div>
                                 <?php endif; ?>
                                 
+                                <?php if (!$is_admin): ?>
+                                    <div class="alert alert-warning">
+                                        <i class="fa fa-lock me-2"></i>You have read-only access. Only administrators can edit company information.
+                                    </div>
+                                <?php endif; ?>
+                                
                                 <form id="companyForm" action="process/action_company_profile.php" method="POST" enctype="multipart/form-data">
                                     <input type="hidden" name="id" value="<?= !empty($company_info['id']) ? $company_info['id'] : '' ?>">
                                     <input type="hidden" name="org_id" value="<?= $org_id ?>">
@@ -178,24 +197,28 @@ if (!empty($company_info['state_id'])) {
                                                     <label class="form-label">
                                                         Company Name <span class="text-danger">*</span>
                                                     </label>
-                                                    <input type="text" name="name" id="name" class="form-control" value="<?= !empty($company_info['name']) ? $company_info['name'] : '' ?>">
+                                                    <input type="text" name="name" id="name" class="form-control <?= !$is_admin ? 'readonly-field' : '' ?>" 
+                                                           value="<?= !empty($company_info['name']) ? $company_info['name'] : '' ?>" 
+                                                           <?= !$is_admin ? 'readonly' : '' ?>>
                                                     <span id="company_name_error" class="text-danger error-text"></span>
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-xl-6 col-lg-6 col-md-4">
                                                 <div class="mb-3">
                                                     <label class="form-label">
-                                                        Email Address <span class="text-danger">*</span>
+                                                      Company Email Address <span class="text-danger">*</span>
                                                     </label>
-                                                    <input type="email" id="email" name="email" class="form-control" value="<?= !empty($company_info['email']) ? $company_info['email'] : '' ?>">
+                                                    <input type="email" id="email" name="email" class="form-control <?= !$is_admin ? 'readonly-field' : '' ?>" 
+                                                           value="<?= !empty($company_info['email']) ? $company_info['email'] : '' ?>" 
+                                                           <?= !$is_admin ? 'readonly' : '' ?>>
                                                     <span id="email_error" class="text-danger error-text"></span>
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
     <div class="mb-3">
-        <label class="form-label">Mobile Number</label>
+        <label class="form-label">Company Mobile Number</label>
         <div class="phone-input-group">
-            <select class="country-code-select select" name="mobile_country_code" id="mobile_country_code">
+            <select class="country-code-select select" name="mobile_country_code" id="mobile_country_code" <?= !$is_admin ? 'disabled' : '' ?>>
                 <?php 
                 $mobile_country_code = $company_info['mobile_country_code'] ?? '+91';
                 // Reset pointer for country codes
@@ -208,14 +231,16 @@ if (!empty($company_info['state_id'])) {
                     $selected = ($phonecode == $mobile_country_code) ? 'selected' : '';
                 ?>
                     <option value="<?= $phonecode ?>" <?= $selected ?> data-country="<?= $country['iso2'] ?>">
-                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
+                        <?= $phonecode ?>
                     </option>
                 <?php endwhile; ?>
             </select>
-            <input type="text" class="form-control phone-number-input" name="mobile_number" id="mobile_number" 
+            <input type="text" class="form-control phone-number-input <?= !$is_admin ? 'readonly-field' : '' ?>" 
+                   name="mobile_number" id="mobile_number" 
                    value="<?= !empty($company_info['mobile_number']) ? $company_info['mobile_number'] : '' ?>" 
                    placeholder="Mobile Number" 
-                   maxlength="15">
+                   maxlength="15"
+                   <?= !$is_admin ? 'readonly' : '' ?>>
         </div>
         <span id="mobile_number_error" class="text-danger error-text"></span>
     </div>
@@ -223,26 +248,30 @@ if (!empty($company_info['state_id'])) {
                                             <div class="col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">
-                                                        PAN Number 
+                                                        Company PAN Number 
                                                     </label>
-                                                    <input type="text" name="pan_number" id="pan_number" class="form-control" value="<?= !empty($company_info['pan_number']) ? $company_info['pan_number'] : '' ?>">
+                                                    <input type="text" name="pan_number" id="pan_number" class="form-control <?= !$is_admin ? 'readonly-field' : '' ?>" 
+                                                           value="<?= !empty($company_info['pan_number']) ? $company_info['pan_number'] : '' ?>" 
+                                                           <?= !$is_admin ? 'readonly' : '' ?>>
                                                 </div>
                                             </div><!-- end col -->
                                              <div class="col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">
-                                                        GST Number 
+                                                       Company GST Number 
                                                     </label>
-                                                    <input type="text" id="gst_number" name="gst_number" class="form-control" value="<?= !empty($company_info['gst_number']) ? $company_info['gst_number'] : '' ?>">
+                                                    <input type="text" id="gst_number" name="gst_number" class="form-control <?= !$is_admin ? 'readonly-field' : '' ?>" 
+                                                           value="<?= !empty($company_info['gst_number']) ? $company_info['gst_number'] : '' ?>" 
+                                                           <?= !$is_admin ? 'readonly' : '' ?>>
                                                 </div>
                                            </div>
                                             <!-- end col -->
                                             <div class="col-md-6">
     <div class="mb-3">
         <label class="form-label">
-            Currency<span class="text-danger">*</span>
+           Company Currency<span class="text-danger">*</span>
         </label>
-        <select class="select2" id="currency" name="currency_symbol_id">
+        <select class="select2" id="currency" name="currency_symbol_id" <?= !$is_admin ? 'disabled' : '' ?>>
             <option value="">Select Currency</option>
             <?php 
             mysqli_data_seek($currency_result, 0);
@@ -272,16 +301,17 @@ if (!empty($company_info['state_id'])) {
                                                 <div class="row gy-3 align-items-center">
                                                     <div class="col-lg-6">
                                                         <div class="logo-info">
-                                                            <h6 class="fs-14 fw-medium mb-1">Logo</h6>
+                                                            <h6 class="fs-14 fw-medium mb-1">Company Logo</h6>
                                                             <p class="fs-12">Upload Icon of your Company</p>
                                                         </div>
                                                     </div>
                                                     <div class="col-lg-6">
+                                                        <?php if ($is_admin): ?>
                                                         <div class="profile-pic-upload mb-0 justify-content-lg-end">
                                                             <div class="new-employee-field">
                                                                 <div class="mb-0">
                                                                     <div class="image-upload mb-1">
-                                                                        <input type="file" id="company_logo" name="company_logo">
+                                                                        <input type="file" id="company_logo" name="company_logo" <?= !$is_admin ? 'disabled' : '' ?>>
                                                                         <div class="image-uploads">
                                                                              <h4 style="color: #f0f0f0;"><i class="ti ti-upload me-1"></i>Change Photo</h4>
                                                                         </div>
@@ -291,6 +321,11 @@ if (!empty($company_info['state_id'])) {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        <?php else: ?>
+                                                        <div class="text-muted fs-12">
+                                                            <i class="fa fa-lock me-1"></i>Admin access required
+                                                        </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                             </div><!-- end col -->
@@ -314,16 +349,17 @@ if (!empty($company_info['state_id'])) {
                                                 <div class="row gy-3 align-items-center">
                                                     <div class="col-lg-6">
                                                         <div class="logo-info">
-                                                            <h6 class="fs-14 fw-medium mb-1">Mini Logo</h6>
+                                                            <h6 class="fs-14 fw-medium mb-1">Company Mini Logo</h6>
                                                             <p class="fs-12">Upload Logo of your company </p>
                                                         </div>
                                                     </div>
                                                     <div class="col-lg-6">
+                                                        <?php if ($is_admin): ?>
                                                         <div class="profile-pic-upload mb-0 justify-content-lg-end">
                                                             <div class="new-employee-field">
                                                                 <div class="mb-0">
                                                                     <div class="image-upload mb-1">
-                                                                        <input type="file" id="mini_logo" name="mini_logo">
+                                                                        <input type="file" id="mini_logo" name="mini_logo" <?= !$is_admin ? 'disabled' : '' ?>>
                                                                         <div class="image-uploads">
                                                                              <h4 style="color: #f0f0f0;"><i class="ti ti-upload me-1"></i>Change Photo</h4>
                                                                       
@@ -333,6 +369,11 @@ if (!empty($company_info['state_id'])) {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        <?php else: ?>
+                                                        <div class="text-muted fs-12">
+                                                            <i class="fa fa-lock me-1"></i>Admin access required
+                                                        </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                             </div><!-- end col -->
@@ -354,16 +395,17 @@ if (!empty($company_info['state_id'])) {
                                                 <div class="row gy-3 align-items-center">
                                                     <div class="col-lg-6">
                                                         <div class="logo-info">
-                                                            <h6 class="fs-14 fw-medium mb-1">Invoice Logo</h6>
+                                                            <h6 class="fs-14 fw-medium mb-1">Company Invoice Logo</h6>
                                                             <p class="fs-12">Upload Logo of your company </p>
                                                         </div>
                                                     </div>
                                                     <div class="col-lg-6">
+                                                        <?php if ($is_admin): ?>
                                                         <div class="profile-pic-upload mb-0 justify-content-lg-end">
                                                             <div class="new-employee-field">
                                                                 <div class="mb-0">
                                                                     <div class="image-upload mb-1">
-                                                                        <input type="file" id="invoice_logo" name="invoice_logo">
+                                                                        <input type="file" id="invoice_logo" name="invoice_logo" <?= !$is_admin ? 'disabled' : '' ?>>
                                                                         <div class="image-uploads">
                                                                              <h4 style="color: #f0f0f0;"><i class="ti ti-upload me-1"></i>Change Photo</h4>
                                                                         </div>
@@ -373,6 +415,11 @@ if (!empty($company_info['state_id'])) {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        <?php else: ?>
+                                                        <div class="text-muted fs-12">
+                                                            <i class="fa fa-lock me-1"></i>Admin access required
+                                                        </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                             </div><!-- end col -->
@@ -393,7 +440,7 @@ if (!empty($company_info['state_id'])) {
                                         <div class="card-title-head">
                                             <h6 class="fs-16 fw-bold mb-3 d-flex align-items-center">
                                                 <span class="fs-16 me-2 p-1 rounded bg-dark text-white d-inline-flex align-items-center justify-content-center"><i class="isax isax-map"></i></span> 
-                                                Address Information
+                                                Company Address Information
                                             </h6>
                                         </div>
 
@@ -404,7 +451,9 @@ if (!empty($company_info['state_id'])) {
                                                     <label class="form-label">
                                                         Address 
                                                     </label>
-                                                    <input type="text" class="form-control" name="address" value="<?= !empty($company_info['address']) ? $company_info['address'] : '' ?>">
+                                                    <input type="text" class="form-control <?= !$is_admin ? 'readonly-field' : '' ?>" 
+                                                           name="address" value="<?= !empty($company_info['address']) ? $company_info['address'] : '' ?>"
+                                                           <?= !$is_admin ? 'readonly' : '' ?>>
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
@@ -412,7 +461,7 @@ if (!empty($company_info['state_id'])) {
                                                     <label class="form-label">
                                                         Country 
                                                     </label>
-                                                   <select class="select2" id="country" name="country_id" onchange="getStates(this.value, 'state')">
+                                                   <select class="select2" id="country" name="country_id" onchange="getStates(this.value, 'state')" <?= !$is_admin ? 'disabled' : '' ?>>
                                                         <option value="">Select Country</option>
                                                         <?php 
                                                         mysqli_data_seek($country_result, 0);
@@ -428,7 +477,7 @@ if (!empty($company_info['state_id'])) {
                                                     <label class="form-label">
                                                         State 
                                                     </label>
-                                                    <select class="select2" id="state" name="state_id" onchange="getCities(this.value, 'city')">
+                                                    <select class="select2" id="state" name="state_id" onchange="getCities(this.value, 'city')" <?= !$is_admin ? 'disabled' : '' ?>>
                                                         <option value="">Select State</option>
                                                         <?php foreach ($states as $state): ?>
                                                             <?php $selected = (!empty($company_info['state_id']) && $company_info['state_id'] == $state['id']) ? 'selected' : ''; ?>
@@ -442,7 +491,7 @@ if (!empty($company_info['state_id'])) {
                                                     <label class="form-label">
                                                         City 
                                                     </label>
-                                                    <select class="select2" id="city" name="city_id">
+                                                    <select class="select2" id="city" name="city_id" <?= !$is_admin ? 'disabled' : '' ?>>
                                                         <option value="">Select City</option>
                                                         <?php foreach ($cities as $city): ?>
                                                             <?php $selected = (!empty($company_info['city_id']) && $company_info['city_id'] == $city['id']) ? 'selected' : ''; ?>
@@ -456,7 +505,9 @@ if (!empty($company_info['state_id'])) {
                                                     <label class="form-label">
                                                         Postal Code
                                                     </label>
-                                                    <input type="text" class="form-control" name="zipcode" value="<?= !empty($company_info['zipcode']) ? $company_info['zipcode'] : '' ?>">
+                                                    <input type="text" class="form-control <?= !$is_admin ? 'readonly-field' : '' ?>" 
+                                                           name="zipcode" value="<?= !empty($company_info['zipcode']) ? $company_info['zipcode'] : '' ?>"
+                                                           <?= !$is_admin ? 'readonly' : '' ?>>
                      
                                                 </div>
                                             </div><!-- end col -->
@@ -466,7 +517,11 @@ if (!empty($company_info['state_id'])) {
                                     
                                     <div class="d-flex align-items-center justify-content-between settings-bottom-btn mt-0">
                                         <button type="button" class="btn btn-outline-white me-2" id="cancelBtn">Cancel</button>
+                                        <?php if ($is_admin): ?>
                                         <button type="submit" name="submit" class="btn btn-primary">Save Changes</button>
+                                        <?php else: ?>
+                                        <button type="button" class="btn btn-secondary" disabled><i class="fa fa-lock me-1"></i>Read Only</button>
+                                        <?php endif; ?>
                                     </div>
                                 </form>
                             </div><!-- end col -->
@@ -495,7 +550,8 @@ if (!empty($company_info['state_id'])) {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
 $(document).ready(function () {
-    // Initialize country code dropdown
+    // Initialize country code dropdown only if user is admin
+    <?php if ($is_admin): ?>
     $('.country-code-select').select2({
         width: '100%',
         minimumResultsForSearch: 6,
@@ -503,10 +559,27 @@ $(document).ready(function () {
         templateResult: formatCountryCode,
         templateSelection: formatCountryCode
     });
+    <?php else: ?>
+    // For non-admin users, initialize select2 but keep it disabled
+    $('.country-code-select').select2({
+        width: '100%',
+        minimumResultsForSearch: 6,
+        dropdownParent: $('.phone-input-group').parent(),
+        templateResult: formatCountryCode,
+        templateSelection: formatCountryCode,
+        disabled: true
+    });
+    // Initialize other select2 fields for non-admin users
+    $('.select2').select2({
+        disabled: true
+    });
+    <?php endif; ?>
     
     $("#cancelBtn").on("click", function () {
         window.location.href = 'admin-dashboard.php';
     });
+    
+    <?php if ($is_admin): ?>
     $("#companyForm").on("submit", function (e) {
         let isValid = true;
 
@@ -588,6 +661,7 @@ $(document).ready(function () {
     $('#mobile_number').on('input', function () {
         this.value = this.value.replace(/[^0-9]/g, '');
     });
+    <?php endif; ?>
 });
 
 // Format country code display
@@ -598,6 +672,7 @@ function formatCountryCode(state) {
     return state.text;
 }
 
+<?php if ($is_admin): ?>
 function getStates(countryId, targetDropdown) {
     if (!countryId) {
         $('#' + targetDropdown).html('<option value="">Select State</option>').trigger('change');
@@ -636,8 +711,10 @@ function getCities(stateId, targetDropdown) {
         }
     });
 }
+<?php endif; ?>
 </script>
 <script>
+<?php if ($is_admin): ?>
 function validateImage(inputId, errorId, allowedTypes, msg) {
     const fileInput = document.getElementById(inputId);
     const errorSpan = document.getElementById(errorId);
@@ -660,6 +737,7 @@ document.getElementById("mini_logo")
 
 document.getElementById("invoice_logo")
     .addEventListener("change", () => validateImage("invoice_logo", "invoice_logo_error", ["image/jpeg", "image/png"], "Only JPG/PNG allowed"));
+<?php endif; ?>
 </script>
 </body>
 </html>

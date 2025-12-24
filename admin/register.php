@@ -5,8 +5,33 @@
 
 <head>
 	<?php include 'layouts/title-meta.php'; ?> 
-
 	<?php include 'layouts/head-css.php'; ?>
+	
+	<!-- Minimal script to fix confirm password toggle only -->
+	<script>
+	document.addEventListener('DOMContentLoaded', function() {
+		// Only target the confirm password field
+		const confirmPasswordToggle = document.querySelector('.toggle-passwords');
+		const confirmPasswordInput = document.getElementById('cpassword');
+		
+		if (confirmPasswordToggle && confirmPasswordInput) {
+			confirmPasswordToggle.addEventListener('click', function() {
+				// Toggle input type
+				const type = confirmPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+				confirmPasswordInput.setAttribute('type', type);
+				
+				// Toggle eye icon (assuming same logic as existing password toggle)
+				if (type === 'password') {
+					confirmPasswordToggle.classList.remove('isax-eye');
+					confirmPasswordToggle.classList.add('isax-eye-slash');
+				} else {
+					confirmPasswordToggle.classList.remove('isax-eye-slash');
+					confirmPasswordToggle.classList.add('isax-eye');
+				}
+			});
+		}
+	});
+	</script>
 </head>
 
 <body class="bg-white">
@@ -70,8 +95,8 @@
 										<span class="input-group-text border-end-0">
 											<i class="isax isax-lock"></i>
 										</span>
-										<span class="isax toggle-password isax-eye-slash"></span>
 										<input type="password" name="password" id="password" value="<?= htmlspecialchars($old['password'] ?? '') ?>" class="pass-input form-control border-start-0 ps-0" placeholder="****************">
+										<span class="isax toggle-password isax-eye-slash" style="cursor: pointer; margin-left: 10px; align-self: center;"></span>
 									</div>
 									<span id="password-error" class="text-danger small d-block mt-1"><?= $errors['password'] ?? '' ?></span>
 								</div>
@@ -83,8 +108,8 @@
 										<span class="input-group-text border-end-0">
 											<i class="isax isax-lock"></i>
 										</span>
-										<span class="isax toggle-passwords isax-eye-slash"></span>
 										<input type="password" name="cpassword" id="cpassword" value="<?= htmlspecialchars($old['cpassword'] ?? '') ?>" class="pass-input form-control border-start-0 ps-0" placeholder="****************">
+										<span class="isax toggle-passwords isax-eye-slash" style="cursor: pointer; margin-left: 10px; align-self: center;"></span>
 									</div>
 									<span id="cpassword-error" class="text-danger small d-block mt-1"><?= $errors['cpassword'] ?? '' ?></span>
 								</div>
