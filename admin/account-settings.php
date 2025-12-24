@@ -1,9 +1,6 @@
 <?php include 'layouts/session.php'; ?>
 <?php
-// session_start();
 include '../config/config.php';
-// print_r($_SESSION);
-// $login_user_id = $_SESSION['crm_admin']['crm_user_id'];
 $login_user_id = $_SESSION['crm_user_id'];
 
 $query = "SELECT * FROM login WHERE id='$login_user_id'";
@@ -11,12 +8,23 @@ $result = mysqli_query($conn, $query);
 
 $country_result = mysqli_query($conn, "SELECT * FROM countries");
 
+// Get country codes from database
+$country_codes_query = "SELECT id, name, phonecode FROM countries ORDER BY name";
+$country_codes_result = mysqli_query($conn, $country_codes_query);
+
 if ($result && mysqli_num_rows($result) > 0) {
     $row = mysqli_fetch_assoc($result);
     $country_id = $row['country'];
     $state_id = $row['state'];
     $city_id = $row['city'];
-
+    
+    // Get phone number and country code directly from separate fields
+    $phone_country_code = $row['mobile_country_code'] ?? '+91'; // Default if empty
+    $phone_number_only = $row['phone_number'] ?? ''; // Phone number without country code
+    
+    // Clean phone number - remove any non-digit characters
+    $phone_number_only = preg_replace('/[^0-9]/', '', $phone_number_only);
+    
     $state_result = mysqli_query($conn, "SELECT * FROM states WHERE country_id = '$country_id'");
     $city_result = mysqli_query($conn, "SELECT * FROM cities WHERE state_id = '$state_id'");
 
@@ -26,8 +34,84 @@ if ($result && mysqli_num_rows($result) > 0) {
 
 <head>
 	<?php include 'layouts/title-meta.php'; ?> 
-
 	<?php include 'layouts/head-css.php'; ?>
+    <style>
+    /* Add the same phone input group styles from add customer form */
+    .phone-input-group {
+        display: flex;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        overflow: hidden;
+        background: white;
+        width: 100%;
+    }
+    .phone-input-group:focus-within {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Country code select container */
+    .country-code-select {
+        width: 120px !important;
+        min-width: 120px;
+        border: none;
+        border-right: 1px solid #dee2e6;
+        border-radius: 0;
+        background: #f8f9fa;
+        flex-shrink: 0;
+    }
+    
+    /* Select2 customization for country code */
+    .country-code-select + .select2 {
+        width: 120px !important;
+        min-width: 120px;
+        flex-shrink: 0;
+    }
+    
+    .country-code-select + .select2 .select2-selection {
+        border: none !important;
+        background: #f8f9fa !important;
+        height: 100% !important;
+        border-radius: 0 !important;
+        border-right: 1px solid #dee2e6 !important;
+    }
+    
+    .country-code-select + .select2 .select2-selection__rendered {
+        line-height: 38px !important;
+        padding-left: 12px !important;
+        padding-right: 25px !important;
+        color: #495057 !important;
+    }
+    
+    .country-code-select + .select2 .select2-selection__arrow {
+        height: 38px !important;
+        right: 5px !important;
+    }
+    
+    /* Phone number input */
+    .phone-number-input {
+        border: none;
+        border-radius: 0;
+        flex: 1;
+        min-width: 0; /* Important for flexbox shrinking */
+        padding-left: 12px;
+    }
+    
+    .phone-number-input:focus {
+        outline: none;
+        box-shadow: none;
+        border-color: transparent;
+    }
+    
+    .select2-container--open .select2-dropdown {
+        z-index: 1060;
+    }
+    
+    /* Ensure proper alignment */
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+    }
+</style>
 </head>
 
 <body>
@@ -127,12 +211,31 @@ if ($result && mysqli_num_rows($result) > 0) {
                                                 <div class="col-lg-4 col-md-6">
                                                     <div class="mb-3">
                                                         <label class="form-label">Mobile Number </label>
-                                            <input type="tel" name="phone_number" 
-                                                value="<?php echo $row['phone_number']; ?>" 
-                                                class="form-control" 
-                                                maxlength="10" 
-                                                pattern="[0-9]{10}" 
-                                                title="Enter exactly 10 digits">
+                                                        <div class="phone-input-group">
+                                                            <select class="country-code-select select" name="mobile_country_code" id="mobile_country_code">
+                                                                <?php 
+                                                                // Reset pointer for country codes
+                                                                mysqli_data_seek($country_codes_result, 0);
+                                                                while ($country = mysqli_fetch_assoc($country_codes_result)): 
+                                                                    $phonecode = $country['phonecode'];
+                                                                    if (!empty($phonecode) && $phonecode[0] !== '+') {
+                                                                        $phonecode = '+' . $phonecode;
+                                                                    }
+                                                                    $selected = ($phonecode === $phone_country_code) ? 'selected' : '';
+                                                                ?>
+                                                                    <option value="<?= $phonecode ?>" <?= $selected ?>>
+                                                                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
+                                                                    </option>
+                                                                <?php endwhile; ?>
+                                                            </select>
+                                                            <input type="text" class="form-control phone-number-input" 
+                                                                name="phone_number" 
+                                                                id="phone_number" 
+                                                                value="<?php echo htmlspecialchars($phone_number_only); ?>"
+                                                                placeholder="Mobile Number"
+                                                                maxlength="15">
+                                                        </div>
+                                                        <small class="text-muted">Enter mobile number without country code</small>
                                                     </div>
                                                 </div><!-- end col -->
                         
@@ -167,7 +270,9 @@ if ($result && mysqli_num_rows($result) > 0) {
                                                         <label class="form-label">Country</label>
                                                         <select class="form-control select2" id="country" onchange="myfuncountry(this.value)" name="country">
                                                               <option value="">Select Country</option>
-                                                             <?php while ($country = mysqli_fetch_assoc($country_result)) {
+                                                             <?php 
+                                                             mysqli_data_seek($country_result, 0);
+                                                             while ($country = mysqli_fetch_assoc($country_result)) {
                                                                 $selected = ($country['id'] == $country_id) ? 'selected' : '';
                                                                 echo "<option value='{$country['id']}' $selected>{$country['name']}</option>";
                                                             } ?>
@@ -262,10 +367,19 @@ if ($result && mysqli_num_rows($result) > 0) {
 	<?php include 'layouts/vendor-scripts.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<!-- <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script> -->
 <script>
     $(document).ready(function () {
-        // $('.select2').select2();
+        // Initialize country code dropdown
+        $('.country-code-select').select2({
+            width: '100%',
+            minimumResultsForSearch: 6,
+            dropdownParent: $('.phone-input-group').parent(),
+            templateResult: formatCountryCode,
+            templateSelection: formatCountryCode
+        });
+
+        // Initialize other select2
+        $('.select2').select2();
     });
 
     function myfuncountry(datavalue) {
@@ -293,6 +407,23 @@ if ($result && mysqli_num_rows($result) > 0) {
         });
         return false; 
     }
+
+    // Format country code display
+    function formatCountryCode(state) {
+        if (!state.id) {
+            return state.text;
+        }
+        return state.text;
+    }
+
+    // Phone number validation - allow only numbers
+    function validatePhoneNumber(input) {
+        input.value = input.value.replace(/[^0-9]/g, '');
+    }
+    
+    $('#phone_number').on('input', function () {
+        validatePhoneNumber(this);
+    });
 </script>
 
 <script>
@@ -317,26 +448,15 @@ $(document).ready(function () {
             isValid = false;
         }
 
-        // Validate Country
-        // const country = $('[name="country"]');
-        // if (country.val().trim() === '') {
-        //     country.after('<span class="text-danger error">Country is required</span>');
-        //     isValid = false;
-        // }
-
-        // // Validate State
-        // const state = $('[name="state"]');
-        // if (state.val().trim() === '') {
-        //     state.after('<span class="text-danger error">State is required</span>');
-        //     isValid = false;
-        // }
-
-        // Validate City
-        // const city = $('[name="city"]');
-        // if (city.val().trim() === '') {
-        //     city.after('<span class="text-danger error">City is required</span>');
-        //     isValid = false;
-        // }
+        // Validate Phone Number (at least 7 digits)
+        const phone = $('#phone_number').val().trim();
+        if (phone) {
+            // Allow 7 to 15 digits (standard phone number lengths)
+            if (!/^[0-9]{7,15}$/.test(phone)) {
+                $('#phone_number').after('<span class="text-danger error">Mobile number must be 7-15 digits</span>');
+                isValid = false;
+            }
+        }
 
         // Validate Profile Image (optional)
         const file = $('input[type="file"][name="profile_img"]')[0].files[0];
@@ -412,35 +532,12 @@ $(document).ready(function () {
 </script>
  <script>
     $(document).ready(function () {
-    
-        
-
-    // === Allow only text (no digits) ===
-    $('#name').on('input', function () {
-        this.value = this.value.replace(/[0-9]/g, '');
+        // === Allow only text (no digits) ===
+        $('#name').on('input', function () {
+            this.value = this.value.replace(/[0-9]/g, '');
+        });
     });
-
-  
-});
-
 </script>
-<!-- <script>
-    $('button[name="cancle"]').click(function() {
-    const form = $(this).closest('form')[0];
-    form.reset(); // reset text inputs
-
-    // Reset Select2 dropdowns
-    $('#country, #state, #city').val('').trigger('change');
-
-    // Reset profile image preview
-    const originalSrc = "../uploads/<?php echo !empty($row['profile_img']) ? $row['profile_img'] : 'default.jpg'; ?>";
-    $('#add_image_preview').html(`<img src="${originalSrc}" class="avatar avatar-xl me-3" style="border-radius:8px;">`);
-
-    // Clear image validation error
-    $('#add_image_error').text('');
-});
-
-</script> -->
 
 </body>
 

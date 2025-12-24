@@ -22,6 +22,10 @@ $country_result = mysqli_query($conn, $country_query);
 $currency_query = "SELECT * FROM currency ORDER BY currency_name";
 $currency_result = mysqli_query($conn, $currency_query);
 
+// Get country codes for phone numbers from database
+$country_codes_query = "SELECT id, name, phonecode, iso2 FROM countries ORDER BY name";
+$country_codes_result = mysqli_query($conn, $country_codes_query);
+
 // Get states if country is selected
 $states = [];
 if (!empty($company_info['country_id'])) {
@@ -48,6 +52,82 @@ if (!empty($company_info['state_id'])) {
 <head>
     <?php include 'layouts/title-meta.php'; ?> 
     <?php include 'layouts/head-css.php'; ?>
+    <style>
+    .phone-input-group {
+        display: flex;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        overflow: hidden;
+        background: white;
+        width: 100%;
+    }
+    .phone-input-group:focus-within {
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+    }
+    
+    /* Country code select container */
+    .country-code-select {
+        width: 140px !important;
+        min-width: 140px;
+        border: none;
+        border-right: 1px solid #dee2e6;
+        border-radius: 0;
+        background: #f8f9fa;
+        flex-shrink: 0;
+    }
+    
+    /* Select2 customization for country code */
+    .country-code-select + .select2 {
+        width: 140px !important;
+        min-width: 140px;
+        flex-shrink: 0;
+    }
+    
+    .country-code-select + .select2 .select2-selection {
+        border: none !important;
+        background: #f8f9fa !important;
+        height: 100% !important;
+        border-radius: 0 !important;
+        border-right: 1px solid #dee2e6 !important;
+    }
+    
+    .country-code-select + .select2 .select2-selection__rendered {
+        line-height: 38px !important;
+        padding-left: 12px !important;
+        padding-right: 25px !important;
+        color: #495057 !important;
+    }
+    
+    .country-code-select + .select2 .select2-selection__arrow {
+        height: 38px !important;
+        right: 5px !important;
+    }
+    
+    /* Phone number input */
+    .phone-number-input {
+        border: none;
+        border-radius: 0;
+        flex: 1;
+        min-width: 0; /* Important for flexbox shrinking */
+        padding-left: 12px;
+    }
+    
+    .phone-number-input:focus {
+        outline: none;
+        box-shadow: none;
+        border-color: transparent;
+    }
+    
+    .select2-container--open .select2-dropdown {
+        z-index: 1060;
+    }
+    
+    /* Ensure proper alignment */
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+    }
+</style>
 </head>
 
 <body>
@@ -112,13 +192,34 @@ if (!empty($company_info['state_id'])) {
                                                 </div>
                                             </div><!-- end col -->
                                             <div class="col-md-6">
-                                                <div class="mb-3">
-                                                    <label class="form-label">
-                                                        Mobile Number 
-                                                    </label>
-                                                    <input type="text" name="mobile_number" id="mobile_number" class="form-control" value="<?= !empty($company_info['mobile_number']) ? $company_info['mobile_number'] : '' ?>">
-                                                </div>
-                                            </div><!-- end col -->
+    <div class="mb-3">
+        <label class="form-label">Mobile Number</label>
+        <div class="phone-input-group">
+            <select class="country-code-select select" name="mobile_country_code" id="mobile_country_code">
+                <?php 
+                $mobile_country_code = $company_info['mobile_country_code'] ?? '+91';
+                // Reset pointer for country codes
+                mysqli_data_seek($country_codes_result, 0);
+                while ($country = mysqli_fetch_assoc($country_codes_result)): 
+                    $phonecode = $country['phonecode'];
+                    if (!empty($phonecode) && $phonecode[0] !== '+') {
+                        $phonecode = '+' . $phonecode;
+                    }
+                    $selected = ($phonecode == $mobile_country_code) ? 'selected' : '';
+                ?>
+                    <option value="<?= $phonecode ?>" <?= $selected ?> data-country="<?= $country['iso2'] ?>">
+                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
+                    </option>
+                <?php endwhile; ?>
+            </select>
+            <input type="text" class="form-control phone-number-input" name="mobile_number" id="mobile_number" 
+                   value="<?= !empty($company_info['mobile_number']) ? $company_info['mobile_number'] : '' ?>" 
+                   placeholder="Mobile Number" 
+                   maxlength="15">
+        </div>
+        <span id="mobile_number_error" class="text-danger error-text"></span>
+    </div>
+</div><!-- end col -->
                                             <div class="col-md-6">
                                                 <div class="mb-3">
                                                     <label class="form-label">
@@ -391,8 +492,18 @@ if (!empty($company_info['state_id'])) {
     <!-- End Main Wrapper -->
 
     <?php include 'layouts/vendor-scripts.php'; ?>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
 $(document).ready(function () {
+    // Initialize country code dropdown
+    $('.country-code-select').select2({
+        width: '100%',
+        minimumResultsForSearch: 6,
+        dropdownParent: $('.phone-input-group').parent(),
+        templateResult: formatCountryCode,
+        templateSelection: formatCountryCode
+    });
+    
     $("#cancelBtn").on("click", function () {
         window.location.href = 'admin-dashboard.php';
     });
@@ -433,6 +544,13 @@ $(document).ready(function () {
 
         isValid = validateElement("currency", "currency_error", "Currency is required") && isValid;
 
+        // Mobile number validation with country code
+        const mobileNumber = $("#mobile_number").val().trim();
+        if (mobileNumber && !/^[0-9]{7,10}$/.test(mobileNumber)) {
+            $('#mobile_number_error').text('Please enter a valid mobile number (7-10 digits)');
+            isValid = false;
+        }
+
         if (!isValid) {
             e.preventDefault();
             const firstError = $(".error-text:visible:first");
@@ -465,7 +583,20 @@ $(document).ready(function () {
     addImagePreviewListener('company_logo', 'logoPreview');
     addImagePreviewListener('mini_logo', 'minilogoPreview');
     addImagePreviewListener('invoice_logo', 'invoicelogoPreview');
+    
+    // Phone number validation - allow only numbers
+    $('#mobile_number').on('input', function () {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
 });
+
+// Format country code display
+function formatCountryCode(state) {
+    if (!state.id) {
+        return state.text;
+    }
+    return state.text;
+}
 
 function getStates(countryId, targetDropdown) {
     if (!countryId) {

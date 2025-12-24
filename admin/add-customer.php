@@ -16,16 +16,25 @@ $country_result = mysqli_query($conn, $country_query);
 // Reset country_result pointer for the dropdown
 mysqli_data_seek($country_result, 0);
 
-// Get country codes for phone numbers
-$country_codes = [
-    'US' => '+1', 'IN' => '+91', 'GB' => '+44', 'CA' => '+1', 'AU' => '+61',
-    'DE' => '+49', 'FR' => '+33', 'IT' => '+39', 'ES' => '+34', 'BR' => '+55',
-    'CN' => '+86', 'JP' => '+81', 'KR' => '+82', 'SG' => '+65', 'MY' => '+60',
-    'AE' => '+971', 'SA' => '+966', 'QA' => '+974', 'KW' => '+965', 'BH' => '+973',
-    'OM' => '+968', 'ZA' => '+27', 'NG' => '+234', 'KE' => '+254', 'EG' => '+20',
-    'RU' => '+7', 'TR' => '+90', 'NL' => '+31', 'BE' => '+32', 'CH' => '+41',
-    'SE' => '+46', 'NO' => '+47', 'DK' => '+45', 'FI' => '+358', 'PL' => '+48'
-];
+// Get country codes for phone numbers from database
+$country_codes_query = "SELECT id, name, phonecode, iso2 FROM countries ORDER BY name";
+$country_codes_result = mysqli_query($conn, $country_codes_query);
+$country_codes = [];
+
+while ($country = mysqli_fetch_assoc($country_codes_result)) {
+    $phonecode = $country['phonecode'];
+    // Ensure phonecode starts with +
+    if (!empty($phonecode) && $phonecode[0] !== '+') {
+        $phonecode = '+' . $phonecode;
+    }
+    $country_codes[$country['iso2']] = [
+        'code' => $phonecode,
+        'name' => $country['name']
+    ];
+}
+
+// Reset the pointer for later use
+mysqli_data_seek($country_codes_result, 0);
 ?>
 
 <!DOCTYPE html>
@@ -50,8 +59,8 @@ $country_codes = [
     
     /* Country code select container */
     .country-code-select {
-        width: 120px !important;
-        min-width: 120px;
+        width: 140px !important;
+        min-width: 140px;
         border: none;
         border-right: 1px solid #dee2e6;
         border-radius: 0;
@@ -61,8 +70,8 @@ $country_codes = [
     
     /* Select2 customization for country code */
     .country-code-select + .select2 {
-        width: 120px !important;
-        min-width: 120px;
+        width: 140px !important;
+        min-width: 140px;
         flex-shrink: 0;
     }
     
@@ -108,6 +117,13 @@ $country_codes = [
     /* Ensure proper alignment */
     .select2-container .select2-selection--single {
         height: 38px !important;
+    }
+    
+    /* Make country code dropdown searchable */
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 </style>
 </head>
@@ -216,11 +232,20 @@ $country_codes = [
         <label class="form-label">Work Number </label>
         <div class="phone-input-group">
             <select class="country-code-select select" name="work_country_code" id="work_country_code">
-                <?php foreach ($country_codes as $country => $code): ?>
-                    <option value="<?= $code ?>" <?= $country === 'IN' ? 'selected' : '' ?> data-country="<?= $country ?>">
-                        <?= $code ?>
+                <?php 
+                // Reset pointer for country codes
+                mysqli_data_seek($country_codes_result, 0);
+                while ($country = mysqli_fetch_assoc($country_codes_result)): 
+                    $phonecode = $country['phonecode'];
+                    if (!empty($phonecode) && $phonecode[0] !== '+') {
+                        $phonecode = '+' . $phonecode;
+                    }
+                    $selected = ($country['iso2'] === 'IN') ? 'selected' : '';
+                ?>
+                    <option value="<?= $phonecode ?>" <?= $selected ?> data-country="<?= $country['iso2'] ?>">
+                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
                     </option>
-                <?php endforeach; ?>
+                <?php endwhile; ?>
             </select>
             <input type="text" class="form-control phone-number-input" name="phone_number" id="phone_number" placeholder="Phone Number">
         </div>
@@ -232,11 +257,20 @@ $country_codes = [
         <label class="form-label">Mobile Number </label>
         <div class="phone-input-group">
             <select class="country-code-select select" name="mobile_country_code" id="mobile_country_code">
-                <?php foreach ($country_codes as $country => $code): ?>
-                    <option value="<?= $code ?>" <?= $country === 'IN' ? 'selected' : '' ?> data-country="<?= $country ?>">
-                        <?= $code ?>
+                <?php 
+                // Reset pointer for country codes
+                mysqli_data_seek($country_codes_result, 0);
+                while ($country = mysqli_fetch_assoc($country_codes_result)): 
+                    $phonecode = $country['phonecode'];
+                    if (!empty($phonecode) && $phonecode[0] !== '+') {
+                        $phonecode = '+' . $phonecode;
+                    }
+                    $selected = ($country['iso2'] === 'IN') ? 'selected' : '';
+                ?>
+                    <option value="<?= $phonecode ?>" <?= $selected ?> data-country="<?= $country['iso2'] ?>">
+                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
                     </option>
-                <?php endforeach; ?>
+                <?php endwhile; ?>
             </select>
             <input type="text" class="form-control phone-number-input" name="business_number" id="business_number" placeholder="Mobile Number">
         </div>

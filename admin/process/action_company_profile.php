@@ -25,7 +25,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $org_id      = $_POST['org_id'] ?? ($_SESSION['org_id'] ?? 1);
     $name        = trim($_POST['name'] ?? '');
     $email       = trim($_POST['email'] ?? '');
-    $phone       = trim($_POST['mobile_number'] ?? '');
+    
+    // Get mobile country code and number separately
+    $mobile_country_code = trim($_POST['mobile_country_code'] ?? '+91');
+    $mobile_number = trim($_POST['mobile_number'] ?? '');
+    
+    // Clean mobile number - remove any non-digit characters
+    $mobile_number = preg_replace('/[^0-9]/', '', $mobile_number);
+    
     $address     = trim($_POST['address'] ?? '');
     $pan_number  = trim($_POST['pan_number'] ?? '');
     $gst_number  = trim($_POST['gst_number'] ?? '');
@@ -116,7 +123,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $sql = "UPDATE company_info SET 
             name = '" . mysqli_real_escape_string($conn, $name) . "',
             email = '" . mysqli_real_escape_string($conn, $email) . "',
-            mobile_number = '" . mysqli_real_escape_string($conn, $phone) . "',
+            mobile_country_code = '" . mysqli_real_escape_string($conn, $mobile_country_code) . "',
+            mobile_number = '" . mysqli_real_escape_string($conn, $mobile_number) . "',
             address = '" . mysqli_real_escape_string($conn, $address) . "',
             pan_number = '" . mysqli_real_escape_string($conn, $pan_number) . "',
             gst_number = '" . mysqli_real_escape_string($conn, $gst_number) . "',
@@ -137,14 +145,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         // INSERT new company profile
         $sql = "INSERT INTO company_info 
-            (name, email, mobile_number, address, pan_number, gst_number,
+            (name, email, mobile_country_code, mobile_number, address, pan_number, gst_number,
              currency_symbol_id, country_id, state_id, city_id, zipcode,
              company_logo, mini_logo, invoice_logo,
              org_id, created_at, created_by) 
         VALUES (
             '" . mysqli_real_escape_string($conn, $name) . "',
             '" . mysqli_real_escape_string($conn, $email) . "',
-            '" . mysqli_real_escape_string($conn, $phone) . "',
+            '" . mysqli_real_escape_string($conn, $mobile_country_code) . "',
+            '" . mysqli_real_escape_string($conn, $mobile_number) . "',
             '" . mysqli_real_escape_string($conn, $address) . "',
             '" . mysqli_real_escape_string($conn, $pan_number) . "',
             '" . mysqli_real_escape_string($conn, $gst_number) . "',

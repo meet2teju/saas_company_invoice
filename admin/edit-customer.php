@@ -53,20 +53,14 @@ $country_result = mysqli_query($conn, $country_query);
 // Reset country_result pointer for the dropdown
 mysqli_data_seek($country_result, 0);
 
+// Get country codes for phone numbers from database
+$country_codes_query = "SELECT id, name, phonecode, iso2 FROM countries ORDER BY name";
+$country_codes_result = mysqli_query($conn, $country_codes_query);
+
 // Fetch contact persons
 $client_id = $_GET['id'];
 $contacts_query = "SELECT * FROM client_contact_persons WHERE client_id = $clientid AND is_deleted = 0";
 $contacts_result = mysqli_query($conn, $contacts_query);
-
-$country_codes = [
-    'US' => '+1', 'IN' => '+91', 'GB' => '+44', 'CA' => '+1', 'AU' => '+61',
-    'DE' => '+49', 'FR' => '+33', 'IT' => '+39', 'ES' => '+34', 'BR' => '+55',
-    'CN' => '+86', 'JP' => '+81', 'KR' => '+82', 'SG' => '+65', 'MY' => '+60',
-    'AE' => '+971', 'SA' => '+966', 'QA' => '+974', 'KW' => '+965', 'BH' => '+973',
-    'OM' => '+968', 'ZA' => '+27', 'NG' => '+234', 'KE' => '+254', 'EG' => '+20',
-    'RU' => '+7', 'TR' => '+90', 'NL' => '+31', 'BE' => '+32', 'CH' => '+41',
-    'SE' => '+46', 'NO' => '+47', 'DK' => '+45', 'FI' => '+358', 'PL' => '+48'
-];
 ?>
 
 <!DOCTYPE html>
@@ -93,8 +87,8 @@ $country_codes = [
     
     /* Country code select container */
     .country-code-select {
-        width: 120px !important;
-        min-width: 120px;
+        width: 140px !important;
+        min-width: 140px;
         border: none;
         border-right: 1px solid #dee2e6;
         border-radius: 0;
@@ -104,8 +98,8 @@ $country_codes = [
     
     /* Select2 customization for country code */
     .country-code-select + .select2 {
-        width: 120px !important;
-        min-width: 120px;
+        width: 140px !important;
+        min-width: 140px;
         flex-shrink: 0;
     }
     
@@ -275,15 +269,23 @@ $country_codes = [
             <select class="country-code-select select" name="work_country_code" id="work_country_code">
                 <?php 
                 $work_country_code = $row['work_country_code'] ?? '+91';
-                foreach ($country_codes as $country => $code): 
+                // Reset pointer for country codes
+                mysqli_data_seek($country_codes_result, 0);
+                while ($country = mysqli_fetch_assoc($country_codes_result)): 
+                    $phonecode = $country['phonecode'];
+                    if (!empty($phonecode) && $phonecode[0] !== '+') {
+                        $phonecode = '+' . $phonecode;
+                    }
+                    $selected = ($phonecode == $work_country_code) ? 'selected' : '';
                 ?>
-                    <option value="<?= $code ?>" <?= $code == $work_country_code ? 'selected' : '' ?> data-country="<?= $country ?>">
-                        <?= $code ?>
+                    <option value="<?= $phonecode ?>" <?= $selected ?> data-country="<?= $country['iso2'] ?>">
+                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
                     </option>
-                <?php endforeach; ?>
+                <?php endwhile; ?>
             </select>
             <input type="text" class="form-control phone-number-input" name="phone_number" id="phone_number" value="<?= htmlspecialchars($row['phone_number']); ?>" placeholder="Phone Number">
         </div>
+        <span id="phone_number_error" class="text-danger error-text"></span>
     </div>
 </div>
 <div class="col-lg-4 col-md-6">
@@ -293,15 +295,23 @@ $country_codes = [
             <select class="country-code-select select" name="mobile_country_code" id="mobile_country_code">
                 <?php 
                 $mobile_country_code = $row['mobile_country_code'] ?? '+91';
-                foreach ($country_codes as $country => $code): 
+                // Reset pointer for country codes
+                mysqli_data_seek($country_codes_result, 0);
+                while ($country = mysqli_fetch_assoc($country_codes_result)): 
+                    $phonecode = $country['phonecode'];
+                    if (!empty($phonecode) && $phonecode[0] !== '+') {
+                        $phonecode = '+' . $phonecode;
+                    }
+                    $selected = ($phonecode == $mobile_country_code) ? 'selected' : '';
                 ?>
-                    <option value="<?= $code ?>" <?= $code == $mobile_country_code ? 'selected' : '' ?> data-country="<?= $country ?>">
-                        <?= $code ?>
+                    <option value="<?= $phonecode ?>" <?= $selected ?> data-country="<?= $country['iso2'] ?>">
+                        <?= $phonecode . ' (' . $country['name'] . ')' ?>
                     </option>
-                <?php endforeach; ?>
+                <?php endwhile; ?>
             </select>
             <input type="text" class="form-control phone-number-input" name="business_number" id="business_number" value="<?= htmlspecialchars($row['business_number']); ?>" placeholder="Mobile Number">
         </div>
+        <span id="business_number_error" class="text-danger error-text"></span>
     </div>
 </div>
 
@@ -660,6 +670,8 @@ $country_codes = [
 </div>
 
 <?php include 'layouts/vendor-scripts.php'; ?>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function () {
     // === Allow only numbers ===
@@ -676,7 +688,24 @@ $(document).ready(function () {
     $(document).on('input', '#IFSC_code', function () {
         this.value = this.value.replace(/[^a-zA-Z0-9]/g, '');
     });
+    
+    // Initialize country code dropdowns
+    $('.country-code-select').select2({
+        width: '100%',
+        minimumResultsForSearch: 6,
+        dropdownParent: $('.phone-input-group').parent(),
+        templateResult: formatCountryCode,
+        templateSelection: formatCountryCode
+    });
 });
+
+// Format country code display
+function formatCountryCode(state) {
+    if (!state.id) {
+        return state.text;
+    }
+    return state.text;
+}
 </script>
 
 <script>
@@ -836,70 +865,11 @@ function toggleExtraFields(button, rowId) {
     }
 }
 
-// function removeRow(button) {
-//     const row = button.closest("tr");
-//     const rowId = row.dataset.rowId;
-//     const contactId = row.dataset.contactId;
-//     const extraRow = document.querySelector(`tr.extra-fields-row[data-row-id="${rowId}"]`);
-
-//     if (!confirm("Are you sure you want to delete this contact person?")) return;
-
-//     const deleteBtn = button;
-//     deleteBtn.disabled = true;
-//     deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-//     if (contactId) {
-//         $.ajax({
-//             url: 'process/action_delete_client_contact_person.php',
-//             type: 'POST',
-//             dataType: 'json',
-//             data: { id: contactId },
-//             success: function (response) {
-//                 if (response.status === 'success') {
-//                     row.remove();
-//                     if (extraRow) extraRow.remove();
-//                     showToast("Contact person deleted", 'success');
-//                 } else {
-//                     showToast("Error: " + response.message, 'danger');
-//                     resetDeleteBtn();
-//                 }
-//             },
-//             error: function (xhr, status, error) {
-//                 showToast("AJAX Error: " + error, 'danger');
-//                 resetDeleteBtn();
-//             }
-//         });
-
-//         function resetDeleteBtn() {
-//             deleteBtn.disabled = false;
-//             deleteBtn.innerHTML = '<i class="isax isax-trash"></i>';
-//         }
-//     } else {
-//         row.remove();
-//         if (extraRow) extraRow.remove();
-//         showToast("Contact removed", 'info');
-//     }
-// }
-
-// // Helper function for toast notifications
-// function showToast(message, type = 'success') {
-//     // Implement your toast notification system here
-//     // Example with Bootstrap toasts:
-//     const toast = new bootstrap.Toast(document.getElementById('notificationToast'));
-//     const toastBody = document.getElementById('toastBody');
-    
-//     toastBody.textContent = message;
-//     toastBody.className = `toast-body bg-${type}`;
-//     toast.show();
-// }
 function removeRow(button) {
     const row = button.closest("tr");
     const rowId = row.dataset.rowId;
     const contactId = row.dataset.contactId;
     const extraRow = document.querySelector(`tr.extra-fields-row[data-row-id="${rowId}"]`);
-
-    // REMOVED THE CONFIRMATION DIALOG
-    // if (!confirm("Are you sure you want to delete this contact person?")) return;
 
     const deleteBtn = button;
     deleteBtn.disabled = true;
@@ -916,14 +886,11 @@ function removeRow(button) {
                 if (response.status === 'success') {
                     row.remove();
                     if (extraRow) extraRow.remove();
-                    showToast("Contact person deleted", 'success');
                 } else {
-                    showToast("Error: " + response.message, 'danger');
                     resetDeleteBtn();
                 }
             },
             error: function (xhr, status, error) {
-                showToast("AJAX Error: " + error, 'danger');
                 resetDeleteBtn();
             }
         });
@@ -936,7 +903,6 @@ function removeRow(button) {
         // New contact - just remove from DOM
         row.remove();
         if (extraRow) extraRow.remove();
-        showToast("Contact removed", 'info');
     }
 }
 // Load existing contact persons when page loads
@@ -1115,7 +1081,6 @@ $(document).ready(function () {
         const requiredFields = [
             {name: 'first_name', errorId: 'first_name_error', message: 'First name is required', tab: 'otherTab'},
             {name: 'last_name', errorId: 'last_name_error', message: 'Last name is required', tab: 'otherTab'},
-            // {name: 'salutation', errorId: 'salutation_error', message: 'Salutation is required', tab: 'otherTab'}
         ];
 
         requiredFields.forEach(field => {
@@ -1140,6 +1105,22 @@ $(document).ready(function () {
         const pan = $('[name="pan_number"]').val().trim();
         if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
             $('#pan_number_error').text('Invalid PAN format (e.g. AAAAA9999A)');
+            isValid = false;
+            $(`[data-bs-target="#otherTab"]`).addClass('has-error');
+        }
+
+        // Phone number validation with country code
+        const workPhone = $('[name="phone_number"]').val().trim();
+        if (workPhone && !/^[0-9]{10}$/.test(workPhone)) {
+            $('#phone_number_error').text('Please enter a valid phone number (10 digits)');
+            isValid = false;
+            $(`[data-bs-target="#otherTab"]`).addClass('has-error');
+        }
+
+        // Mobile number validation with country code
+        const mobile = $('[name="business_number"]').val().trim();
+        if (mobile && !/^[0-9]{10}$/.test(mobile)) {
+            $('#business_number_error').text('Please enter a valid mobile number (10 digits)');
             isValid = false;
             $(`[data-bs-target="#otherTab"]`).addClass('has-error');
         }
@@ -1254,8 +1235,7 @@ $(document).ready(function () {
 });
 
     // Real-time validation for city fields
-    // Removed address field validations
-$(document).ready(function () {
+    $(document).ready(function () {
     // Function to validate email
     function validateEmail(email) {
         const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

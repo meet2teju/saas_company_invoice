@@ -11,7 +11,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $id       = $_POST['id'] ?? '';
     $name     = trim($_POST['name'] ?? '');
     $email    = trim($_POST['email'] ?? '');
-    $phone    = trim($_POST['phone_number'] ?? '');
+    
+    // Get country code and phone number separately
+    $mobile_country_code = trim($_POST['mobile_country_code'] ?? '+91');
+    $phone_number = trim($_POST['phone_number'] ?? ''); // Just the number without country code
+    
+    // Clean phone number - remove any non-digit characters
+    $phone_number = preg_replace('/[^0-9]/', '', $phone_number);
+    
     $dob      = trim($_POST['dob'] ?? '');
     $address  = trim($_POST['address'] ?? '');
     
@@ -20,7 +27,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $state    = isset($_POST['state']) && $_POST['state'] !== '' ? (int)$_POST['state'] : 'NULL';
     $city     = isset($_POST['city']) && $_POST['city'] !== '' ? (int)$_POST['city'] : 'NULL';
     
-    // FIX: Handle zipcode properly - convert empty to NULL
+    // Handle zipcode properly
     $zipcode  = trim($_POST['zipcode'] ?? '');
     if ($zipcode === '') {
         $zipcode = 'NULL';
@@ -38,7 +45,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $dob = 'NULL';
     }
 
-    // === Handle profile image ===
+    // Handle profile image
     $image = '';
     if (!empty($_FILES['profile_img']['name'])) {
         $image = time() . '_' . basename($_FILES['profile_img']['name']);
@@ -46,10 +53,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         move_uploaded_file($_FILES['profile_img']['tmp_name'], $target_path);
         $image = "'$image'";
     } else {
-        $image = 'profile_img'; // This keeps the current value
+        $image = 'profile_img';
     }
 
-    // === Email uniqueness check ===
+    // Email uniqueness check
     $emailCheck = "SELECT id FROM login WHERE email = '".mysqli_real_escape_string($conn, $email)."' AND id != '".mysqli_real_escape_string($conn, $id)."' LIMIT 1";
     $emailResult = mysqli_query($conn, $emailCheck);
 
@@ -60,11 +67,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    // === Build update query ===
+    // Build update query - store phone number and country code separately
     $sql = "UPDATE login SET 
         name = '" . mysqli_real_escape_string($conn, $name) . "',
         email = '" . mysqli_real_escape_string($conn, $email) . "',
-        phone_number = '" . mysqli_real_escape_string($conn, $phone) . "',
+        phone_number = '" . mysqli_real_escape_string($conn, $phone_number) . "',
+        mobile_country_code = '" . mysqli_real_escape_string($conn, $mobile_country_code) . "',
         address = '" . mysqli_real_escape_string($conn, $address) . "',
         country = $country,
         state = $state,
@@ -83,14 +91,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     $sql .= " WHERE id = '" . mysqli_real_escape_string($conn, $id) . "'";
 
-    // Debug: Uncomment to see the generated SQL
-    // echo "SQL: " . $sql; exit();
-
     if (mysqli_query($conn, $sql)) {
-        // === Update session for topbar ===
+        // Update session
         $_SESSION['crm_user_name']  = $name;
         $_SESSION['crm_user_email'] = $email;
-        $_SESSION['crm_user_phone'] = $phone;
+        $_SESSION['crm_user_phone'] = $mobile_country_code . $phone_number; // Combine for display if needed
+        $_SESSION['crm_mobile_country_code'] = $mobile_country_code; // Store separately if needed
 
         if ($image !== 'profile_img') {
             $_SESSION['crm_profile_img'] = str_replace("'", "", $image);
@@ -105,4 +111,3 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     header("Location: ../account-settings.php");
     exit();
 }
-?>
