@@ -70,17 +70,55 @@ $items_result = mysqli_query($conn, "
     WHERE ii.invoice_id = $invoice_id AND ii.is_deleted = 0
 ");
 
-// Check if any item has quantity value (not null and greater than 0)
-$showQuantityColumn = false;
-mysqli_data_seek($items_result, 0); // Reset pointer
+// DYNAMIC COLUMN CHECKING - Check if any item has data for each column
+$hasItems = false;
+$itemCount = 0;
+
+// Store items in array first and check for data
+$items = [];
+$allUnitNames = [];
+$allQuantities = [];
+$allTaxNames = [];
+$allHsnCodes = [];
+
 while ($item = mysqli_fetch_assoc($items_result)) {
+    $items[] = $item;
+    $itemCount++;
+    
+    // Collect all unit names
+    if (!empty($item['unit_name']) && trim($item['unit_name']) !== '') {
+        $allUnitNames[] = trim($item['unit_name']);
+    }
+    
+    // Collect all quantities (check if any quantity > 0)
     if (!is_null($item['quantity']) && $item['quantity'] > 0) {
-        $showQuantityColumn = true;
-        break;
+        $allQuantities[] = $item['quantity'];
+    }
+    
+    // Collect all tax names (only if GST is enabled)
+    $gstType = $invoice['gst_type'] ?? 'gst';
+    $showGSTColumn = ($gstType !== 'non_gst' && $gstType !== null);
+    if ($showGSTColumn && !empty($item['tax_name']) && trim($item['tax_name']) !== '') {
+        $allTaxNames[] = trim($item['tax_name']);
+    }
+    
+    // Collect all HSN codes
+    if (!empty($item['code']) && trim($item['code']) !== '' && strtoupper($item['code']) !== 'N/A') {
+        $allHsnCodes[] = trim($item['code']);
     }
 }
-// Reset pointer again for later use
-mysqli_data_seek($items_result, 0);
+
+$hasItems = ($itemCount > 0);
+
+// Determine which columns to show based on data
+$hasUnitData = !empty($allUnitNames) && $item_type == 1; // Only show unit column for products (item_type = 1)
+$hasQuantityData = !empty($allQuantities);
+$hasTaxData = !empty($allTaxNames) && $showGSTColumn; // Only show tax column if GST is enabled AND there's tax data
+$hasHsnCodeData = !empty($allHsnCodes);
+
+// Check GST type for display logic
+$gstType = $invoice['gst_type'] ?? 'gst';
+$showGSTColumn = ($gstType !== 'non_gst' && $gstType !== null);
 
 // Fetch client address only if client_id is valid
 $client_address = null;
@@ -130,6 +168,44 @@ function formatAmount($amount, $currencySymbol = null) {
     $symbol = $displayCurrency['currency_symbol'] ?? '$';
     return $symbol . number_format($amount, 2);
 }
+
+// Function to convert number to words
+// function numberToWords($number) {
+//     $ones = array(
+//         0 => 'Zero', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four',
+//         5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine',
+//         10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen',
+//         14 => 'Fourteen', 15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen',
+//         18 => 'Eighteen', 19 => 'Nineteen'
+//     );
+    
+//     $tens = array(
+//         2 => 'Twenty', 3 => 'Thirty', 4 => 'Forty', 5 => 'Fifty',
+//         6 => 'Sixty', 7 => 'Seventy', 8 => 'Eighty', 9 => 'Ninety'
+//     );
+    
+//     if ($number < 20) {
+//         return $ones[$number];
+//     }
+    
+//     if ($number < 100) {
+//         return $tens[(int)($number / 10)] . ($number % 10 != 0 ? ' ' . $ones[$number % 10] : '');
+//     }
+    
+//     if ($number < 1000) {
+//         return $ones[(int)($number / 100)] . ' Hundred' . ($number % 100 != 0 ? ' ' . numberToWords($number % 100) : '');
+//     }
+    
+//     if ($number < 100000) {
+//         return numberToWords((int)($number / 1000)) . ' Thousand' . ($number % 1000 != 0 ? ' ' . numberToWords($number % 1000) : '');
+//     }
+    
+//     if ($number < 10000000) {
+//         return numberToWords((int)($number / 100000)) . ' Lakh' . ($number % 100000 != 0 ? ' ' . numberToWords($number % 100000) : '');
+//     }
+    
+//     return numberToWords((int)($number / 10000000)) . ' Crore' . ($number % 10000000 != 0 ? ' ' . numberToWords($number % 10000000) : '');
+// }
 
 ?>
 <!DOCTYPE html>
@@ -602,13 +678,29 @@ function formatAmount($amount, $currencySymbol = null) {
 														<tr>
 															<th>#</th>
 															<th>Product/Service</th>
-															<th>HSN code</th>
-															<?php if ($showQuantityColumn): ?>
+															
+															<!-- HSN Code Column - Only show if there's data -->
+															<?php if ($hasHsnCodeData): ?>
+																<th>HSN code</th>
+															<?php endif; ?>
+															
+															<!-- Quantity Column - Only show if there's data -->
+															<?php if ($hasQuantityData): ?>
 																<th><?= $item_type == 1 ? 'Quantity' : 'Hours' ?></th>
 															<?php endif; ?>
 															
+															<!-- Unit Column - Only show for products and if there's data -->
+															<?php if ($hasUnitData && $item_type == 1): ?>
+																<th>Unit</th>
+															<?php endif; ?>
+															
 															<th><?= $item_type == 1 ? 'Selling Price' : 'Hourly Price' ?></th>
-															<th>Tax</th>
+															
+															<!-- Tax Column - Only show if GST is enabled AND there's tax data -->
+															<?php if ($hasTaxData && $showGSTColumn): ?>
+																<th>Tax</th>
+															<?php endif; ?>
+															
 															<th>Amount</th>
 														</tr>
 													</thead>
@@ -616,8 +708,7 @@ function formatAmount($amount, $currencySymbol = null) {
 													<tbody>
 														<?php 
 														$i = 1; 
-														mysqli_data_seek($items_result, 0);
-														while($item = mysqli_fetch_assoc($items_result)) { 
+														foreach ($items as $item) { 
 															// Combine product name (from product table) and service name (from invoice_item)
 															if (!empty($item['service_id'])) {
 																// If it's a service, combine both names with hyphen
@@ -632,22 +723,55 @@ function formatAmount($amount, $currencySymbol = null) {
 														<tr>
 															<td><?= $i++ ?></td>
 															<td><?= htmlspecialchars($itemName) ?></td>
-															<td><?= htmlspecialchars($item['code'] ?? 'N/A') ?></td>
-															<?php if ($showQuantityColumn): ?>
+															
+															<!-- HSN Code Column - Only show if there's data -->
+															<?php if ($hasHsnCodeData): ?>
+																<td><?= htmlspecialchars($item['code'] ?? 'N/A') ?></td>
+															<?php endif; ?>
+															
+															<!-- Quantity Column - Only show if there's data -->
+															<?php if ($hasQuantityData): ?>
 																<td><?= $item['quantity'] ?></td>
+															<?php endif; ?>
+															
+															<!-- Unit Column - Only show for products and if there's data -->
+															<?php if ($hasUnitData && $item_type == 1): ?>
+																<td><?= htmlspecialchars($item['unit_name'] ?? '') ?></td>
 															<?php endif; ?>
 													
 															<td><?= formatAmount($item['selling_price']) ?></td>
-															<td>
-																<?php if (($invoice['gst_type'] ?? 'gst') === 'non_gst'): ?>
-																	Non-GST
-																<?php else: ?>
-																	<?= $item['tax_name'] ?>
-																<?php endif; ?>
-															</td>
+															
+															<!-- Tax Column - Only show if GST is enabled AND there's tax data -->
+															<?php if ($hasTaxData && $showGSTColumn): ?>
+																<td>
+																	<?php if (($invoice['gst_type'] ?? 'gst') === 'non_gst'): ?>
+																		Non-GST
+																	<?php else: ?>
+																		<?= $item['tax_name'] ?>
+																	<?php endif; ?>
+																</td>
+															<?php endif; ?>
+															
 															<td><?= formatAmount($item['amount']) ?></td>
 														</tr>
 														<?php } ?>
+														
+														<!-- If no items, show a message -->
+														<?php if (!$hasItems): ?>
+															<tr>
+																<td colspan="<?= 
+																	2 + // # and Product/Service columns
+																	($hasHsnCodeData ? 1 : 0) + 
+																	($hasQuantityData ? 1 : 0) + 
+																	($hasUnitData && $item_type == 1 ? 1 : 0) + 
+																	1 + // Selling Price column
+																	($hasTaxData && $showGSTColumn ? 1 : 0) + 
+																	1 // Amount column
+																?>" style="text-align: center; padding: 20px;">
+																	No items found
+																</td>
+															</tr>
+														<?php endif; ?>
 													</tbody>
 												</table>
 											</div>
@@ -692,12 +816,8 @@ function formatAmount($amount, $currencySymbol = null) {
 															<h6 class="fs-14 fw-semibold"><?= formatAmount($invoice['amount']) ?></h6>
 														</div>
 														
-														<?php if (($invoice['gst_type'] ?? 'gst') === 'non_gst'): ?>
-															<div class="d-flex align-items-center justify-content-between mb-3">
-																<h6 class="fs-14 fw-semibold">Tax (Non-GST)</h6>
-																<h6 class="fs-14 fw-semibold"><?= formatAmount(0) ?></h6>
-															</div>
-														<?php else: ?>
+														<!-- Tax Amount Row - Only show if GST is enabled -->
+														<?php if ($showGSTColumn): ?>
 															<div class="d-flex align-items-center justify-content-between mb-3">
 																<h6 class="fs-14 fw-semibold">Tax Amount</h6>
 																<h6 class="fs-14 fw-semibold"><?= formatAmount($invoice['tax_amount']) ?></h6>
