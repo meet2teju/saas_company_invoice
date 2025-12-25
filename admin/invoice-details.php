@@ -458,7 +458,9 @@ function formatAmount($amount, $currencySymbol = null) {
 									<a href="" class="btn btn-outline-white d-inline-flex align-items-center me-3" onclick="window.print(); return false;">
 										<i class="isax isax-printer me-1"></i>Print
 									</a>
-
+                                    <!-- <a href="print-invoice.php?id=<?= $invoiceId ?>" target="_blank" class="btn btn-outline-white d-inline-flex align-items-center me-3">
+                                        <i class="isax isax-printer me-1"></i>Print
+                                    </a> -->
 									<a href="#" class="btn btn-primary d-inline-flex align-items-center" data-bs-toggle="offcanvas" data-bs-target="#customcanvas">
 										<i class="isax isax-eye me-1"></i>View Details
 							

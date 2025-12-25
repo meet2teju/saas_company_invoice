@@ -64,6 +64,10 @@ while ($item = mysqli_fetch_assoc($items_result)) {
 // Reset pointer again for later use
 mysqli_data_seek($items_result, 0);
 
+// Check if Tax column should be shown (only for GST type)
+$gstType = $quotation['gst_type'] ?? 'gst';
+$showTaxColumn = ($gstType !== 'non_gst' && $gstType !== null);
+
 // Check if notes are available
 $showNotes = !empty($quotation['client_note']);
 
@@ -422,9 +426,13 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                     class="btn btn-outline-white d-inline-flex align-items-center me-3">
                                     <i class="isax isax-message-notif me-1"></i>Send Email
                                 </a>
-                                <a href="#" class="btn btn-outline-white d-inline-flex align-items-center me-3" onclick="window.print(); return false;">
+                                <!-- <a href="#" class="btn btn-outline-white d-inline-flex align-items-center me-3" onclick="window.print(); return false;">
                                     <i class="isax isax-printer me-1"></i>Print
-                                </a>
+                                </a> -->
+                                <!-- In the button section, replace the print button with: -->
+<a href="print-quotation.php?id=<?= $quotationId ?>" target="_blank" class="btn btn-outline-white d-inline-flex align-items-center me-3">
+    <i class="isax isax-printer me-1"></i>Print
+</a>
                                 <a href="#" class="btn btn-primary d-inline-flex align-items-center" data-bs-toggle="offcanvas" data-bs-target="#quotationDetailsCanvas">
                                     <i class="isax isax-eye me-1"></i>View Details
                                 </a>
@@ -578,7 +586,9 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                             <th>Quantity</th>
                                                         <?php endif; ?>
                                                         <th>Selling Price</th>
-                                                        <th>Tax</th>
+                                                        <?php if ($showTaxColumn): ?>
+                                                            <th>Tax</th>
+                                                        <?php endif; ?>
                                                         <th>Amount</th>
                                                     </tr>
                                                 </thead>
@@ -642,13 +652,15 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                                     <td><?= $item['quantity'] ?></td>
                                                                 <?php endif; ?>
                                                                 <td><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($item['selling_price'], 2) ?></td>
-                                                                <td>
-                                                                    <?php if (($quotation['gst_type'] ?? 'gst') === 'non_gst'): ?>
-                                                                        Non-GST
-                                                                    <?php else: ?>
-                                                                        <?= $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '') ?>
-                                                                    <?php endif; ?>
-                                                                </td>
+                                                                <?php if ($showTaxColumn): ?>
+                                                                    <td>
+                                                                        <?php if (($quotation['gst_type'] ?? 'gst') === 'non_gst'): ?>
+                                                                            Non-GST
+                                                                        <?php else: ?>
+                                                                            <?= $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '') ?>
+                                                                        <?php endif; ?>
+                                                                    </td>
+                                                                <?php endif; ?>
                                                                 <td><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($itemAmount, 2) ?></td>
                                                             </tr>
                                                         <?php } ?>
@@ -689,13 +701,8 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                         </div>
                                                     <?php 
                                                         endforeach; 
-                                                    elseif (($quotation['gst_type'] ?? 'gst') === 'non_gst'):
+                                                    endif; 
                                                     ?>
-                                                        <div class="d-flex align-items-center justify-content-between mb-3">
-                                                            <h6 class="fs-14 fw-semibold">Tax (Non-GST)</h6>
-                                                            <h6 class="fs-14 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;0.00</h6>
-                                                        </div>
-                                                    <?php endif; ?>
 
                                                    <?php if (!empty($quotation['shipping_charge']) && $quotation['shipping_charge'] > 0): ?>
                                                         <div class="d-flex align-items-center justify-content-between mb-3">

@@ -14,6 +14,48 @@ if ($invoice_id <= 0) {
     die('Invalid Invoice ID!');
 }
 
+// Function to get company currency from your currency table
+function getCompanyCurrency($conn, $org_id) {
+    // First, get the currency_id from company_info for this org
+    $sql = "SELECT currency_symbol_id FROM company_info WHERE org_id = '$org_id' LIMIT 1";
+    $result = mysqli_query($conn, $sql);
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        $companyInfo = mysqli_fetch_assoc($result);
+        $currency_id = $companyInfo['currency_symbol_id'] ?? null;
+        
+        if ($currency_id) {
+            // Get currency details from currency table
+            $sql = "SELECT currency_symbol, currency_name, isocode 
+                    FROM currency 
+                    WHERE id = '$currency_id' 
+                    LIMIT 1";
+            $result = mysqli_query($conn, $sql);
+            
+            if ($result && mysqli_num_rows($result) > 0) {
+                return mysqli_fetch_assoc($result);
+            }
+        }
+    }
+    
+    // If no currency found, get default (first currency)
+    $sql = "SELECT currency_symbol, currency_name, isocode 
+            FROM currency 
+            LIMIT 1";
+    $result = mysqli_query($conn, $sql);
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        return mysqli_fetch_assoc($result);
+    }
+    
+    // Default fallback
+    return [
+        'currency_symbol' => '$',
+        'currency_name' => 'US Dollar',
+        'isocode' => 'USD'
+    ];
+}
+
 // Fetch invoice data
 $invoice_result = mysqli_query($conn, "
     SELECT i.*, l.name AS salesperson_name
@@ -32,6 +74,16 @@ $invoiceId = $invoice['id'];
 $client_id = $invoice['client_id'];
 $bank_id = $invoice['bank_id'];
 $item_type = $invoice['item_type'];
+$org_id = $invoice['org_id'] ?? 1; // Get organization ID
+
+// Get company currency using the same function as quotation file
+$companyCurrency = getCompanyCurrency($conn, $org_id);
+$currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
+$currencyName = $companyCurrency['currency_name'] ?? 'US Dollar';
+
+// Check GST type
+$gstType = $invoice['gst_type'] ?? 'gst';
+$showGSTColumn = ($gstType !== 'non_gst' && $gstType !== null);
 
 // Fetch client
 $client = null;
@@ -45,7 +97,7 @@ if (!empty($bank_id)) {
     $bank = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM bank WHERE id = $bank_id"));
 }
 
-// Fetch items
+// Fetch items - UPDATED QUERY TO GET TAX RATE
 $items_result = mysqli_query($conn, "
     SELECT ii.*, 
            p.name AS product_name,
@@ -54,6 +106,7 @@ $items_result = mysqli_query($conn, "
            s.code AS service_code,
            COALESCE(p.code, s.code) AS code,
            t.name AS tax_name, 
+           t.rate AS tax_rate,  -- ADDED: Get tax rate
            u.name AS unit_name
     FROM invoice_item ii
     LEFT JOIN product p ON p.id = ii.product_id
@@ -63,30 +116,114 @@ $items_result = mysqli_query($conn, "
     WHERE ii.invoice_id = $invoice_id AND ii.is_deleted = 0
 ");
 
-// Check quantity column
-$showQuantityColumn = false;
+// Check quantity column and other column data
 $hasItems = false;
 $itemCount = 0;
 
-// Store items in array first
+// Store items in array first and check for data
 $items = [];
+$hasUnitData = false;
+$hasQuantityData = false;
+$hasTaxData = false;
+$hasHsnCodeData = false;
+
 while ($item = mysqli_fetch_assoc($items_result)) {
     $items[] = $item;
-    if (!is_null($item['quantity']) && $item['quantity'] > 0) {
-        $showQuantityColumn = true;
-    }
     $itemCount++;
+    
+    // Check unit column
+    if (!empty($item['unit_name']) && trim($item['unit_name']) !== '') {
+        $hasUnitData = true;
+    }
+    
+    // Check quantity column (if quantity > 0)
+    if (!is_null($item['quantity']) && $item['quantity'] > 0) {
+        $hasQuantityData = true;
+    }
+    
+    // Check tax column (for GST-enabled invoices)
+    if ($showGSTColumn && !empty($item['tax_name']) && trim($item['tax_name']) !== '') {
+        $hasTaxData = true;
+    }
+    
+    // Check HSN code column
+    if (!empty($item['code']) && trim($item['code']) !== '' && strtoupper($item['code']) !== 'N/A') {
+        $hasHsnCodeData = true;
+    }
 }
+
 $hasItems = ($itemCount > 0);
 
-// Calculate column count
-$colCount = 6; // #, Product/Service, HSN Code, Selling Price, Tax, Amount
-if ($showQuantityColumn) {
-    $colCount = 7; // Add QTY/Hours column
+// Calculate totals and tax summary
+$taxSummary = [];
+$subtotal = 0;
+foreach ($items as $item) {
+    $itemAmount = $item['amount'];
+    $subtotal += $itemAmount;
+    
+    // Calculate tax for this item only if GST type is not non_gst
+    if ($showGSTColumn) {
+        $effectiveTaxRate = $item['tax_rate'] ?? 0;
+        $taxName = $item['tax_name'] ?? 'Tax';
+        
+        if ($effectiveTaxRate > 0) {
+            $lineTax = ($itemAmount * $effectiveTaxRate) / 100;
+            $taxKey = $taxName . ' (' . $effectiveTaxRate . '%)';
+            
+            // Add to summary
+            if (!isset($taxSummary[$taxKey])) {
+                $taxSummary[$taxKey] = 0;
+            }
+            $taxSummary[$taxKey] += $lineTax;
+        }
+    }
 }
-if ($item_type == 1) {
-    $colCount++; // Add Unit column for products
+
+$totalTax = array_sum($taxSummary);
+
+// Helper functions for column width calculation
+function calculateProductColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
+    $baseWidth = 40; // Base width for product column
+    
+    if (!$hasHsnCode) $baseWidth += 10;
+    if (!$hasQuantity) $baseWidth += 8;
+    if (!$hasUnit || $item_type != 1) $baseWidth += 8;
+    if (!$hasTax) $baseWidth += 12;
+    
+    return $baseWidth;
 }
+
+function calculateAmountColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
+    $baseWidth = 15; // Base width for amount column
+    
+    if (!$hasHsnCode) $baseWidth += 10;
+    if (!$hasQuantity) $baseWidth += 8;
+    if (!$hasUnit || $item_type != 1) $baseWidth += 8;
+    if (!$hasTax) $baseWidth += 12;
+    
+    return $baseWidth;
+}
+
+// Calculate column count dynamically
+$colCount = 2; // Minimum columns: # and Product/Service
+
+if ($hasHsnCodeData) {
+    $colCount++; // HSN Code column
+}
+
+if ($hasQuantityData) {
+    $colCount++; // QTY/Hours column
+}
+
+if ($hasUnitData && $item_type == 1) {
+    $colCount++; // Unit column only for products
+}
+
+if ($hasTaxData && $showGSTColumn) {
+    $colCount++; // Tax column
+}
+
+$colCount++; // Amount column (always shown)
 
 // Fetch client address
 $client_address = null;
@@ -106,7 +243,7 @@ if (!empty($client_id)) {
     $client_address = mysqli_fetch_assoc(mysqli_query($conn, $client_address_query));
 }
 
-// Fetch company info
+// Fetch company info - FIXED: Use ci.city_id instead of ci.city_name
 $company = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT ci.*, 
            co.name AS country_name,
@@ -115,7 +252,8 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
     FROM company_info ci
     LEFT JOIN countries co ON co.id = ci.country_id
     LEFT JOIN states s ON s.id = ci.state_id
-    LEFT JOIN cities c ON c.id = ci.city_id
+    LEFT JOIN cities c ON c.id = ci.city_id  -- FIXED: Changed from ci.city_name to ci.city_id
+    WHERE ci.org_id = '$org_id'
     LIMIT 1
 "));
 
@@ -190,8 +328,8 @@ $html = '<!DOCTYPE html>
     <title>Invoice ' . htmlspecialchars($invoice['invoice_id']) . '</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -225,7 +363,7 @@ $html = '<!DOCTYPE html>
         }
 
         .invoice-title {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             color: #000;
             font-weight: bold;
             font-size: 24px;
@@ -240,33 +378,33 @@ $html = '<!DOCTYPE html>
         }
 
         .tittle-text {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             color: #000;
             font-weight: bold;
             font-size: 16px;
         }
 
         .to-title {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             color: #000;
             font-weight: 600;
             font-size: 14px;
         }
 
-        .bold-text{
+        .bold-text {
             color: #000;
             font-weight: 600;
         }
 
         .address-deatils-box {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             color: #5d6772;
             font-weight: 500;
             font-size: 14px;
         }
 
         .bank-deatils-title {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             color: #000;
             font-weight: 500;
             font-size: 16px;
@@ -279,7 +417,7 @@ $html = '<!DOCTYPE html>
         }
 
         .table th, .table td {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             padding: 6px;
             font-size: 14px;
             border: 1px solid #cfcfcf;
@@ -291,7 +429,7 @@ $html = '<!DOCTYPE html>
         }
 
         .bank-details-ul {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             list-style: none;
             padding-left: 0;
             font-size: 14px;
@@ -301,12 +439,12 @@ $html = '<!DOCTYPE html>
             margin-bottom: 4px;
         }
 
-        .subtotal-box{
-           text-align: right;
+        .subtotal-box {
+            text-align: right;
         }
 
         .subtotal-box .subtotal-title {
-         font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             color: #000;
             font-weight: 500;
             margin-bottom: 0;
@@ -314,7 +452,7 @@ $html = '<!DOCTYPE html>
         }
 
         .subtotal-box .subtotal-amount {
-         font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             color: #5d6772;
             font-weight: 500;
             margin-bottom: 0;
@@ -322,7 +460,7 @@ $html = '<!DOCTYPE html>
         }
 
         .terms-conditions-title {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             color: #000;
             font-weight: 500;
             font-size: 14px;
@@ -330,7 +468,7 @@ $html = '<!DOCTYPE html>
         }
 
         .terms-conditions {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             background-color: #ddeeff;
             border-radius: 4px;
             padding: 10px;
@@ -339,17 +477,19 @@ $html = '<!DOCTYPE html>
         }
         
         .gst-badge {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             font-size: 10px;
             padding: 2px 6px;
             border-radius: 3px;
             font-weight: 600;
         }
+        
         .gst-badge.gst {
             background-color: #d1e7dd;
             color: #0f5132;
             border: 1px solid #badbcc;
         }
+        
         .gst-badge.non-gst {
             background-color: #fff3cd;
             color: #664d03;
@@ -374,7 +514,7 @@ $html = '<!DOCTYPE html>
         }
 
         .billing-title {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             color: #000;
             font-weight: 700;
             font-size: 18px;
@@ -398,9 +538,8 @@ $html = '<!DOCTYPE html>
         .mb-3 { margin-bottom: 15px; }
         .mt-3 { margin-top: 15px; }
         
-        
         .bank-detail-row {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             display: flex;
             margin-bottom: 4px;
             font-size: 14px;
@@ -424,7 +563,7 @@ $html = '<!DOCTYPE html>
         }
         
         .total-row {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             display: flex;
             justify-content: space-between;
             margin-bottom: 6px;
@@ -442,7 +581,7 @@ $html = '<!DOCTYPE html>
         }
         
         .total-main {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             border-top: 1px solid #ddd;
             padding-top: 8px;
             margin-top: 8px;
@@ -451,7 +590,7 @@ $html = '<!DOCTYPE html>
         }
         
         .words-section {
-        font-family: "Instrument Sans", sans-serif;
+            font-family: "Instrument Sans", sans-serif;
             margin-top: 10px;
             padding-top: 10px;
             border-top: 1px dashed #ddd;
@@ -512,10 +651,6 @@ if (!empty($company['city_name']) || !empty($company['state_name']) || !empty($c
     '</div>';
 }
 
-// if (!empty($company['mobile_number'])) {
-//     $html .= '<div class="address-deatils-box"><span class="bold-text">Phone:</span> ' . htmlspecialchars($company['mobile_number'] ?? '') . '</div>';
-// }
-
 if (!empty($company['email'])) {
     $html .= '<div class="address-deatils-box"><span class="bold-text">Email:</span> ' . htmlspecialchars($company['email'] ?? '') . '</div>';
 }
@@ -551,10 +686,6 @@ if (!empty($client_address['city_name']) || !empty($client_address['state_name']
     '</div>';
 }
 
-// if (!empty($client['phone_number'])) {
-//     $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Phone:</span> ' . htmlspecialchars($client['phone_number'] ?? '') . '</div>';
-// }
-
 if (!empty($client['email'])) {
     $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Email:</span> ' . htmlspecialchars($client['email'] ?? '') . '</div>';
 }
@@ -567,32 +698,39 @@ $html .= '</div>
             <h4 class="billing-title">Product / Service Items</h4>
             <table class="table">
                 <thead>
-                    <tr style="background-color: #000; color: white;">';
+                    <tr style="background-color: #000; color: white;">
+                        <th width="5%">#</th>
+                        <th width="' . calculateProductColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) . '%">Product/Service</th>';
 
-// Build table headers with consistent structure
-$html .= '<th width="5%">#</th>
-          <th width="' . ($showQuantityColumn ? '25%' : '30%') . '">Product/Service</th>
-          <th width="15%">HSN Code</th>';
-
-if ($showQuantityColumn) {
-    $html .= '<th width="10%" class="text-center">' . ($item_type == 1 ? 'QTY' : 'Hours') . '</th>';
+// Only show HSN Code column if there\'s data
+if ($hasHsnCodeData) {
+    $html .= '<th width="10%">HSN Code</th>';
 }
 
-if ($item_type == 1) {
-    $html .= '<th width="10%">Unit</th>';
+// Only show quantity column if there\'s data
+if ($hasQuantityData) {
+    $html .= '<th width="8%" class="text-center">' . ($item_type == 1 ? 'QTY' : 'Hours') . '</th>';
 }
 
-$html .= '<th width="15%">' . ($item_type == 1 ? 'Selling Price' : 'Hourly Price') . '</th>
-          <th width="10%">Tax</th>
-          <th width="' . ($showQuantityColumn ? '10%' : '15%') . '">Amount</th>';
+// Only show unit column if there\'s data AND item_type is product (1)
+if ($hasUnitData && $item_type == 1) {
+    $html .= '<th width="8%">Unit</th>';
+}
 
-$html .= '</tr>
+// Only show tax column if GST is enabled AND there\'s tax data
+if ($hasTaxData && $showGSTColumn) {
+    $html .= '<th width="12%">Tax</th>';
+}
+
+$html .= '<th width="' . calculateAmountColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) . '%">Amount</th>
+                    </tr>
                 </thead>
                 <tbody>';
 
 // Add items to table
 $i = 1;
 foreach ($items as $item) {
+    // Determine item name
     if (!empty($item['service_id'])) {
         $productName = !empty($item['service_product_name']) ? $item['service_product_name'] : '';
         $serviceName = !empty($item['service_name']) ? $item['service_name'] : '';
@@ -603,28 +741,33 @@ foreach ($items as $item) {
     
     $html .= '<tr>
         <td>' . $i++ . '</td>
-        <td>' . htmlspecialchars($itemName) . '</td>
-        <td>' . htmlspecialchars($item['code'] ?? 'N/A') . '</td>';
+        <td>' . htmlspecialchars($itemName) . '</td>';
     
-    if ($showQuantityColumn) {
+    // Only show HSN Code column if there\'s data
+    if ($hasHsnCodeData) {
+        $html .= '<td>' . htmlspecialchars($item['code'] ?? 'N/A') . '</td>';
+    }
+    
+    // Only show quantity column if there\'s data
+    if ($hasQuantityData) {
         $html .= '<td class="text-center">' . ($item['quantity'] ?? '0') . '</td>';
     }
     
-    if ($item_type == 1) {
+    // Only show unit column if there\'s data AND item_type is product (1)
+    if ($hasUnitData && $item_type == 1) {
         $html .= '<td>' . htmlspecialchars($item['unit_name'] ?? '') . '</td>';
     }
     
-    $html .= '<td>$' . number_format($item['selling_price'], 2) . '</td>
-        <td>';
-    
-    if (($invoice['gst_type'] ?? 'gst') === 'non_gst') {
-        $html .= 'Non-GST';
-    } else {
-        $html .= htmlspecialchars($item['tax_name'] ?? '');
+    // Only show tax column if GST is enabled AND there\'s tax data
+    if ($hasTaxData && $showGSTColumn) {
+        $html .= '<td>';
+        $effectiveTaxRate = $item['tax_rate'] ?? 0;
+        $taxName = $item['tax_name'] ?? 'Tax';
+        $html .= $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '');
+        $html .= '</td>';
     }
     
-    $html .= '</td>
-        <td>$' . number_format($item['amount'], 2) . '</td>
+    $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['amount'], 2) . '</td>
     </tr>';
 }
 
@@ -675,39 +818,40 @@ $html .= '<td width="' . $totalsWidth . '" style="vertical-align: top; text-alig
         <table style="width:100%;">
             <tr class="subtotal-box">
                 <td class="subtotal-title">Sub Amount:</td>
-                <td class="subtotal-amount">$' . number_format($invoice['amount'], 2) . '</td>
+                <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['amount'], 2) . '</td>
             </tr>';
             
-if (($invoice['gst_type'] ?? 'gst') === 'non_gst') {
-    $html .= '<tr class="subtotal-box">
-                <td class="subtotal-title">Tax (Non-GST):</td>
-                <td class="subtotal-amount">$0.00</td>
-            </tr>';
-} else {
-    $html .= '<tr class="subtotal-box">
-                <td class="subtotal-title">Tax Amount:</td>
-                <td class="subtotal-amount">$' . number_format($invoice['tax_amount'], 2) . '</td>
-            </tr>';
+// Show tax rows only if GST is enabled
+if ($showGSTColumn) {
+    if (!empty($taxSummary)) {
+        foreach ($taxSummary as $taxLabel => $taxAmount) {
+            $html .= '<tr class="subtotal-box">
+                        <td class="subtotal-title">' . $taxLabel . ':</td>
+                        <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($taxAmount, 2) . '</td>
+                    </tr>';
+        }
+    }
+    // REMOVED: Don\'t show "Tax: $0.00" when GST is enabled but no taxes
 }
+
+// REMOVED: Don\'t show "Tax (Non-GST): $0.00" row for non-gst or null
 
 if (!empty($invoice['shipping_charge']) && $invoice['shipping_charge'] > 0) {
     $html .= '<tr class="subtotal-box">
-                <td class="subtotal-title">Shipping Charge:</td>
-                <td class="subtotal-amount">$' . number_format($invoice['shipping_charge'], 2) . '</td>
+                <td class="subtitle-title">Shipping Charge:</td>
+                <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['shipping_charge'], 2) . '</td>
             </tr>';
 }
 
 $html .= '<tr class="subtotal-box">
                 <td class="subtotal-title">Total:</td>
-                <td class="subtotal-amount">$' . number_format($invoice['total_amount'], 2) . '</td>
+                <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['total_amount'], 2) . '</td>
             </tr>
-            
-           
         </table>
 
         <div class="address-deatils-box text-right">
                 <span class="bold-text">Total In Words:</span>
-                 ' . numberToWords($invoice['total_amount']) . ' Dollars
+                 ' . numberToWords($invoice['total_amount']) . ' ' . htmlspecialchars($currencyName) . '
             </div>
         
     </td>';
