@@ -23,137 +23,19 @@ function sendMail($email, $reset_token) {
         $mail->Port       = 587;
 
         // Recipients
-        $mail->setFrom('maniyamansioe@gmail.com', 'CRM Support');
+        $mail->setFrom('no-reply@invoice.com', 'Invoice CRM');
         $mail->addAddress($email);
+        $mail->addReplyTo('no-reply@invoice.com', 'Invoice CRM');
 
         // Content
-        $reset_link = "https://invoice.yuglogix.com/admin/reset-password.php?email=" . urlencode($email) . "&reset_token=" . urlencode($reset_token);
+        $reset_link = "saas-invoice.simplecrm365.com/admin/reset-password.php?email=" . urlencode($email) . "&reset_token=" . urlencode($reset_token);
 
         $mail->isHTML(true);
-        $mail->Subject = 'Password Reset Link - CRM System';
-       $mail->Body    = "
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-            body { 
-                font-family: Arial, sans-serif; 
-                line-height: 1.6; 
-                color: #333; 
-                margin: 0;
-                padding: 0;
-            }
-            .container { 
-                max-width: 600px; 
-                margin: 0 auto; 
-                background: #ffffff;
-            }
-            .header { 
-                background: #7539ff; 
-                color: white; 
-                padding: 20px; 
-                text-align: center; 
-            }
-            .header h2 {
-                margin: 0;
-                font-size: 24px;
-                font-weight: 600;
-            }
-            .content { 
-                padding: 30px; 
-                background: #f9f9f9; 
-            }
-            /* Exact same styling as your View Details button */
-            .btn-primary { 
-                display: inline-flex !important;
-                align-items: center !important;
-                padding: 12px 24px !important;
-                background: #7539ff !important;
-                color: white !important;
-                text-decoration: none !important;
-                border-radius: 6px !important;
-                margin: 20px 0 !important;
-                font-weight: 500 !important;
-                font-size: 14px !important;
-                border: 1px solid #0d6efd !important;
-                cursor: pointer !important;
-                text-align: center !important;
-                transition: all 0.3s ease !important;
-                font-family: Arial, sans-serif !important;
-            }
-            .btn-primary:hover {
-                background: #0b5ed7 !important;
-                border-color: #0a58ca !important;
-                color: white !important;
-                transform: translateY(-1px);
-                box-shadow: 0 4px 8px rgba(13, 110, 253, 0.3);
-                text-decoration: none !important;
-            }
-            .btn-icon {
-                margin-right: 8px !important;
-            }
-            .footer { 
-                text-align: center; 
-                padding: 20px; 
-                font-size: 12px; 
-                color: #666;
-                background: #fff;
-                border-top: 1px solid #eee;
-            }
-            .info-box {
-                background: #fff;
-                border-left: 4px solid #007bff;
-                padding: 15px;
-                margin: 15px 0;
-                border-radius: 4px;
-            }
-            .link-text {
-                word-break: break-all;
-                background: #f8f9fa;
-                padding: 10px;
-                border-radius: 4px;
-                font-size: 12px;
-                color: #495057;
-            }
-        </style>
-    </head>
-    <body>
-        <div class='container'>
-            <div class='header'>
-                <h2>Password Reset Request</h2>
-            </div>
-            <div class='content'>
-                <p>Hello,</p>
-                <p>We received a request to reset your password for your CRM account.</p>
-                
-                <div class='info-box'>
-                    <p><strong>Click the button below to reset your password:</strong></p>
-                    <p style='text-align: center;'>
-                        <a href='{$reset_link}' class='btn-primary'>
-                            <i class='btn-icon'>🔒</i>Reset Password
-                        </a>
-                    </p>
-                </div>
-
-                <p><strong>Or copy and paste this link in your browser:</strong></p>
-                <p class='link-text'>{$reset_link}</p>
-                
-                <p><strong>Important:</strong> This link will expire in 1 hour for security reasons.</p>
-                <p>If you didn't request this password reset, please ignore this email and your password will remain unchanged.</p>
-                
-                <p>Best regards,<br>CRM Support Team</p>
-            </div>
-            <div class='footer'>
-                <p>&copy; " . date('Y') . " CRM System. All rights reserved.</p>
-                <p>This is an automated message, please do not reply to this email.</p>
-            </div>
-        </div>
-    </body>
-    </html>
-";
-
+        $mail->Subject = 'Password Reset Request - Invoice CRM';
+        $mail->Body    = generatePasswordResetTemplate($email, $reset_link);
+        
         // Plain text version for non-HTML email clients
-        $mail->AltBody = "Password Reset Link\n\nWe received a request to reset your password.\n\nClick here to reset: {$reset_link}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, please ignore this email.";
+        $mail->AltBody = "Password Reset Link\n\nWe received a request to reset your password for Invoice CRM.\n\nClick here to reset: {$reset_link}\n\nThis link will expire in 1 hour.\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nInvoice CRM Support Team";
 
         $mail->send();
         return true;
@@ -161,6 +43,142 @@ function sendMail($email, $reset_token) {
         error_log("Mailer Error: " . $e->getMessage());
         return false;
     }
+}
+
+function generatePasswordResetTemplate($email, $reset_link) {
+    return '
+    <!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Password Reset Request</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f6f8; font-family: Arial, Helvetica, sans-serif;">
+ 
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f8; padding:40px 0;">
+<tr>
+<td align="center">
+ 
+        <!-- Email Container -->
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+ 
+          <!-- Logo -->
+<tr>
+<td align="left" style="padding:30px 40px 10px;">
+<img src="saas-invoice.simplecrm365.com/assets/images/org.jpg" alt="Invoice CRM Logo" width="150" height="40" style="display:block;">
+</td>
+</tr>
+ 
+          <!-- Title -->
+<tr>
+<td style="padding:10px 40px 0;">
+<h2 style="margin:0; font-size:24px; color:#000000;">
+                Password Reset Request
+</h2>
+</td>
+</tr>
+ 
+          <!-- Divider -->
+<tr>
+<td style="padding:15px 40px;">
+<hr style="border:none; border-top:1px solid #e5e7eb;">
+</td>
+</tr>
+ 
+          <!-- Content -->
+<tr>
+<td style="padding:0 40px 20px; font-size:16px; color:#333333; line-height:1.6;">
+              Hello,<br><br>
+              We received a request to reset your password for your <strong>Invoice CRM</strong> account.<br><br>
+</td>
+</tr>
+
+          <!-- Reset Details -->
+<tr>
+<td style="padding:0 40px 20px;">
+<table width="100%" cellpadding="15" cellspacing="0" style="background-color:#f8f9fa;">
+<tr>
+<td style="font-size:15px; color:#333333;">
+<strong>Click the button below to reset your password:</strong><br><br>
+<div style="text-align: center;">
+<a href="' . $reset_link . '"
+style="display:inline-block; background-color:#2563eb; color:#ffffff; text-decoration:none; padding:12px 28px; border-radius:24px; font-size:16px; font-weight:bold;">
+                Reset Password
+</a>
+</div>
+<br>
+<em style="color:#dc2626;">This link will expire in 1 hour for security reasons.</em>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+ 
+          <!-- Alternative Link -->
+<tr>
+<td style="padding:10px 40px 20px; font-size:14px; color:#666666;">
+<p style="margin:0 0 10px 0; font-weight:bold;">Or copy and paste this link in your browser:</p>
+<div style="background-color:#f8f9fa; padding:12px; border-radius:6px; word-break:break-all; font-family: monospace; font-size:12px; color:#495057;">
+' . $reset_link . '
+</div>
+</td>
+</tr>
+
+          <!-- Security Note -->
+<tr>
+<td style="padding:0 40px 20px; font-size:14px; color:#666666;">
+<p style="margin:0; font-style:italic;">
+<strong>Important:</strong> If you didn\'t request this password reset, please ignore this email and your password will remain unchanged.
+</p>
+</td>
+</tr>
+ 
+          <!-- Security Warning -->
+<tr>
+<td style="padding:20px 40px 20px; font-size:14px; color:#666666; background-color:#fef3f2; border-radius:6px; margin:0 40px;">
+<strong>🔒 Security Note:</strong><br>
+For your security, this link will expire in 1 hour. Never share this link with anyone.
+</td>
+</tr>
+
+          <!-- Divider -->
+<tr>
+<td style="padding:30px 40px 10px;">
+<hr style="border:none; border-top:1px solid #e5e7eb;">
+</td>
+</tr>
+ 
+          <!-- Footer -->
+<tr>
+<td style="padding:10px 40px 30px; font-size:14px; color:#666666;">
+<strong>Invoice CRM</strong>
+<span style="margin-left:15px; color:#9ca3af;">
+<a href="https://saas-invoice.simplecrm365.com/support" style="color:#2563eb; text-decoration:none;">
+                  Contact Support
+</a>
+</span>
+<br><br>
+<div style="color:#9ca3af; font-size:13px;">
+© ' . date('Y') . ' Invoice CRM. All rights reserved.<br>
+<a href="https://saas-invoice.simplecrm365.com/privacy" style="color:#9ca3af; text-decoration:none;">Privacy Policy</a> | 
+<a href="https://saas-invoice.simplecrm365.com/terms" style="color:#9ca3af; text-decoration:none;">Terms of Service</a>
+</div>
+<br>
+<p style="color:#9ca3af; font-size:12px; margin-top:10px;">
+This is an automated message, please do not reply to this email.
+</p>
+</td>
+</tr>
+ 
+        </table>
+<!-- End Container -->
+ 
+      </td>
+</tr>
+</table>
+ 
+</body>
+</html>';
 }
 
 if (isset($_POST['submit'])) {

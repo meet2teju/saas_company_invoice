@@ -214,7 +214,7 @@ function sendWelcomeEmail($name, $email, $plainPassword) {
     $mail = new PHPMailer(true);
     
     try {
-        // SMTP Configuration
+        // SMTP Configuration (keep your existing SMTP settings)
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com';
         $mail->SMTPAuth = true;
@@ -230,15 +230,16 @@ function sendWelcomeEmail($name, $email, $plainPassword) {
             )
         );
 
-        // Sender and recipient
+        // Sender and recipient (keep your existing settings)
         $mail->setFrom('no-reply@invoice.com', 'Invoice CRM');
         $mail->addAddress($email, $name);
         $mail->addReplyTo('no-reply@invoice.com', 'Invoice CRM');
 
-        // Email content
+        // Email content with new design
         $mail->isHTML(true);
         $mail->Subject = 'Welcome to Invoice CRM!';
         $mail->Body = generateEmailTemplate($name, $email, $plainPassword);
+        $mail->AltBody = "Welcome to Invoice CRM!\n\nDear $name,\n\nYour account has been successfully created.\n\nEmail: $email\nPassword: $plainPassword\n\nPlease login at: https://saas-invoice.simplecrm365.com/admin/login.php\n\nThank you!";
         
         // Send email (non-blocking)
         $mail->send();
@@ -252,35 +253,134 @@ function sendWelcomeEmail($name, $email, $plainPassword) {
 }
 
 function generateEmailTemplate($name, $email, $plainPassword) {
-    $loginUrl = "https://saas-invoice.simplecrm365.com/admin/login.php";
+    $loginUrl = "saas-invoice.simplecrm365.com";
     
     return '
     <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Welcome to Invoice CRM</title>
-        <style>
-            body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
-            .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 5px; }
-            .button { background: #28a745; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h2>Welcome to Invoice CRM!</h2>
-            <p>Dear ' . htmlspecialchars($name) . ',</p>
-            <p>Your account and organization have been successfully created.</p>
-            <p><strong>Login Details:</strong></p>
-            <ul>
-                <li><strong>Email:</strong> ' . htmlspecialchars($email) . '</li>
-                <li><strong>Password:</strong> ' . htmlspecialchars($plainPassword) . '</li>
-            </ul>
-            <p><a href="' . $loginUrl . '" class="button">Login to Your Account</a></p>
-        </div>
-    </body>
-    </html>';
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Welcome to Invoice CRM</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f6f8; font-family: Arial, Helvetica, sans-serif;">
+ 
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f8; padding:40px 0;">
+<tr>
+<td align="center">
+ 
+        <!-- Email Container -->
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+ 
+          <!-- Logo -->
+<tr>
+<td align="left" style="padding:30px 40px 10px;">
+<img src="saas-invoice.simplecrm365.com/assets/images/org.jpg" alt="Invoice CRM Logo" width="150" height="40" style="display:block;">
+</td>
+</tr>
+ 
+          <!-- Title -->
+<tr>
+<td style="padding:10px 40px 0;">
+<h2 style="margin:0; font-size:24px; color:#000000;">
+                Welcome to Invoice CRM!
+</h2>
+</td>
+</tr>
+ 
+          <!-- Divider -->
+<tr>
+<td style="padding:15px 40px;">
+<hr style="border:none; border-top:1px solid #e5e7eb;">
+</td>
+</tr>
+ 
+          <!-- Content -->
+<tr>
+<td style="padding:0 40px 20px; font-size:16px; color:#333333; line-height:1.6;">
+              Dear ' . htmlspecialchars($name) . ',<br><br>
+              Your account has been successfully created. Welcome to <strong>Invoice CRM</strong>!<br><br>
+</td>
+</tr>
+
+          <!-- Account Details -->
+<tr>
+<td style="padding:0 40px 20px;">
+<table width="100%" cellpadding="10" cellspacing="0" style="background-color:#f8f9fa; border-radius:6px;">
+<tr>
+<td style="font-size:15px; color:#333333;">
+<strong>Account Details:</strong><br><br>
+<strong>Name:</strong> ' . htmlspecialchars($name) . '<br>
+<strong>Email:</strong> ' . htmlspecialchars($email) . '<br>
+<strong>Password:</strong> ••••••••<br><br>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+ 
+          <!-- Button -->
+<tr>
+<td align="left" style="padding:10px 40px 30px;">
+<p style="margin:0 0 15px 0; font-size:16px; color:#333333;">Click the button below to login to your account:</p>
+<a href="' . $loginUrl . '"
+                 style="display:inline-block; background-color:#2563eb; color:#ffffff; text-decoration:none; padding:12px 28px; border-radius:24px; font-size:16px; font-weight:bold;">
+                Login to Your Account
+</a>
+</td>
+</tr>
+
+          <!-- Password Note -->
+<tr>
+<td style="padding:0 40px 20px; font-size:14px; color:#666666;">
+<p style="margin:0; font-style:italic;">
+<strong>Note:</strong> For security reasons, your password is not shown in this email.<br>
+If you forgot your password, please use the "Forgot Password" feature on the login page.
+</p>
+</td>
+</tr>
+ 
+          <!-- Security Note -->
+<tr>
+<td style="padding:20px 40px 20px; font-size:14px; color:#666666; background-color:#fef3f2; border-radius:6px; margin:0 40px;">
+<strong>🔒 Security Note:</strong><br>
+Never share your password with anyone. Our team will never ask for your password.
+</td>
+</tr>
+
+          <!-- Divider -->
+<tr>
+<td style="padding:30px 40px 10px;">
+<hr style="border:none; border-top:1px solid #e5e7eb;">
+</td>
+</tr>
+ 
+          <!-- Footer -->
+<tr>
+<td style="padding:10px 40px 30px; font-size:14px; color:#666666;">
+<strong>Invoice CRM</strong>
+<span style="margin-left:15px; color:#9ca3af;">
+<a href="saas-invoice.simplecrm365.com/support" style="color:#2563eb; text-decoration:none;">
+                  Contact Support
+</a>
+</span>
+<br><br>
+<div style="color:#9ca3af; font-size:13px;">
+© ' . date('Y') . ' Invoice CRM. All rights reserved.<br>
+<a href="saas-invoice.simplecrm365.com/privacy" style="color:#9ca3af; text-decoration:none;">Privacy Policy</a> | 
+<a href="saas-invoice.simplecrm365.com/terms" style="color:#9ca3af; text-decoration:none;">Terms of Service</a>
+</div>
+</td>
+</tr>
+ 
+        </table>
+<!-- End Container -->
+ 
+      </td>
+</tr>
+</table>
+ 
+</body>
+</html>';
 }
 
 // Make sure no output at the end
