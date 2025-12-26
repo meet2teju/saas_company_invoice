@@ -385,7 +385,7 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                                 <!-- GST Type section remains as before -->
                                                 <div class="col-auto">
                                                     <div>
-                                                        <label class="form-label">GST Type<span class="text-danger">*</span></label>
+                                                        <label class="form-label">Invoice Type<span class="text-danger">*</span></label>
                                                         <div class="d-flex align-items-center mb-3">
                                                             <div class="form-check me-3">
                                             <input class="form-check-input" type="radio" name="gst_type" id="gst-enabled" value="gst" checked>

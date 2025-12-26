@@ -267,7 +267,7 @@ $isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
                                     <!-- <div class="currency-badge">
                                         Company Currency: <?php echo $companyCurrency['currency_symbol'] . ' (' . $companyCurrency['currency_name'] . ')'; ?>
                                     </div> -->
-                                    <div class="gst-toggle-group">
+                                    <!-- <div class="gst-toggle-group">
                                         <span class="gst-toggle-label">GST Type:</span>
                                         <div class="form-check form-check-inline">
                                             <input class="form-check-input" type="radio" name="gst_type" id="gst-enabled" value="gst" <?= ($row['gst_type'] ?? 'gst') === 'gst' ? 'checked' : '' ?>>
@@ -277,7 +277,7 @@ $isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
                                             <input class="form-check-input" type="radio" name="gst_type" id="gst-disabled" value="non_gst" <?= ($row['gst_type'] ?? 'gst') === 'non_gst' ? 'checked' : '' ?>>
                                             <label class="form-check-label" for="gst-disabled">Non-GST</label>
                                         </div>
-                                    </div>
+                                    </div> -->
                                     <!-- <a href="javascript:void(0);" class="btn btn-outline-white d-inline-flex align-items-center"><i class="isax isax-eye me-1"></i>Preview</a> -->
                                 </div>
                             </div>
@@ -412,20 +412,31 @@ $isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
                                         </div>
 
                                         <div class="border-bottom mb-3 pb-3">
-                                            <div class="row">
-                                                <div class="col-xl-4 col-md-6">
-                                                    <h6 class="mb-3">Items & Details</h6>
-                                                    <div>
-                                                        <label class="form-label">Item Type<span class="text-danger">*</span></label>
-                                                        <div class="d-flex align-items-center mb-3">
-                                                            <div class="form-check me-3">
-                                                                <input class="form-check-input" type="radio" name="item_type" id="Radio-product" value="1" <?= $is_product ?>>
-                                                                <label class="form-check-label" for="Radio-product">Product</label>
-                                                            </div>
-                                                            <div class="form-check">
-                                                                <input class="form-check-input" type="radio" name="item_type" id="Radio-service" value="0" <?= $is_service ?>>
-                                                                <label class="form-check-label" for="Radio-service">Service</label>
-                                                            </div>
+                                            <h6 class="mb-3">Items & Details</h6>
+                                            <div class="row justify-content-between">
+                                                <div class="col-auto">
+                                                    <label class="form-label">Item Type<span class="text-danger">*</span></label>
+                                                    <div class="d-flex align-items-center mb-3">
+                                                        <div class="form-check me-3">
+                                                            <input class="form-check-input" type="radio" name="item_type" id="Radio-product" value="1" <?= $is_product ?>>
+                                                            <label class="form-check-label" for="Radio-product">Product</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="radio" name="item_type" id="Radio-service" value="0" <?= $is_service ?>>
+                                                            <label class="form-check-label" for="Radio-service">Service</label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <label class="form-label">Quotation Type:</label>
+                                                    <div class="d-flex align-items-center mb-3">
+                                                        <div class="form-check me-3">
+                                                            <input class="form-check-input" type="radio" name="gst_type" id="gst-enabled" value="gst" <?= ($row['gst_type'] ?? 'gst') === 'gst' ? 'checked' : '' ?>>
+                                                            <label class="form-check-label" for="gst-enabled">GST</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="radio" name="gst_type" id="gst-disabled" value="non_gst" <?= ($row['gst_type'] ?? 'gst') === 'non_gst' ? 'checked' : '' ?>>
+                                                            <label class="form-check-label" for="gst-disabled">Non-GST</label>
                                                         </div>
                                                     </div>
                                                 </div>

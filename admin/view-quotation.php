@@ -475,7 +475,7 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                 <?php if (!empty($quotation['reference_name'])): ?>
                                                             <p class="mb-1">Reference Name: <span class="text-dark"><?= htmlspecialchars($quotation['reference_name']) ?></span></p>
                                                         <?php endif; ?>
-                                                        <p class="mb-1">GST Type : 
+                                                        <p class="mb-1">Quotation Type : 
                                                             <span class="gst-badge <?= ($quotation['gst_type'] ?? 'gst') === 'non_gst' ? 'non-gst' : 'gst' ?>">
                                                                 <?= ($quotation['gst_type'] ?? 'gst') === 'non_gst' ? 'Non-GST' : 'GST' ?>
                                                             </span>

@@ -114,7 +114,7 @@
               
 
                     <!-- Notification -->
-                    <div class="notification_item me-2">
+                    <!-- <div class="notification_item me-2">
                         <a href="#" class="btn btn-menubar position-relative" id="notification_popup" data-bs-toggle="dropdown" data-bs-auto-close="outside">
                             <i class="isax isax-notification-bing5"></i>
                             <span class="position-absolute badge bg-success border border-white"></span>
@@ -132,9 +132,9 @@
                                                 <i class="isax isax-setting-2 fs-16 text-body align-middle"></i>
                                             </a>
                                             <div class="dropdown-menu dropdown-menu-end">
-                                                <!-- item-->
+                                                <!-- item--
                                                 <a href="javascript:void(0);" class="dropdown-item"><i class="ti ti-bell-check me-1"></i>Mark as Read</a>
-                                                <!-- item-->
+                                                <!-- item--
                                                 <a href="javascript:void(0);" class="dropdown-item"><i class="ti ti-trash me-1"></i>Delete All</a>
                                             </div>
                                         </div>
@@ -142,10 +142,10 @@
                                 </div>
                             </div>
                             
-                            <!-- Notification Dropdown -->
+                            <!-- Notification Dropdown --
                             <div class="notification-body position-relative z-2 rounded-0" data-simplebar>
                                 
-                                <!-- Item-->
+                                <!-- Item--
                                 <div class="dropdown-item notification-item py-2 text-wrap border-bottom" id="notification-1">
                                     <div class="d-flex">
                                         <div class="me-2 position-relative flex-shrink-0">
@@ -169,7 +169,7 @@
                                     </div>
                                 </div>
                         
-                                <!-- Item-->
+                                <!-- Item--
                                 <div class="dropdown-item notification-item py-2 text-wrap border-bottom" id="notification-2">
                                     <div class="d-flex">
                                         <div class="flex-shrink-0">
@@ -197,7 +197,7 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Item-->
+                                <!-- Item--
                                 <div class="dropdown-item notification-item py-2 text-wrap border-bottom" id="notification-3">
                                     <div class="d-flex">
                                         <div class="me-2 position-relative flex-shrink-0">
@@ -221,7 +221,7 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Item-->
+                                <!-- Item--
                                 <div class="dropdown-item notification-item py-2 text-wrap border-bottom" id="notification-4">
                                     <div class="d-flex">
                                         <div class="flex-shrink-0">
@@ -246,7 +246,7 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Item-->
+                                <!-- Item--
                                 <div class="dropdown-item notification-item py-2 text-wrap border-bottom" id="notification-5">
                                     <div class="d-flex">
                                         <div class="me-2 position-relative flex-shrink-0">
@@ -276,7 +276,7 @@
                                     
                             </div>
                             
-                            <!-- View All-->
+                            <!-- View All--
                             <div class="p-2 rounded-bottom border-top text-center">
                                 <a href="notifications.php" class="text-center fw-medium fs-14 mb-0">
                                     View All
@@ -284,7 +284,7 @@
                             </div>
                             
                         </div>
-                    </div>
+                    </div> -->
 
                     <!-- Light/Dark Mode Button -->
                     <div class="me-2 theme-item">

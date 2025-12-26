@@ -295,7 +295,7 @@ if ($project_id > 0) {
                                     <!-- <div class="currency-badge">
                                         Company Currency: <?php echo $companyCurrency['currency_symbol'] . ' (' . $companyCurrency['currency_name'] . ')'; ?>
                                     </div> -->
-                                    <div class="gst-toggle-group">
+                                    <!-- <div class="gst-toggle-group">
                                         <span class="gst-toggle-label">GST Type:</span>
                                         <div class="form-check form-check-inline">
                                             <input class="form-check-input" type="radio" name="gst_type" id="gst-enabled" value="gst" <?= $gst_checked ?>>
@@ -305,7 +305,7 @@ if ($project_id > 0) {
                                             <input class="form-check-input" type="radio" name="gst_type" id="gst-disabled" value="non_gst" <?= $non_gst_checked ?>>
                                             <label class="form-check-label" for="gst-disabled">Non-GST</label>
                                         </div>
-                                    </div>
+                                    </div> -->
                                     <a href="invoice-details.php?id=<?= $invoice_id ?>" class="btn btn-outline-white d-inline-flex align-items-center">
                                         <i class="isax isax-eye me-1"></i>Preview
                                     </a>
@@ -484,20 +484,31 @@ if ($project_id > 0) {
                                             </div>
                                         </div>
                                         <div class="border-bottom mb-3 pb-3">
-                                            <div class="row">
-                                                <div class="col-xl-4 col-md-6">
-                                                    <h6 class="mb-3">Items & Details</h6>
-                                                    <div>
-                                                        <label class="form-label">Item Type<span class="text-danger">*</span></label>
-                                                        <div class="d-flex align-items-center mb-3">
-                                                            <div class="form-check me-3">
-                                                                <input class="form-check-input" type="radio" name="item_type" id="Radio-product" value="1" <?= $is_product ?>>
-                                                                <label class="form-check-label" for="Radio-product">Product</label>
-                                                            </div>
-                                                            <div class="form-check">
-                                                                <input class="form-check-input" type="radio" name="item_type" id="Radio-service" value="0" <?= $is_service ?>>
-                                                                <label class="form-check-label" for="Radio-service">Service</label>
-                                                            </div>
+                                            <h6 class="mb-3">Items & Details</h6>
+                                            <div class="row justify-content-between">
+                                                <div class="col-auto">
+                                                    <label class="form-label">Item Type<span class="text-danger">*</span></label>
+                                                    <div class="d-flex align-items-center mb-3">
+                                                        <div class="form-check me-3">
+                                                            <input class="form-check-input" type="radio" name="item_type" id="Radio-product" value="1" <?= $is_product ?>>
+                                                            <label class="form-check-label" for="Radio-product">Product</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="radio" name="item_type" id="Radio-service" value="0" <?= $is_service ?>>
+                                                            <label class="form-check-label" for="Radio-service">Service</label>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <label class="form-label">Invoice Type:</label>
+                                                    <div class="d-flex align-items-center mb-3">
+                                                        <div class="form-check me-3">
+                                                            <input class="form-check-input" type="radio" name="gst_type" id="gst-enabled" value="gst" <?= $gst_checked ?>>
+                                                            <label class="form-check-label" for="gst-enabled">GST</label>
+                                                        </div>
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="radio" name="gst_type" id="gst-disabled" value="non_gst" <?= $non_gst_checked ?>>
+                                                            <label class="form-check-label" for="gst-disabled">Non-GST</label>
                                                         </div>
                                                     </div>
                                                 </div>

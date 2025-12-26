@@ -580,7 +580,7 @@ function formatAmount($amount, $currencySymbol = null) {
 															<?php if (!empty($invoice['order_number'])): ?>
 																<p class="mb-1">Order Number :  <span class="text-dark"><?= htmlspecialchars($invoice['order_number']) ?></span></span></p>
 															<?php endif; ?>
-															<p class="mb-1">GST Type : 
+															<p class="mb-1">Invoice Type : 
 																<span class="gst-badge <?= ($invoice['gst_type'] ?? 'gst') === 'non_gst' ? 'non-gst' : 'gst' ?>">
 																	<?= ($invoice['gst_type'] ?? 'gst') === 'non_gst' ? 'Non-GST' : 'GST' ?>
 																</span>
