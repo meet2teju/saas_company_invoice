@@ -8,8 +8,700 @@ require '../../vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 
-function sendInvoiceMail($clientEmail, $clientName, $invoice, $items) {
+// Add the numberToWords function (same as quotation)
+function numberToWords($number) {
+    $ones = array(
+        0 => "Zero", 1 => "One", 2 => "Two", 3 => "Three", 4 => "Four",
+        5 => "Five", 6 => "Six", 7 => "Seven", 8 => "Eight", 9 => "Nine",
+        10 => "Ten", 11 => "Eleven", 12 => "Twelve", 13 => "Thirteen", 
+        14 => "Fourteen", 15 => "Fifteen", 16 => "Sixteen", 17 => "Seventeen", 
+        18 => "Eighteen", 19 => "Nineteen"
+    );
+    
+    $tens = array(
+        2 => "Twenty", 3 => "Thirty", 4 => "Forty", 5 => "Fifty",
+        6 => "Sixty", 7 => "Seventy", 8 => "Eighty", 9 => "Ninety"
+    );
+    
+    if ($number < 20) {
+        return $ones[$number];
+    }
+    
+    if ($number < 100) {
+        return $tens[floor($number / 10)] . (($number % 10 != 0) ? " " . $ones[$number % 10] : "");
+    }
+    
+    if ($number < 1000) {
+        return $ones[floor($number / 100)] . " Hundred" . (($number % 100 != 0) ? " " . numberToWords($number % 100) : "");
+    }
+    
+    if ($number < 100000) {
+        return numberToWords(floor($number / 1000)) . " Thousand" . (($number % 1000 != 0) ? " " . numberToWords($number % 1000) : "");
+    }
+    
+    if ($number < 10000000) {
+        return numberToWords(floor($number / 100000)) . " Lakh" . (($number % 100000 != 0) ? " " . numberToWords($number % 100000) : "");
+    }
+    
+    return numberToWords(floor($number / 10000000)) . " Crore" . (($number % 10000000 != 0) ? " " . numberToWords($number % 10000000) : "");
+}
+
+// Function to get company currency
+function getCompanyCurrency($conn, $org_id) {
+    $sql = "SELECT currency_symbol_id FROM company_info WHERE org_id = '$org_id' LIMIT 1";
+    $result = mysqli_query($conn, $sql);
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        $companyInfo = mysqli_fetch_assoc($result);
+        $currency_id = $companyInfo['currency_symbol_id'] ?? null;
+        
+        if ($currency_id) {
+            $sql = "SELECT currency_symbol, currency_name, isocode 
+                    FROM currency 
+                    WHERE id = '$currency_id' 
+                    LIMIT 1";
+            $result = mysqli_query($conn, $sql);
+            
+            if ($result && mysqli_num_rows($result) > 0) {
+                return mysqli_fetch_assoc($result);
+            }
+        }
+    }
+    
+    $sql = "SELECT currency_symbol, currency_name, isocode 
+            FROM currency 
+            LIMIT 1";
+    $result = mysqli_query($conn, $sql);
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        return mysqli_fetch_assoc($result);
+    }
+    
+    return [
+        'currency_symbol' => '$',
+        'currency_name' => 'US Dollar',
+        'isocode' => 'USD'
+    ];
+}
+
+// Function to generate PDF - USING YOUR EXISTING INVOICE PDF DESIGN
+function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_address, $items, $client) {
+    // Get organization ID from invoice
+    $org_id = $invoice['org_id'] ?? 1;
+    
+    // Get company currency
+    $companyCurrency = getCompanyCurrency($conn, $org_id);
+    $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
+    
+    // Check GST type
+    $gstType = $invoice['gst_type'] ?? 'gst';
+    $showGSTColumn = ($gstType !== 'non_gst' && $gstType !== null);
+    
+    // Check if any item has quantity value
+    $showQuantityColumn = false;
+    mysqli_data_seek($items, 0);
+    while ($item = mysqli_fetch_assoc($items)) {
+        if (!is_null($item['quantity']) && $item['quantity'] > 0) {
+            $showQuantityColumn = true;
+            break;
+        }
+    }
+    mysqli_data_seek($items, 0);
+    
+    // Calculate totals and tax summary
+    $taxSummary = [];
+    $subtotal = 0;
+    mysqli_data_seek($items, 0);
+    while ($item = mysqli_fetch_assoc($items)) {
+        $itemAmount = $item['amount'];
+        $subtotal += $itemAmount;
+        
+        // Calculate tax for this item only if GST type is not non_gst
+        if ($showGSTColumn) {
+            $effectiveTaxRate = $item['tax_rate'] ?? 0;
+            $taxName = $item['tax_name'] ?? 'Tax';
+            
+            if ($effectiveTaxRate > 0) {
+                $lineTax = ($itemAmount * $effectiveTaxRate) / 100;
+                $taxKey = $taxName . ' (' . $effectiveTaxRate . '%)';
+                
+                // Add to summary
+                if (!isset($taxSummary[$taxKey])) {
+                    $taxSummary[$taxKey] = 0;
+                }
+                $taxSummary[$taxKey] += $lineTax;
+            }
+        }
+    }
+    mysqli_data_seek($items, 0);
+    
+    // Get absolute path for logo
+    function getAbsolutePath($relativePath) {
+        $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+        $host = $_SERVER['HTTP_HOST'];
+        $baseUrl = $protocol . "://" . $host;
+        
+        $currentDir = dirname($_SERVER['SCRIPT_NAME']);
+        return $baseUrl . $currentDir . '/' . $relativePath;
+    }
+    
+    // Get logo path
+    $logoPath = '';
+    if (!empty($company['invoice_logo']) && file_exists('../../uploads/' . $company['invoice_logo'])) {
+        $logoPath = getAbsolutePath('../../uploads/' . $company['invoice_logo']);
+    } elseif (!empty($company['company_logo']) && file_exists('../../uploads/' . $company['company_logo'])) {
+        $logoPath = getAbsolutePath('../../uploads/' . $company['company_logo']);
+    }
+    
+    // Build client name
+    $client_name = '';
+    if (!empty($client['first_name']) || !empty($client['last_name'])) {
+        $client_name = trim(($client['first_name'] ?? '') . ' ' . ($client['last_name'] ?? ''));
+    }
+    
+    // Start building HTML - USING YOUR EXISTING INVOICE PDF DESIGN
+    $html = '<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Invoice ' . htmlspecialchars($invoice['invoice_id']) . '</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            ol, ul, dl {
+                margin-bottom: 0px;
+            }
+
+            body {
+                background: #fff;
+                font-family: "Instrument Sans", sans-serif;
+                color: #000;
+                font-size: 14px;
+                line-height: 1.4;
+            }
+
+            .main-body {
+                background-color: #fff;
+                border: 1px solid #ccc;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+
+            .logo {
+                max-width: 150px;
+                max-height: 60px;
+            }
+
+            .invoice-title {
+            font-family: "Instrument Sans", sans-serif;
+                color: #000;
+                font-weight: bold;
+                font-size: 24px;
+                margin: 0;
+            }
+
+            .invoice-top {
+                border-top: 1px solid #cfcfcf;
+                border-bottom: 1px solid #cfcfcf;
+                padding: 10px;
+                margin: 10px 0;
+            }
+
+            .tittle-text {
+            font-family: "Instrument Sans", sans-serif;
+                color: #000;
+                font-weight: bold;
+                font-size: 16px;
+            }
+
+            .to-title {
+            font-family: "Instrument Sans", sans-serif;
+                color: #000;
+                font-weight: 600;
+                font-size: 14px;
+            }
+
+            .bold-text{
+                color: #000;
+                font-weight: 600;
+            }
+
+            .address-deatils-box {
+            font-family: "Instrument Sans", sans-serif;
+                color: #5d6772;
+                font-weight: 500;
+                font-size: 14px;
+            }
+
+            .table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 15px 0;
+            }
+
+            .table th, .table td {
+            font-family: "Instrument Sans", sans-serif;
+                padding: 6px;
+                font-size: 14px;
+                border: 1px solid #cfcfcf;
+            }
+
+            .table .bg-light {
+                background-color: #000 !important;
+                color: white !important;
+            }
+
+            .subtotal-box{
+               text-align: right;
+            }
+
+            .subtotal-box .subtotal-title {
+             font-family: "Instrument Sans", sans-serif;
+                color: #000;
+                font-weight: 500;
+                margin-bottom: 0;
+                text-align: right;
+            }
+
+            .subtotal-box .subtotal-amount {
+             font-family: "Instrument Sans", sans-serif;
+                color: #5d6772;
+                font-weight: 500;
+                margin-bottom: 0;
+                text-align: right;
+            }
+
+            .terms-conditions-title {
+            font-family: "Instrument Sans", sans-serif;
+                color: #000;
+                font-weight: 500;
+                font-size: 14px;
+                margin-bottom: 8px;
+            }
+
+            .terms-conditions {
+            font-family: "Instrument Sans", sans-serif;
+                background-color: #ddeeff;
+                border-radius: 4px;
+                padding: 10px;
+                margin-top: 15px;
+                font-size: 14px;
+            }
+
+            .billing-container {
+                width: 100%;
+                margin-bottom: 15px;
+            }
+
+            .billing-row {
+                display: table;
+                width: 100%;
+                border-collapse: separate;
+                border-spacing: 10px;
+            }
+
+            .billing-from, .billing-to {
+                display: table-cell;
+                vertical-align: top;
+            }
+
+            .billing-title {
+            font-family: "Instrument Sans", sans-serif;
+                color: #000;
+                font-weight: 700;
+                font-size: 18px;
+            }
+
+            .header-table {
+                width: 100%;
+                margin-bottom: 15px;
+            }
+            
+            .text-right {
+                text-align: right;
+            }
+            
+            .text-center {
+                text-align: center;
+            }
+            
+            .mb-1 { margin-bottom: 5px; }
+            .mb-2 { margin-bottom: 10px; }
+            .mb-3 { margin-bottom: 15px; }
+            .mt-3 { margin-top: 15px; }
+        </style>
+    </head>
+    <body>
+        <div class="main-body">
+            <table class="header-table">
+                <tr>
+                    <td width="60%" vertical-align: middle;>';
+                    
+    if (!empty($logoPath)) {
+        $html .= '<img src="' . $logoPath . '" class="logo" alt="logo">';
+    } else {
+        $html .= '<h2 style="margin:0; color: #000;">' . htmlspecialchars($company['name'] ?? 'Company Name') . '</h2>';
+    }
+    
+    $html .= '</td>
+                    <td width="40%" class="text-right" vertical-align: middle;>
+                        <h1 class="invoice-title">INVOICE</h1>
+                    </td>
+                </tr>
+            </table>
+    
+            <div class="invoice-top">
+                <table width="100%">
+                    <tr>
+                        <td width="50%">
+                            <div class="tittle-text">Date:</div>
+                            <div class="address-deatils-box">' . htmlspecialchars($invoice['invoice_date']) . '</div>
+                        </td>
+                        <td width="50%" class="text-right">
+                            <div class="tittle-text">Invoice No:</div>
+                            <div class="address-deatils-box">' . htmlspecialchars($invoice['invoice_id']) . '</div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+    
+            <div class="billing-container">
+                <div class="billing-row">
+                    <div class="billing-from">
+                        <div class="billing-title">Billing From</div>
+                        <div class="to-title">' . htmlspecialchars($company['name'] ?? '') . '</div>';
+                        
+    if (!empty($company['address'])) {
+        $html .= '<div class="address-deatils-box mb-0">' . htmlspecialchars($company['address'] ?? '') . '</div>';
+    }
+    
+    if (!empty($company['city_name']) || !empty($company['state_name']) || !empty($company['country_name']) || !empty($company['zipcode'])) {
+        $html .= '<div class="address-deatils-box">' . 
+            htmlspecialchars($company['city_name'] ?? '') . ', ' . 
+            htmlspecialchars($company['state_name'] ?? '') . ', ' . 
+            htmlspecialchars($company['country_name'] ?? '') . ', ' . 
+            htmlspecialchars($company['zipcode'] ?? '') . 
+        '</div>';
+    }
+    
+    if (!empty($company['email'])) {
+        $html .= '<div class="address-deatils-box"><span class="bold-text">Email:</span> ' . htmlspecialchars($company['email'] ?? '') . '</div>';
+    }
+    
+    $html .= '</div>
+                    <div class="billing-to">
+                        <div class="billing-title text-right">Billing To</div>';
+                        
+    if (!empty($client['company_name'])) {
+        $html .= '<div class="to-title text-right">' . htmlspecialchars($client['company_name']) . '</div>';
+    }
+    
+    if (!empty($client_name)) {
+        $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Client:</span> ' . htmlspecialchars($client_name) . '</div>';
+    }
+    
+    if (!empty($client_address['billing_address1'])) {
+        $html .= '<div class="address-deatils-box mb-0 text-right">' . htmlspecialchars($client_address['billing_address1'] ?? '') . '</div>';
+    }
+    
+    if (!empty($client_address['city_name']) || !empty($client_address['state_name']) || !empty($client_address['country_name']) || !empty($client_address['billing_pincode'])) {
+        $html .= '<div class="address-deatils-box text-right">' . 
+            htmlspecialchars($client_address['city_name'] ?? '') . ', ' . 
+            htmlspecialchars($client_address['state_name'] ?? '') . ', ' . 
+            htmlspecialchars($client_address['country_name'] ?? '') . ', ' . 
+            htmlspecialchars($client_address['billing_pincode'] ?? '') . 
+        '</div>';
+    }
+    
+    if (!empty($client['email'])) {
+        $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Email:</span> ' . htmlspecialchars($client['email'] ?? '') . '</div>';
+    }
+    
+    $html .= '</div>
+                </div>
+            </div>
+    
+            <div class="mb-3">
+               <h4 class="billing-title">Product / Service Items</h4>
+                <table class="table">
+                    <thead>
+                        <tr class="bg-light">
+                            <th width="5%">#</th>
+                            <th width="35%">Product/Service</th>
+                            <th width="15%">HSN Code</th>';
+                            
+    if ($showQuantityColumn) {
+        $html .= '<th width="10%" class="text-center">QTY</th>';
+    }
+    
+    // Only show GST column if GST type is not non_gst or null
+    if ($showGSTColumn) {
+        $html .= '<th width="15%">Tax</th>';
+    }
+    
+    $html .= '<th width="15%">Selling Price</th>
+                            <th width="10%">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
+    
+    $i = 1;
+    mysqli_data_seek($items, 0);
+    while ($item = mysqli_fetch_assoc($items)) {
+        // Determine item name
+        if (!empty($item['service_id'])) {
+            $productName = !empty($item['service_product_name']) ? $item['service_product_name'] : '';
+            $serviceName = !empty($item['service_name']) ? $item['service_name'] : '';
+            $itemName = $productName . ($serviceName ? ' - ' . $serviceName : '');
+        } else {
+            $itemName = !empty($item['product_name']) ? $item['product_name'] : 'Product';
+        }
+        
+        $html .= '<tr>
+            <td>' . $i++ . '</td>
+            <td>' . htmlspecialchars($itemName) . '</td>
+            <td>' . htmlspecialchars($item['code'] ?? 'N/A') . '</td>';
+        
+        if ($showQuantityColumn) {
+            $html .= '<td class="text-center">' . $item['quantity'] . '</td>';
+        }
+        
+        // Show tax column only if GST is enabled
+        if ($showGSTColumn) {
+            $effectiveTaxRate = $item['tax_rate'] ?? 0;
+            $taxName = $item['tax_name'] ?? 'Tax';
+            $html .= '<td>' . $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '') . '</td>';
+        }
+        
+        $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['selling_price'], 2) . '</td>
+            <td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['amount'], 2) . '</td>
+        </tr>';
+    }
+    
+    $html .= '</tbody>
+                </table>
+            </div>
+    
+            <div style="border-bottom: 1px solid #ddd; padding-bottom: 15px; margin-bottom: 15px;">
+                <table width="100%">
+                    <tr>
+                        <td width="50%" style="vertical-align: top;"></td>
+                        <td width="50%" style="vertical-align: top;" text-align: right;">
+                            <table style="width:100%;">
+                                <tr class="subtotal-box">
+                                    <td class="subtotal-title">Sub Amount:</td>
+                                    <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['amount'], 2) . '</td>
+                                </tr>';
+                                
+    // Show tax rows only if GST is enabled
+    if ($showGSTColumn) {
+        if (!empty($taxSummary)) {
+            foreach ($taxSummary as $taxLabel => $taxAmount) {
+                $html .= '<tr class="subtotal-box">
+                                <td class="subtotal-title">' . $taxLabel . ':</td>
+                                <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($taxAmount, 2) . '</td>
+                            </tr>';
+            }
+        }
+    }
+    
+    if (!empty($invoice['shipping_charge']) && $invoice['shipping_charge'] > 0) {
+        $html .= '<tr class="subtotal-box">
+                        <td class="subtotal-title">Shipping Charge:</td>
+                        <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['shipping_charge'], 2) . '</td>
+                    </tr>';
+    }
+    
+    $html .= '<tr class="subtotal-box">
+                        <td class="subtotal-title">Total:</td>
+                        <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['total_amount'], 2) . '</td>
+                    </tr>
+                </table>
+            </td>';
+    
+    $html .= '</tr>
+                </table>
+            </div>';
+    
+    $html .= '</div>
+    </body>
+    </html>';
+    
+    // Configure DomPDF
+    $options = new Options();
+    $options->set('isRemoteEnabled', true);
+    $options->set('isHtml5ParserEnabled', true);
+    $options->set('isPhpEnabled', true);
+    
+    $dompdf = new Dompdf($options);
+    
+    // Load HTML content
+    $dompdf->loadHtml($html);
+    
+    // Set paper size and orientation
+    $dompdf->setPaper('A4', 'portrait');
+    
+    // Render PDF
+    $dompdf->render();
+    
+    // Return PDF content
+    return $dompdf->output();
+}
+
+// Function to generate invoice email template - FIXED TO INCLUDE BEST REGARDS
+function generateInvoiceEmailTemplate($clientName, $company, $invoice, $invoiceDate) {
+    // Get company contact details
+    $companyPhone = !empty($company['mobile_number']) ? $company['mobile_number'] : '';
+    $companyWebsite = !empty($company['website']) ? $company['website'] : '';
+    $companyEmail = !empty($company['email']) ? $company['email'] : 'info@' . strtolower(str_replace(' ', '', $company['name'])) . '.com';
+    
+    // Get primary contact person
+    $contactPerson = $company['name'] . ' Team';
+    $designation = 'Accounts Department';
+    
+    // Prepare logo HTML
+    $logoHtml = '';
+    if (!empty($company['company_logo']) && file_exists('../../uploads/' . $company['company_logo'])) {
+        $logoPath = '../../uploads/' . $company['company_logo'];
+        $logoData = base64_encode(file_get_contents($logoPath));
+        $logoMime = mime_content_type($logoPath);
+        $logoHtml = '<img src="data:' . $logoMime . ';base64,' . $logoData . '" alt="' . htmlspecialchars($company['name']) . ' Logo" width="150" style="display:block;">';
+    } else {
+        $logoHtml = '<h2 style="margin:0; font-size:24px; color:#000000;">' . htmlspecialchars($company['name']) . '</h2>';
+    }
+    
+    // CORRECTED EMAIL TEMPLATE - INCLUDES BEST REGARDS SECTION
+    $html = '
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="UTF-8">
+    <title>Invoice #' . htmlspecialchars($invoice['invoice_id']) . ' from ' . htmlspecialchars($company['name']) . '</title>
+    <style>
+        body { 
+            margin:0; 
+            padding:0; 
+            background-color:#f4f6f8; 
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .content {
+            padding: 0 40px 20px;
+            font-size: 16px;
+            color: #333333;
+            line-height: 1.6;
+        }
+        .footer {
+            padding: 20px 40px;
+            font-size: 14px;
+            color: #666666;
+            border-top: 1px solid #e5e7eb;
+            background-color: #f8f9fa;
+        }
+        .attachment-box {
+            background-color: #f0f9ff;
+            border-radius: 6px;
+            border-left: 4px solid #2563eb;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+    </head>
+    <body>
+     
+      <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6f8; padding:40px 0;">
+    <tr>
+    <td align="center">
+     
+            <!-- Email Container -->
+    <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+     
+              <!-- Logo Section -->
+    <tr>
+    <td align="center" style="padding:30px 40px 10px;">
+    ' . $logoHtml . '
+    </td>
+    </tr>
+     
+              <!-- Divider -->
+    <tr>
+    <td style="padding:15px 40px;">
+    <hr style="border:none; border-top:1px solid #e5e7eb;">
+    </td>
+    </tr>
+     
+              <!-- Main Content -->
+    <tr>
+    <td style="padding:0 40px 20px; font-size:16px; color:#333333; line-height:1.6;">
+                  Dear ' . htmlspecialchars($clientName) . ',<br><br>
+                  
+                  I hope you are doing well.<br><br>
+                  
+                  Please find attached the invoice PDF for your reference and payment. The invoice includes complete details of the products/services provided.<br><br>
+                  
+                  Kindly review the attached invoice and proceed with the payment as per the terms. Please let us know if you have any questions or require clarification.<br><br>
+                  
+                  Looking forward to your payment confirmation.<br><br>
+    </td>
+    </tr>
+
+              <!-- Footer Section - INCLUDING BEST REGARDS -->
+    <tr>
+    <td style="padding:20px 40px 30px; font-size:14px; color:#666666; background-color:#f8f9fa;">
+    <strong>Best regards,</strong><br>
+    ' . htmlspecialchars($contactPerson) . '<br>
+    ' . htmlspecialchars($designation) . '<br>
+    <strong>' . htmlspecialchars($company['name']) . '</strong><br>';
+    
+    if (!empty($companyPhone)) {
+        $html .= 'Phone: ' . htmlspecialchars($companyPhone) . '<br>';
+    }
+    
+    if (!empty($companyWebsite)) {
+        $html .= 'Website: <a href="' . htmlspecialchars($companyWebsite) . '" style="color:#2563eb; text-decoration:none;">' . htmlspecialchars($companyWebsite) . '</a><br>';
+    }
+    
+    $html .= 'Email: <a href="mailto:' . htmlspecialchars($companyEmail) . '" style="color:#2563eb; text-decoration:none;">' . htmlspecialchars($companyEmail) . '</a><br><br>
+    
+    <div style="color:#9ca3af; font-size:13px; border-top:1px solid #e5e7eb; padding-top:10px;">
+    © ' . date('Y') . ' ' . htmlspecialchars($company['name']) . '. All rights reserved.
+    </div>
+    </td>
+    </tr>
+     
+            </table>
+    <!-- End Container -->
+     
+          </td>
+    </tr>
+    </table>
+     
+    </body>
+    </html>';
+    
+    return $html;
+}
+
+// Main function to send invoice email with PDF attachment
+function sendInvoiceMail($conn, $clientEmail, $clientName, $invoice, $items, $company, $client_address, $client) {
     $mail = new PHPMailer(true);
     
     try {
@@ -22,239 +714,38 @@ function sendInvoiceMail($clientEmail, $clientName, $invoice, $items) {
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
+        // Format date
+        $invoiceDate = date('d F Y', strtotime($invoice['invoice_date']));
+
         // Recipients
-        $mail->setFrom('maniyamansioe@gmail.com', 'Invoice System');
+        $mail->setFrom('maniyamansioe@gmail.com', $company['name']);
         $mail->addAddress($clientEmail, $clientName);
-        $mail->addReplyTo('maniyamansioe@gmail.com', 'Invoice System');
+        $mail->addReplyTo('maniyamansioe@gmail.com', $company['name'] . ' Support');
 
-        // Build items table HTML
-        $items_html = '';
-        $total_items = 0;
-        while ($row = mysqli_fetch_assoc($items)) {
-            $items_html .= "
-            <tr>
-                <td style='padding: 10px; border: 1px solid #ddd;'>{$row['product_name']}</td>
-                <td style='padding: 10px; border: 1px solid #ddd; text-align: center;'>{$row['quantity']}</td>
-                <td style='padding: 10px; border: 1px solid #ddd;'>{$row['unit_name']}</td>
-                <td style='padding: 10px; border: 1px solid #ddd; text-align: right;'>₹" . number_format($row['selling_price'], 2) . "</td>
-                <td style='padding: 10px; border: 1px solid #ddd;'>{$row['tax_name']}</td>
-                <td style='padding: 10px; border: 1px solid #ddd; text-align: right;'>₹" . number_format($row['amount'], 2) . "</td>
-            </tr>";
-            $total_items++;
-        }
-
-        // Reset items pointer for plain text version
-        mysqli_data_seek($items, 0);
-
+        // Generate PDF - USING YOUR EXISTING INVOICE PDF
+        $pdfContent = generateInvoicePDF($conn, $invoice['id'], $invoice, $company, $client_address, $items, $client);
+        
+        // Add PDF attachment
+        $mail->addStringAttachment($pdfContent, 'Invoice_' . $invoice['invoice_id'] . '.pdf', 'base64', 'application/pdf');
+        
         // Content
         $mail->isHTML(true);
-        $mail->Subject = 'Invoice #' . $invoice['invoice_id'] . ' - Invoice System';
-        $mail->Body    = "
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>
-                    body { 
-                        font-family: Arial, sans-serif; 
-                        line-height: 1.6; 
-                        color: #333; 
-                        background-color: #f4f4f4;
-                        margin: 0;
-                        padding: 20px;
-                    }
-                    .container {
-                        max-width: 800px;
-                        margin: 0 auto;
-                        background: white;
-                        padding: 30px;
-                        border-radius: 10px;
-                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                    }
-                    .header {
-                        text-align: center;
-                        border-bottom: 2px solid #007bff;
-                        padding-bottom: 20px;
-                        margin-bottom: 30px;
-                    }
-                    .header h1 {
-                        color: #007bff;
-                        margin: 0;
-                    }
-                    .invoice-info {
-                        background: #f8f9fa;
-                        padding: 20px;
-                        border-radius: 5px;
-                        margin-bottom: 20px;
-                    }
-                    .section {
-                        margin-bottom: 25px;
-                    }
-                    .section h3 {
-                        color: #007bff;
-                        border-bottom: 1px solid #dee2e6;
-                        padding-bottom: 10px;
-                    }
-                    table {
-                        width: 100%;
-                        border-collapse: collapse;
-                        margin: 15px 0;
-                    }
-                    table th {
-                        background: #007bff;
-                        color: white;
-                        padding: 12px;
-                        text-align: left;
-                    }
-                    table td {
-                        padding: 12px;
-                        border-bottom: 1px solid #dee2e6;
-                    }
-                    table tr:nth-child(even) {
-                        background: #f8f9fa;
-                    }
-                    .total-section {
-                        background: #e9ecef;
-                        padding: 20px;
-                        border-radius: 5px;
-                        margin-top: 20px;
-                    }
-                    .total-row {
-                        display: flex;
-                        justify-content: space-between;
-                        margin: 5px 0;
-                    }
-                    .total-amount {
-                        font-size: 1.2em;
-                        font-weight: bold;
-                        color: #007bff;
-                        border-top: 2px solid #007bff;
-                        padding-top: 10px;
-                    }
-                    .footer {
-                        text-align: center;
-                        margin-top: 30px;
-                        padding-top: 20px;
-                        border-top: 1px solid #dee2e6;
-                        color: #6c757d;
-                        font-size: 0.9em;
-                    }
-                    .status-paid { color: #28a745; font-weight: bold; }
-                    .status-pending { color: #ffc107; font-weight: bold; }
-                    .status-overdue { color: #dc3545; font-weight: bold; }
-                </style>
-            </head>
-            <body>
-                <div class='container'>
-                    <div class='header'>
-                        <h1>INVOICE</h1>
-                        <p>Invoice #{$invoice['invoice_id']}</p>
-                    </div>
-
-                    <div class='invoice-info'>
-                        <div style='display: flex; justify-content: space-between; flex-wrap: wrap;'>
-                            <div>
-                                <h3>Billing From:</h3>
-                                <p><strong>Invoice System</strong><br>
-                                maniyamansioe@gmail.com</p>
-                            </div>
-                            <div>
-                                <h3>Billing To:</h3>
-                                <p><strong>{$clientName}</strong><br>
-                                {$clientEmail}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class='section'>
-                        <h3>Invoice Details</h3>
-                        <div style='display: flex; justify-content: space-between; flex-wrap: wrap;'>
-                            <div>
-                                <p><strong>Invoice Number:</strong> {$invoice['invoice_id']}</p>
-                                <p><strong>Issued On:</strong> " . date('F j, Y', strtotime($invoice['invoice_date'])) . "</p>
-                            </div>
-                            <div>
-                                <p><strong>Due Date:</strong> " . date('F j, Y', strtotime($invoice['due_date'])) . "</p>
-                                <p><strong>Status:</strong> <span class='status-{$invoice['status']}'>{$invoice['status']}</span></p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class='section'>
-                        <h3>Product/Service Items</h3>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Item</th>
-                                    <th>Quantity</th>
-                                    <th>Unit</th>
-                                    <th>Unit Price</th>
-                                    <th>Tax</th>
-                                    <th>Amount</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {$items_html}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <div class='total-section'>
-                        <div class='total-row'>
-                            <span>Sub Amount:</span>
-                            <span>₹" . number_format($invoice['amount'], 2) . "</span>
-                        </div>
-                        <div class='total-row'>
-                            <span>Tax Amount:</span>
-                            <span>₹" . number_format($invoice['tax_amount'], 2) . "</span>
-                        </div>
-                        <div class='total-row'>
-                            <span>Shipping Charge:</span>
-                            <span>₹" . number_format($invoice['shipping_charge'], 2) . "</span>
-                        </div>
-                        <div class='total-row total-amount'>
-                            <span>Total Amount:</span>
-                            <span>₹" . number_format($invoice['total_amount'], 2) . "</span>
-                        </div>
-                    </div>
-
-                    <div class='footer'>
-                        <p>Thank you for your business!</p>
-                        <p>If you have any questions about this invoice, please contact us.</p>
-                        <p>&copy; " . date('Y') . " Invoice System. All rights reserved.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-        ";
-
-        // Build plain text version
-        $plainText = "INVOICE #{$invoice['invoice_id']}\n\n";
-        $plainText .= "Billing To: {$clientName}\n";
-        $plainText .= "Email: {$clientEmail}\n\n";
-        $plainText .= "Invoice Details:\n";
-        $plainText .= "- Invoice Number: {$invoice['invoice_id']}\n";
-        $plainText .= "- Issued On: " . date('F j, Y', strtotime($invoice['invoice_date'])) . "\n";
-        $plainText .= "- Due Date: " . date('F j, Y', strtotime($invoice['due_date'])) . "\n";
-        $plainText .= "- Status: {$invoice['status']}\n\n";
+        $mail->Subject = 'Invoice #' . $invoice['invoice_id'] . ' from ' . $company['name'];
         
-        $plainText .= "Items:\n";
-        $plainText .= "----------------------------------------\n";
-        while ($row = mysqli_fetch_assoc($items)) {
-            $plainText .= "{$row['product_name']} | Qty: {$row['quantity']} {$row['unit_name']} | Price: ₹" . number_format($row['selling_price'], 2) . " | Tax: {$row['tax_name']} | Amount: ₹" . number_format($row['amount'], 2) . "\n";
-        }
-        $plainText .= "----------------------------------------\n\n";
+        // Generate email body - WITH FIXED TEMPLATE
+        $mail->Body = generateInvoiceEmailTemplate($clientName, $company, $invoice, $invoiceDate);
         
-        $plainText .= "Summary:\n";
-        $plainText .= "Sub Amount: ₹" . number_format($invoice['amount'], 2) . "\n";
-        $plainText .= "Tax Amount: ₹" . number_format($invoice['tax_amount'], 2) . "\n";
-        $plainText .= "Shipping Charge: ₹" . number_format($invoice['shipping_charge'], 2) . "\n";
-        $plainText .= "Total Amount: ₹" . number_format($invoice['total_amount'], 2) . "\n\n";
-        
-        $plainText .= "Thank you for your business!\n\n";
-        $plainText .= "If you have any questions about this invoice, please contact us.\n";
-        $plainText .= "© " . date('Y') . " Invoice System. All rights reserved.";
-
-        $mail->AltBody = $plainText;
+        // Plain text version
+        $mail->AltBody = "Dear " . $clientName . ",\n\n" .
+                        "I hope you are doing well.\n\n" .
+                        "Please find attached the invoice PDF for your reference and payment. The invoice includes complete details of the products/services provided.\n\n" .
+                        "Kindly review the attached invoice and proceed with the payment as per the terms. Please let us know if you have any questions or require clarification.\n\n" .
+                        "Looking forward to your payment confirmation.\n\n" .
+                        "Best regards,\n" .
+                        $company['name'] . " Team\n" .
+                        "Accounts Department\n" .
+                        (!empty($company['mobile_number']) ? "Phone: " . $company['mobile_number'] . "\n" : "") .
+                        (!empty($company['email']) ? "Email: " . $company['email'] . "\n" : "");
 
         $mail->send();
         return true;
@@ -276,7 +767,7 @@ if ((isset($_GET['invoice_id']) || isset($_POST['invoice_id']))) {
     }
 
     // Fetch invoice with prepared statement
-    $query = "SELECT * FROM invoice WHERE id = ? AND is_deleted = 0";
+    $query = "SELECT i.* FROM invoice i WHERE i.id = ? AND i.is_deleted = 0";
     $stmt = mysqli_prepare($conn, $query);
     
     if ($stmt) {
@@ -289,6 +780,27 @@ if ((isset($_GET['invoice_id']) || isset($_POST['invoice_id']))) {
             $_SESSION['message'] = 'Invoice not found or has been deleted';
             $_SESSION['message_type'] = 'error';
             header('Location: ../invoice-details.php');
+            exit;
+        }
+
+        // Fetch company info
+        $company_query = "SELECT ci.*, 
+                                 co.name AS country_name,
+                                 s.name AS state_name,
+                                 c.name AS city_name
+                          FROM company_info ci
+                          LEFT JOIN countries co ON co.id = ci.country_id
+                          LEFT JOIN states s ON s.id = ci.state_id
+                          LEFT JOIN cities c ON c.id = ci.city_id
+                          WHERE ci.org_id = '{$invoice['org_id']}'
+                          LIMIT 1";
+        $company_result = mysqli_query($conn, $company_query);
+        $company = mysqli_fetch_assoc($company_result);
+
+        if (!$company) {
+            $_SESSION['message'] = 'Company information not found';
+            $_SESSION['message_type'] = 'error';
+            header('Location: ../invoice-details.php?id=' . $invoice_id);
             exit;
         }
 
@@ -316,16 +828,44 @@ if ((isset($_GET['invoice_id']) || isset($_POST['invoice_id']))) {
                 exit;
             }
 
+            // Fetch client address
+            $client_address = null;
+            if (!empty($invoice['client_id'])) {
+                $client_address_query = "
+                    SELECT ca.*, 
+                           co.name AS country_name, 
+                           s.name AS state_name, 
+                           ci.name AS city_name
+                    FROM client_address ca
+                    LEFT JOIN countries co ON co.id = ca.billing_country
+                    LEFT JOIN states s ON s.id = ca.billing_state
+                    LEFT JOIN cities ci ON ci.id = ca.billing_city
+                    WHERE ca.client_id = {$invoice['client_id']}
+                    LIMIT 1
+                ";
+                $client_address_result = mysqli_query($conn, $client_address_query);
+                $client_address = mysqli_fetch_assoc($client_address_result);
+            }
+
             $clientEmail = $client['email'];
             $clientName = $client['first_name'] . ' ' . $client['last_name'];
 
             // Get invoice items with prepared statement
-            $items_query = "SELECT ii.*, p.name AS product_name, t.name AS tax_name, u.name AS unit_name
-                FROM invoice_item ii
-                LEFT JOIN product p ON p.id = ii.product_id
-                LEFT JOIN units u ON u.id = ii.unit_id
-                LEFT JOIN tax t ON t.id = ii.tax_id
-                WHERE ii.invoice_id = ? AND ii.is_deleted = 0";
+            $items_query = "SELECT ii.*, 
+                                   p.name AS product_name,
+                                   p.code AS product_code,
+                                   s.name AS service_product_name,
+                                   s.code AS service_code,
+                                   COALESCE(p.code, s.code) AS code,
+                                   t.name AS tax_name, 
+                                   t.rate AS tax_rate,
+                                   u.name AS unit_name
+                            FROM invoice_item ii
+                            LEFT JOIN product p ON p.id = ii.product_id
+                            LEFT JOIN product s ON s.id = ii.service_id
+                            LEFT JOIN units u ON u.id = ii.unit_id
+                            LEFT JOIN tax t ON t.id = ii.tax_id
+                            WHERE ii.invoice_id = ? AND ii.is_deleted = 0";
             
             $items_stmt = mysqli_prepare($conn, $items_query);
             
@@ -334,12 +874,23 @@ if ((isset($_GET['invoice_id']) || isset($_POST['invoice_id']))) {
                 mysqli_stmt_execute($items_stmt);
                 $items = mysqli_stmt_get_result($items_stmt);
 
-                if (sendInvoiceMail($clientEmail, $clientName, $invoice, $items)) {
-                    $_SESSION['message'] = 'Invoice has been sent successfully to ' . $clientEmail . '!';
+                if (sendInvoiceMail($conn, $clientEmail, $clientName, $invoice, $items, $company, $client_address, $client)) {
+                    $_SESSION['message'] = 'Invoice has been sent successfully to ' . $clientEmail . ' with PDF attachment!';
                     $_SESSION['message_type'] = 'success';
                     
+                    // Update invoice status to "sent" if not already
+                    if ($invoice['status'] == 'draft') {
+                        $update_query = "UPDATE invoice SET status = 'pending' WHERE id = ?";
+                        $update_stmt = mysqli_prepare($conn, $update_query);
+                        if ($update_stmt) {
+                            mysqli_stmt_bind_param($update_stmt, "i", $invoice_id);
+                            mysqli_stmt_execute($update_stmt);
+                            mysqli_stmt_close($update_stmt);
+                        }
+                    }
+                    
                     // Log the email sending
-                    error_log("Invoice email sent to: " . $clientEmail . " for invoice #" . $invoice['invoice_id'] . " at " . date('Y-m-d H:i:s'));
+                    error_log("Invoice email with PDF sent to: " . $clientEmail . " for invoice #" . $invoice['invoice_id'] . " at " . date('Y-m-d H:i:s'));
                 } else {
                     $_SESSION['message'] = 'Failed to send invoice email. Please try again later.';
                     $_SESSION['message_type'] = 'danger';
