@@ -128,7 +128,7 @@ function generateUserWelcomeEmailTemplate($name, $email) {
 <strong>Name:</strong> ' . htmlspecialchars($name) . '<br>
 <strong>Email:</strong> ' . htmlspecialchars($email) . '<br>
 <strong>Password:</strong> ••••••••<br><br>
-<strong>Login URL:</strong> <a href="' . $loginUrl . '">' . $loginUrl . '</a>
+
 </td>
 </tr>
 </table>
