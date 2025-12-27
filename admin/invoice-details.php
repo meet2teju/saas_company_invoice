@@ -32,6 +32,14 @@ if (!$invoice) {
     die('Invoice not found!');
 }
 
+// ========== ADDED OVERDUE CHECK ==========
+// Check if invoice is overdue (not paid and due date has passed)
+$today = date('Y-m-d');
+$dueDate = $invoice['due_date'];
+$status = strtolower($invoice['status'] ?? 'unpaid');
+$isOverdue = ($status != 'paid' && strtotime($dueDate) < strtotime($today));
+// ========== END OVERDUE CHECK ==========
+
 $invoiceId = $invoice['id'];
 $client_id = $invoice['client_id'];
 $bank_id = $invoice['bank_id'];
@@ -493,16 +501,25 @@ function formatAmount($amount, $currencySymbol = null) {
                                     <div class="status-dropdown">
                                         <button class="status-btn" onclick="toggleStatusDropdown()">
                                             <span class="status-indicator" id="statusIndicator" style="background-color: <?php 
-                                                $statusColor = match(strtolower($invoice['status'] ?? 'unpaid')) {
-                                                    'paid' => '#28a745',
-                                                    'unpaid' => '#ffc107',
-                                                    'cancelled' => '#dc3545',
-                                                    'uncollectable' => '#dc3545',
-                                                    default => '#6c757d'
-                                                };
+                                                // ========== MODIFIED STATUS COLOR LOGIC ==========
+                                                $status = strtolower($invoice['status'] ?? 'unpaid');
+                                                if ($isOverdue) {
+                                                    $statusColor = '#dc3545'; // Red for overdue
+                                                    $displayStatus = 'Overdue';
+                                                } else {
+                                                    $statusColor = match($status) {
+                                                        'paid' => '#28a745',
+                                                        'unpaid' => '#ffc107',
+                                                        'cancelled' => '#dc3545',
+                                                        'uncollectable' => '#dc3545',
+                                                        default => '#6c757d'
+                                                    };
+                                                    $displayStatus = ucfirst($status);
+                                                }
                                                 echo $statusColor;
+                                                // ========== END MODIFIED STATUS COLOR LOGIC ==========
                                             ?>"></span>
-                                            <span id="statusText"><?= ucfirst($invoice['status'] ?? 'Unpaid') ?></span>
+                                            <span id="statusText"><?= $displayStatus ?></span>
                                             <i class="fas fa-chevron-down" style="font-size: 12px;"></i>
                                         </button>
                                         <div class="status-dropdown-content" id="statusDropdown">
@@ -586,16 +603,24 @@ function formatAmount($amount, $currencySymbol = null) {
 																</span>
 															</p>
 															<?php 
+															// ========== MODIFIED STATUS DISPLAY ==========
 															$status = $invoice['status'] ?? 'Pending';
-															$badgeClass = match(strtolower($status)) {
-																'paid' => 'bg-success',
-																'unpaid' => 'bg-warning text-dark',
-																'cancelled' => 'bg-danger',
-																'uncollectable' => 'bg-danger',
-																default => 'bg-secondary'
-															};
+															if ($isOverdue) {
+																$badgeClass = 'bg-danger';
+																$displayStatus = 'Overdue';
+															} else {
+																$badgeClass = match(strtolower($status)) {
+																	'paid' => 'bg-success',
+																	'unpaid' => 'bg-warning text-dark',
+																	'cancelled' => 'bg-danger',
+																	'uncollectable' => 'bg-danger',
+																	default => 'bg-secondary'
+																};
+																$displayStatus = ucfirst($status);
+															}
+															// ========== END MODIFIED STATUS DISPLAY ==========
 															?>
-															<p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm status-display"><?= ucfirst($status) ?></span></p>
+															<p class="mb-1">Status : <span class="badge <?= $badgeClass ?> badge-sm status-display"><?= $displayStatus ?></span></p>
 															<p class="mb-1">Currency : <span class="text-dark"><?= htmlspecialchars($displayCurrency['currency_name']) ?> (<?= htmlspecialchars($displayCurrency['currency_symbol']) ?>)</span></p>
                                             </div>
                                             <div class="col-md-6 text-end">
@@ -1036,40 +1061,62 @@ function updateInvoiceStatusViaAjax(status) {
 
 // Function to update all status displays on the page
 function updateAllStatusDisplays(status) {
+    // First, check if invoice is overdue based on new status and due date
+    const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+    const dueDate = '<?= $invoice["due_date"] ?>';
+    
+    // Check if overdue (not paid and due date passed)
+    const isOverdue = (status !== 'paid' && new Date(dueDate) < new Date(today));
+    
     // Update the dropdown button text and indicator
     const statusText = document.getElementById('statusText');
     const statusIndicator = document.getElementById('statusIndicator');
     
-    let displayText = status.charAt(0).toUpperCase() + status.slice(1);
+    let displayText = '';
+    let statusColor = '';
     
-    // Update text
+    if (isOverdue) {
+        displayText = 'Overdue';
+        statusColor = '#dc3545'; // Red for overdue
+    } else {
+        displayText = status.charAt(0).toUpperCase() + status.slice(1);
+        const statusColors = {
+            'paid': '#28a745',
+            'unpaid': '#ffc107',
+            'cancelled': '#dc3545',
+            'uncollectable': '#dc3545'
+        };
+        statusColor = statusColors[status] || '#6c757d';
+    }
+    
+    // Update text and color
     statusText.textContent = displayText;
-    
-    // Update indicator color
-    const statusColors = {
-        'paid': '#28a745',
-        'unpaid': '#ffc107',
-        'cancelled': '#dc3545',
-        'uncollectable': '#dc3545'
-    };
-    
-    statusIndicator.style.backgroundColor = statusColors[status] || '#6c757d';
+    statusIndicator.style.backgroundColor = statusColor;
     
     // Update the status badge in the invoice details section
     const statusBadge = document.querySelector('.status-display');
     if (statusBadge) {
-        const badgeClasses = {
-            'paid': 'bg-success',
-            'unpaid': 'bg-warning text-dark',
-            'cancelled': 'bg-danger',
-            'uncollectable': 'bg-danger'
-        };
+        let badgeClass = '';
+        let badgeText = '';
+        
+        if (isOverdue) {
+            badgeClass = 'bg-danger';
+            badgeText = 'Overdue';
+        } else {
+            const badgeClasses = {
+                'paid': 'bg-success',
+                'unpaid': 'bg-warning text-dark',
+                'cancelled': 'bg-danger',
+                'uncollectable': 'bg-danger'
+            };
+            badgeClass = badgeClasses[status] || 'bg-secondary';
+            badgeText = status.charAt(0).toUpperCase() + status.slice(1);
+        }
         
         // Update badge class
-        statusBadge.className = 'badge ' + (badgeClasses[status] || 'bg-secondary') + ' badge-sm status-display';
+        statusBadge.className = 'badge ' + badgeClass + ' badge-sm status-display';
         
         // Update badge text
-        let badgeText = status.charAt(0).toUpperCase() + status.slice(1);
         statusBadge.textContent = badgeText;
     }
     

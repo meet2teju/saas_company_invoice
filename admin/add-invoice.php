@@ -161,6 +161,16 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
             font-size: 12px;
             font-weight: 500;
         }
+        /* Added for validation error styling */
+        .product-service-error {
+            display: none;
+            color: #dc3545;
+            font-size: 0.875em;
+            margin-top: 0.25rem;
+        }
+        .is-invalid-dropdown {
+            border-color: #dc3545 !important;
+        }
     </style>
 </head>
 
@@ -655,6 +665,72 @@ $(document).ready(function() {
     }
 
     // =============================================
+    // NEW: Product/Service Dropdown Validation
+    // =============================================
+    function validateProductServiceDropdowns() {
+        let isValid = true;
+        let firstErrorRow = null;
+        
+        // Clear all previous error messages and styling
+        $('.product-service-error').hide();
+        $('.product-select, .service-select').removeClass('is-invalid-dropdown');
+        $('.service-name-input').removeClass('is-invalid');
+        
+        // Check each row
+        $('.add-tbody tr').each(function(index) {
+            const $row = $(this);
+            const isProductRow = $row.hasClass('product-row');
+            const isServiceRow = $row.hasClass('service-row');
+            
+            let hasError = false;
+            let errorMessage = '';
+            
+            if (isProductRow) {
+                const $productSelect = $row.find('.product-select');
+                const productValue = $productSelect.val();
+                
+                if (!productValue) {
+                    hasError = true;
+                    errorMessage = 'Please select a product';
+                    $productSelect.addClass('is-invalid-dropdown');
+                    
+                    if (firstErrorRow === null) {
+                        firstErrorRow = $row;
+                    }
+                }
+            } else if (isServiceRow) {
+                const $serviceSelect = $row.find('.service-select');
+                const $serviceNameInput = $row.find('.service-name-input');
+                const serviceValue = $serviceSelect.val();
+                const serviceNameValue = $serviceNameInput.val();
+                
+                // Check if both are empty
+                if (!serviceValue && !serviceNameValue) {
+                    hasError = true;
+                    errorMessage = 'Please select a service or enter a custom service name';
+                    $serviceSelect.addClass('is-invalid-dropdown');
+                    $serviceNameInput.addClass('is-invalid');
+                    
+                    if (firstErrorRow === null) {
+                        firstErrorRow = $row;
+                    }
+                }
+            }
+            
+            // Show error message if there's an error
+            if (hasError) {
+                $row.find('.product-service-error').text(errorMessage).show();
+                isValid = false;
+            }
+        });
+        
+        return {
+            isValid: isValid,
+            firstErrorRow: firstErrorRow
+        };
+    }
+
+    // =============================================
     // Project and Task Selection (EXISTING LOGIC)
     // =============================================
     // When client changes
@@ -762,6 +838,7 @@ $(document).ready(function() {
                                             <input type="hidden" class="tax-name" name="tax_name[]" value="">
                                             <!-- Hidden field to track item type for this row -->
                                             <input type="hidden" name="item_type_row[]" value="service">
+                                            <div class="product-service-error"></div>
                                         </div>
                                     </td>
                                     <td>
@@ -857,6 +934,18 @@ $(document).ready(function() {
         if (!$('.add-tbody tr').length) {
             $('#product_error').text('Please add at least one product or service');
             isValid = false;
+        }
+
+        // ADDED: Product/Service dropdown validation
+        const dropdownValidation = validateProductServiceDropdowns();
+        if (!dropdownValidation.isValid) {
+            isValid = false;
+            // Scroll to the first row with error
+            if (dropdownValidation.firstErrorRow) {
+                $('html, body').animate({
+                    scrollTop: dropdownValidation.firstErrorRow.offset().top - 150
+                }, 500);
+            }
         }
 
         // ADDED: Bank account validation
@@ -1030,6 +1119,8 @@ $(document).ready(function() {
                         <input type="hidden" class="tax-name" name="tax_name[]">
                         <!-- Hidden field to track item type for this row -->
                         <input type="hidden" name="item_type_row[]" value="product">
+                        <!-- Error message container -->
+                        <div class="product-service-error"></div>
                     </td>
                     <td>
                         <input type="number" class="form-control quantity" name="quantity[]" value="1" min="1">
@@ -1075,6 +1166,8 @@ $(document).ready(function() {
                         <input type="hidden" class="tax-name" name="tax_name[]">
                         <!-- Hidden field to track item type for this row -->
                         <input type="hidden" name="item_type_row[]" value="service">
+                        <!-- Error message container -->
+                        <div class="product-service-error"></div>
                     </td>
                     <td>
                         <input type="number" class="form-control quantity service-quantity" name="quantity[]" value="" placeholder="Optional">
@@ -1183,25 +1276,13 @@ $(document).ready(function() {
         calculateSummary();
     });
 
-    // Initialize shipping field
-    (function initShipping(){
-        const $ship = $('#shipping-charge');
-        if ($ship.length) {
-            const initVal = unformat($ship.val());
-            $ship.data('value', initVal);
-            if ($ship.attr('type') !== 'number') {
-                $ship.val(initVal.toFixed(2));
-            } else {
-                $ship.val(initVal.toFixed(2));
-            }
-        }
-    })();
-
-    // Item events
+    // NEW: Clear validation errors when user interacts with dropdowns or inputs
     $(document).on('change', '.product-select', function() {
         const $row = $(this).closest('tr');
+        $row.find('.product-service-error').hide();
+        $(this).removeClass('is-invalid-dropdown');
+        
         const option = $(this).find('option:selected');
-
         if (option.val()) {
             const price = parseFloat(option.data('price')) || 0;
             const hsnCode = option.data('hsn') || '';
@@ -1237,11 +1318,14 @@ $(document).ready(function() {
         updateProductDropdowns();
     });
 
-    // Service select change handler
+    // NEW: Clear validation errors for service select
     $(document).on('change', '.service-select', function() {
         const $row = $(this).closest('tr');
+        $row.find('.product-service-error').hide();
+        $(this).removeClass('is-invalid-dropdown');
+        $row.find('.service-name-input').removeClass('is-invalid');
+        
         const option = $(this).find('option:selected');
-
         if (option.val()) {
             const price = parseFloat(option.data('price')) || 0;
             const hsnCode = option.data('hsn') || '';
@@ -1286,7 +1370,38 @@ $(document).ready(function() {
         updateServiceDropdowns();
     });
 
-    // FIXED: Added product tax select change handler
+    // NEW: Clear validation errors when user types in service name input
+    $(document).on('input', '.service-name-input', function() {
+        const $row = $(this).closest('tr');
+        const $serviceSelect = $row.find('.service-select');
+        
+        // Clear error when user starts typing
+        $row.find('.product-service-error').hide();
+        $(this).removeClass('is-invalid');
+        $serviceSelect.removeClass('is-invalid-dropdown');
+        
+        if ($serviceSelect.val() === '') {
+            $row.find('.hsn-code').val('');
+        }
+        
+        calculateRow($row);
+    });
+
+    // Initialize shipping field
+    (function initShipping(){
+        const $ship = $('#shipping-charge');
+        if ($ship.length) {
+            const initVal = unformat($ship.val());
+            $ship.data('value', initVal);
+            if ($ship.attr('type') !== 'number') {
+                $ship.val(initVal.toFixed(2));
+            } else {
+                $ship.val(initVal.toFixed(2));
+            }
+        }
+    })();
+
+    // Item events
     $(document).on('change', '.product-tax-select', function() {
         const $row = $(this).closest('tr');
         const selectedOption = $(this).find('option:selected');
@@ -1318,7 +1433,6 @@ $(document).ready(function() {
         $row.find('.tax-name').val(taxName);
         calculateRow($row);
     });
-
     $(document).on('input', '.service-name-input', function() {
         const $row = $(this).closest('tr');
         const $serviceSelect = $row.find('.service-select');

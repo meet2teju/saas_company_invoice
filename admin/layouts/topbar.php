@@ -350,10 +350,10 @@
                             </a> -->
 
                             <!-- Item-->
-                            <div class="form-check form-switch form-check-reverse d-flex align-items-center justify-content-between dropdown-item mb-0">
+                            <!-- <div class="form-check form-switch form-check-reverse d-flex align-items-center justify-content-between dropdown-item mb-0">
                                 <label class="form-check-label" for="notify"><i class="isax isax-notification me-2"></i>Notifications</label>
                                 <input class="form-check-input" type="checkbox" role="switch" id="notify">
-                            </div>
+                            </div> -->
 
                             <hr class="dropdown-divider my-2">
 

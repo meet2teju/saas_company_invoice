@@ -144,7 +144,7 @@ if (isset($_SESSION['message']) && isset($_SESSION['message_type'])) {
         flex-shrink: 0;
     }
     
-    /* Select2 customization for country code */
+    /* Select2 customization for country code - REMOVED SEARCH */
     .country-code-select + .select2 {
         width: 140px !important;
         min-width: 140px;
@@ -195,11 +195,13 @@ if (isset($_SESSION['message']) && isset($_SESSION['message_type'])) {
         height: 38px !important;
     }
     
-    /* Make country code dropdown searchable */
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    /* Remove search box from country code dropdown */
+    .country-code-select + .select2 .select2-search {
+        display: none !important;
+    }
+    
+    .country-code-select + .select2 .select2-search__field {
+        display: none !important;
     }
     
     /* Error message style */
@@ -546,7 +548,7 @@ if (isset($_SESSION['message']) && isset($_SESSION['message_type'])) {
                                                             </div>
                                                             <div class="col-md-6 mb-3">
                                                                 <label class="form-label">State</label>
-                                                                <select class="select2" id="billing_state" name="billing_state" onchange="getCities(this.value, 'billing_city')">
+                                                                <select class="select" id="billing_state" name="billing_state" onchange="getCities(this.value, 'billing_city')">
                                                                     <option value="">Select State</option>
                                                                     <?php if (!empty($addressrow['billing_state'])): ?>
                                                                         <?php 
@@ -738,7 +740,6 @@ if (isset($_SESSION['message']) && isset($_SESSION['message_type'])) {
 
 <?php include 'layouts/vendor-scripts.php'; ?>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
 $(document).ready(function () {
     // === Allow only numbers ===
@@ -756,18 +757,17 @@ $(document).ready(function () {
         this.value = this.value.replace(/[^a-zA-Z0-9]/g, '');
     });
     
-    // Initialize country code dropdowns with search functionality (EXACTLY LIKE ADD PAGE)
+    // Initialize country code dropdowns WITHOUT SEARCH (EXACTLY LIKE ADD PAGE)
     $('.country-code-select').select2({
         width: '100%',
-        minimumResultsForSearch: 6,
+        minimumResultsForSearch: Infinity, // This disables the search box
         dropdownParent: $('.phone-input-group').parent(),
         templateResult: formatCountryCode,
         templateSelection: formatCountryCode
     });
 
-    // Initialize other select2 dropdowns
+    // Initialize ALL select2 dropdowns (including address dropdowns)
     $('.select').select2();
-    $('.select2').select2();
     
     // If there was an error, focus on the email field
     <?php if($message_type == 'error' && !empty($error_message)): ?>
@@ -1184,14 +1184,6 @@ $(document).ready(function () {
             $(`[data-bs-target="#otherTab"]`).addClass('has-error');
         }
 
-        // PAN format validation
-        // const pan = $('[name="pan_number"]').val().trim();
-        // if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
-        //     $('#pan_number_error').text('Invalid PAN format (e.g. AAAAA9999A)');
-        //     isValid = false;
-        //     $(`[data-bs-target="#otherTab"]`).addClass('has-error');
-        // }
-
         // Phone number validation with country code
         const workPhone = $('[name="phone_number"]').val().trim();
         if (workPhone && !/^[0-9]{10}$/.test(workPhone)) {
@@ -1273,18 +1265,6 @@ $(document).ready(function () {
             }
         }
     });
-
-    // Real-time validation for PAN
-    // $('[name="pan_number"]').on('input', function() {
-    //     const pan = $(this).val().trim();
-    //     if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
-    //         $('#pan_number_error').text('Invalid PAN format (e.g. AAAAA9999A)');
-    //         $(`[data-bs-target="#otherTab"]`).addClass('has-error');
-    //     } else {
-    //         $('#pan_number_error').text('');
-    //         $(`[data-bs-target="#otherTab"]`).removeClass('has-error');
-    //     }
-    // });
 
     // Real-time validation for email
     $('[name="email"]').on('input', function() {
@@ -1514,67 +1494,6 @@ $(document).ready(function() {
     });
 });
 </script>
-<script>
-$(document).ready(function() {
-    // Initialize Select2 for address dropdowns with search functionality
-    function initializeAddressSelect2() {
-        // Billing address dropdowns
-        $('#billing_country').select2({
-            placeholder: "Select Country",
-            allowClear: true,
-            width: '100%'
-        });
-        
-        $('#billing_state').select2({
-            placeholder: "Select State", 
-            allowClear: true,
-            width: '100%'
-        });
-        
-        $('#billing_city').select2({
-            placeholder: "Select City",
-            allowClear: true,
-            width: '100%'
-        });
-
-        // Shipping address dropdowns
-        $('#shipping_country').select2({
-            placeholder: "Select Country",
-            allowClear: true,
-            width: '100%'
-        });
-        
-        $('#shipping_state').select2({
-            placeholder: "Select State",
-            allowClear: true,
-            width: '100%'
-        });
-        
-        $('#shipping_city').select2({
-            placeholder: "Select City",
-            allowClear: true,
-            width: '100%'
-        });
-    }
-
-    // Initialize when page loads
-    initializeAddressSelect2();
-
-    // Re-initialize when tabs are shown (in case they're dynamically loaded)
-    $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function() {
-        setTimeout(function() {
-            initializeAddressSelect2();
-        }, 100);
-    });
-
-    // Also re-initialize when AJAX calls complete for state/city loading
-    $(document).ajaxComplete(function() {
-        setTimeout(function() {
-            initializeAddressSelect2();
-        }, 100);
-    });
-});
-</script>
 
 <!-- Tab Persistence JavaScript -->
 <script>
@@ -1606,6 +1525,56 @@ $(document).ready(function() {
             <?php unset($_SESSION['active_tab']); ?>
         }
     <?php endif; ?>
+});
+</script>
+
+<!-- Initialize Select2 for address dropdowns with search functionality -->
+<script>
+$(document).ready(function() {
+    // Function to ensure address dropdowns have search functionality
+    function ensureAddressSearch() {
+        // Re-initialize address dropdowns to ensure search works
+        $('#billing_country, #shipping_country').select2({
+            placeholder: "Select Country",
+            allowClear: true,
+            width: '100%'
+        });
+        
+        $('#billing_state, #shipping_state').select2({
+            placeholder: "Select State", 
+            allowClear: true,
+            width: '100%'
+        });
+        
+        $('#billing_city, #shipping_city').select2({
+            placeholder: "Select City",
+            allowClear: true,
+            width: '100%'
+        });
+    }
+
+    // Initialize when address tab is shown
+    $('#address-tab').on('shown.bs.tab', function() {
+        setTimeout(function() {
+            ensureAddressSearch();
+        }, 100);
+    });
+
+    // Also initialize when page loads (if address tab is active by default)
+    if ($('#address-tab').hasClass('active')) {
+        setTimeout(function() {
+            ensureAddressSearch();
+        }, 500);
+    }
+
+    // Re-initialize after AJAX calls for state/city loading
+    $(document).ajaxComplete(function() {
+        if ($('#address-tab').hasClass('active')) {
+            setTimeout(function() {
+                ensureAddressSearch();
+            }, 100);
+        }
+    });
 });
 </script>
 

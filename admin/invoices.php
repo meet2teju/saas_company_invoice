@@ -198,8 +198,12 @@ if ($row = mysqli_fetch_assoc($result_pending)) {
     $total_pending_invoices = $row['total_pending_invoices'];
 }
 
-// Query to get the total sum of all overdue invoices - MODIFIED WITH ROLE-BASED AND ORGANIZATION FILTERING
-$sql_overdue_where = "WHERE status = 'Overdue' AND is_deleted = 0";
+// ========== MODIFIED OVERDUE QUERY ==========
+// Query to get the total sum of all overdue invoices - FIXED LOGIC
+$today = date('Y-m-d');
+$sql_overdue_where = "WHERE is_deleted = 0 
+                      AND status NOT IN ('Paid', 'paid') 
+                      AND due_date < '$today'";
 if ($currentOrgId > 0) {
     $sql_overdue_where .= " AND org_id = $currentOrgId";
 }
@@ -217,8 +221,9 @@ $sql_overdue = "SELECT SUM(total_amount) AS total_overdue_invoices FROM invoice 
 $result_overdue = mysqli_query($conn, $sql_overdue);
 $total_overdue_invoices = 0;
 if ($row = mysqli_fetch_assoc($result_overdue)) {
-    $total_overdue_invoices = $row['total_overdue_invoices'];
+    $total_overdue_invoices = $row['total_overdue_invoices'] ?? 0;
 }
+// ========== END MODIFIED OVERDUE QUERY ==========
 
 function getInvoiceTotal($conn, $status = null, $month = null, $year = null)
 {
@@ -267,17 +272,71 @@ $currentYear = date('Y');
 $lastMonth = date('m', strtotime('-1 month'));
 $lastYear = date('Y', strtotime('-1 month'));
 
+// ========== MODIFIED OVERDUE CALCULATION FOR MONTHLY STATS ==========
 // Get totals for this month
 $total_invoices = getInvoiceTotal($conn, null, $currentMonth, $currentYear);
 $total_paid_invoices = getInvoiceTotal($conn, 'Paid', $currentMonth, $currentYear);
 $total_pending_invoices = getInvoiceTotal($conn, 'unpaid', $currentMonth, $currentYear);
-$total_overdue_invoices = getInvoiceTotal($conn, 'Overdue', $currentMonth, $currentYear);
+
+// Calculate overdue for current month - FIXED LOGIC
+$today = date('Y-m-d');
+$overdueQuery = "SELECT SUM(total_amount) AS total_overdue_invoices FROM invoice 
+                 WHERE is_deleted = 0 
+                 AND status NOT IN ('Paid', 'paid') 
+                 AND due_date < '$today'
+                 AND MONTH(invoice_date) = $currentMonth 
+                 AND YEAR(invoice_date) = $currentYear";
+
+if ($currentOrgId > 0) {
+    $overdueQuery .= " AND org_id = $currentOrgId";
+}
+if ($userRoleId != 1) {
+    $overdueQuery .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = invoice.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
+}
+
+$result_overdue_month = mysqli_query($conn, $overdueQuery);
+$total_overdue_invoices = 0;
+if ($row = mysqli_fetch_assoc($result_overdue_month)) {
+    $total_overdue_invoices = $row['total_overdue_invoices'] ?? 0;
+}
 
 // Get totals for last month
 $last_total_invoices = getInvoiceTotal($conn, null, $lastMonth, $lastYear);
 $last_paid_invoices = getInvoiceTotal($conn, 'Paid', $lastMonth, $lastYear);
 $last_pending_invoices = getInvoiceTotal($conn, 'unpaid', $lastMonth, $lastYear);
-$last_overdue_invoices = getInvoiceTotal($conn, 'Overdue', $lastMonth, $lastYear);
+
+// Calculate overdue for last month - FIXED LOGIC
+$lastMonthDate = date('Y-m-d', strtotime('last day of previous month'));
+$lastOverdueQuery = "SELECT SUM(total_amount) AS total_overdue_invoices FROM invoice 
+                     WHERE is_deleted = 0 
+                     AND status NOT IN ('Paid', 'paid') 
+                     AND due_date < '$lastMonthDate'
+                     AND MONTH(invoice_date) = $lastMonth 
+                     AND YEAR(invoice_date) = $lastYear";
+
+if ($currentOrgId > 0) {
+    $lastOverdueQuery .= " AND org_id = $currentOrgId";
+}
+if ($userRoleId != 1) {
+    $lastOverdueQuery .= " AND (user_id = $currentUserId OR EXISTS (
+        SELECT 1 FROM login u 
+        WHERE u.id = invoice.user_id 
+        AND u.role_id = 1 
+        AND u.org_id = $currentOrgId
+    ))";
+}
+
+$result_last_overdue = mysqli_query($conn, $lastOverdueQuery);
+$last_overdue_invoices = 0;
+if ($row = mysqli_fetch_assoc($result_last_overdue)) {
+    $last_overdue_invoices = $row['total_overdue_invoices'] ?? 0;
+}
+// ========== END MODIFIED OVERDUE CALCULATION ==========
 
 // Get % growth
 $growth_total = growthPercent($total_invoices, $last_total_invoices);
@@ -494,7 +553,7 @@ $customers = mysqli_query($conn, $customers_query);
                             data-bs-target="#tab7">Unpaid</a></li>
 
                     <li class="nav-item"><a class="nav-link" href="javascript:void(0);" data-bs-toggle="tab"
-                            data-bs-target="#tab9">Draft</a></li>
+                            data-bs-target="#tab10">OverDue</a></li>
                 </ul>
 
                 <!-- Table Search Start -->
@@ -630,6 +689,12 @@ $customers = mysqli_query($conn, $customers_query);
                                         $invoiceId = $row['id'];
                                         $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
                                         
+                                        // Check if invoice is overdue (not paid and due date passed)
+                                        $today = date('Y-m-d');
+                                        $dueDate = $row['due_date'];
+                                        $status = strtolower($row['status']);
+                                        $isOverdue = ($status != 'paid' && strtotime($dueDate) < strtotime($today));
+                                        
                                         // Always use company currency for display
                                         ?>
                                         <tr>
@@ -667,40 +732,53 @@ $customers = mysqli_query($conn, $customers_query);
                                                 $statusClass = '';
                                                 $statusIcon = '';
 
-                                                switch ($status) {
-                                                    case 'paid':
-                                                        $statusClass = 'badge-soft-success';
-                                                        $statusIcon = 'isax-tick-circle';
-                                                        break;
+                                                // If invoice is overdue and not paid, show overdue status
+                                                if ($isOverdue) {
+                                                    $statusClass = 'badge-soft-danger';
+                                                    $statusIcon = 'isax-information';
+                                                    $displayStatus = 'Overdue';
+                                                } else {
+                                                    switch ($status) {
+                                                        case 'paid':
+                                                            $statusClass = 'badge-soft-success';
+                                                            $statusIcon = 'isax-tick-circle';
+                                                            $displayStatus = 'Paid';
+                                                            break;
 
-                                                    case 'unpaid':
-                                                        $statusClass = 'badge-soft-warning';
-                                                        $statusIcon = 'isax-clock';
-                                                        break;
+                                                        case 'unpaid':
+                                                            $statusClass = 'badge-soft-warning';
+                                                            $statusIcon = 'isax-clock';
+                                                            $displayStatus = 'Unpaid';
+                                                            break;
 
-                                                    case 'cancelled':
-                                                        $statusClass = 'badge-soft-danger';
-                                                        $statusIcon = 'isax-close-circle';
-                                                        break;
+                                                        case 'cancelled':
+                                                            $statusClass = 'badge-soft-danger';
+                                                            $statusIcon = 'isax-close-circle';
+                                                            $displayStatus = 'Cancelled';
+                                                            break;
 
-                                                    case 'partially paid':
-                                                        $statusClass = 'badge-soft-purple';
-                                                        $statusIcon = 'isax-money-send';
-                                                        break;
+                                                        case 'partially paid':
+                                                            $statusClass = 'badge-soft-purple';
+                                                            $statusIcon = 'isax-money-send';
+                                                            $displayStatus = 'Partially Paid';
+                                                            break;
 
-                                                    case 'uncollectable':
-                                                        $statusClass = 'badge-soft-danger';
-                                                        $statusIcon = 'isax-alert-circle';
-                                                        break;
+                                                        case 'uncollectable':
+                                                            $statusClass = 'badge-soft-danger';
+                                                            $statusIcon = 'isax-alert-circle';
+                                                            $displayStatus = 'Uncollectable';
+                                                            break;
 
-                                                    default:
-                                                        $statusClass = 'badge-soft-secondary';
-                                                        $statusIcon = 'isax-more';
-                                                        break;
+                                                        default:
+                                                            $statusClass = 'badge-soft-secondary';
+                                                            $statusIcon = 'isax-more';
+                                                            $displayStatus = ucfirst($status);
+                                                            break;
+                                                    }
                                                 }
                                                 ?>
                                                 <span class="badge <?= $statusClass ?> d-inline-flex align-items-center">
-                                                    <?= ucfirst($status) ?>
+                                                    <?= $displayStatus ?>
                                                     <i class="isax <?= $statusIcon ?> ms-1"></i>
                                                 </span>
                                             </td>
@@ -1152,7 +1230,6 @@ $customers = mysqli_query($conn, $customers_query);
                                         <th>Client</th>
                                         <th>Invoice Date</th>
                                         <th>Amount</th>
-
                                         <th>Status</th>
                                         <!-- <th>Payment Mode</th> -->
                                         <th>Due Date</th>
@@ -1509,6 +1586,198 @@ $customers = mysqli_query($conn, $customers_query);
                             </table>
                         </div>
                     </div>
+                    <div class="tab-pane" id="tab10">
+    <div class="table-responsive">
+        <table class="table table-nowrap datatable">
+            <thead class="thead-light">
+                <tr>
+                    <th class="no-sort">
+                        <div class="form-check form-check-md">
+                            <input type="checkbox" class="form-check-input parent-checkbox">
+                        </div>
+                    </th>
+                    <th>ID</th>
+                    <th>Client</th>
+                    <th>Invoice Date</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Due Date</th>
+                    <th class="no-sort">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                // MODIFIED QUERY FOR OVERDUE TAB WITH ROLE-BASED AND ORGANIZATION FILTERING
+                $today = date('Y-m-d');
+                $overdueFilterSql = "WHERE i.is_deleted = 0 
+                                    AND i.status NOT IN ('Paid', 'paid') 
+                                    AND i.due_date < '$today'";
+                
+                if ($currentOrgId > 0) {
+                    $overdueFilterSql .= " AND i.org_id = $currentOrgId";
+                }
+                if ($userRoleId != 1) {
+                    $overdueFilterSql .= " AND (i.user_id = $currentUserId OR EXISTS (
+                        SELECT 1 FROM login u 
+                        WHERE u.id = i.user_id 
+                        AND u.role_id = 1 
+                        AND u.org_id = $currentOrgId
+                    ))";
+                }
+                
+                // REMOVED: c.currency as client_currency_id since we're using company currency
+                $sql_overdue = "SELECT i.*, c.first_name, c.last_name, c.customer_image
+                FROM invoice i 
+                LEFT JOIN client c ON i.client_id = c.id 
+                $overdueFilterSql
+                ORDER BY i.due_date ASC";
+
+                $result_overdue = mysqli_query($conn, $sql_overdue);
+
+                while ($row = mysqli_fetch_assoc($result_overdue)) {
+                    $invoiceId = $row['id'];
+                    $clientImg = !empty($row['customer_image']) ? '../uploads/' . htmlspecialchars($row['customer_image']) : 'assets/img/users/user-16.jpg';
+                    ?>
+                    <tr>
+                        <td>
+                            <div class="form-check form-check-md">
+                                <input class="form-check-input user-checkbox" type="checkbox"
+                                    value="<?= $invoiceId ?>">
+                            </div>
+                        </td>
+                        <td>
+                            <a href="invoice-details.php?id=<?= $invoiceId ?>"
+                                class="link-default"><?= htmlspecialchars($row['invoice_id']) ?></a>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <a href="invoice-details.php?id=<?= $invoiceId ?>"
+                                    class="avatar avatar-sm rounded-circle me-2 flex-shrink-0">
+                                    <img src="<?= $clientImg ?>"
+                                        onerror="this.src='assets/img/users/user-16.jpg';">
+                                </a>
+                                <div>
+                                    <h6 class="fs-14 fw-medium mb-0">
+                                        <a href="invoice-details.php?id=<?= $invoiceId ?>">
+                                            <?= htmlspecialchars($row['first_name']) ?>
+                                        </a>
+                                    </h6>
+                                </div>
+                            </div>
+                        </td>
+                        <td><?= date('d M Y', strtotime($row['invoice_date'])) ?></td>
+                        <td class="text-dark"><?= formatAmount($row['total_amount']) ?></td>
+                        <td>
+                            <?php
+                            $dueDate = $row['due_date'];
+                            $status = strtolower($row['status']);
+                            $isOverdue = (strtotime($dueDate) < strtotime($today));
+                            
+                            // Always show "Overdue" badge for overdue invoices
+                            if ($isOverdue) {
+                                $statusClass = 'badge-soft-danger';
+                                $statusIcon = 'isax-information';
+                                $displayStatus = 'Overdue';
+                            } else {
+                                // Fallback to original status if not overdue
+                                switch ($status) {
+                                    case 'paid':
+                                        $statusClass = 'badge-soft-success';
+                                        $statusIcon = 'isax-tick-circle';
+                                        $displayStatus = 'Paid';
+                                        break;
+                                    case 'unpaid':
+                                        $statusClass = 'badge-soft-warning';
+                                        $statusIcon = 'isax-clock';
+                                        $displayStatus = 'Unpaid';
+                                        break;
+                                    case 'cancelled':
+                                        $statusClass = 'badge-soft-danger';
+                                        $statusIcon = 'isax-close-circle';
+                                        $displayStatus = 'Cancelled';
+                                        break;
+                                    case 'partially paid':
+                                        $statusClass = 'badge-soft-purple';
+                                        $statusIcon = 'isax-money-send';
+                                        $displayStatus = 'Partially Paid';
+                                        break;
+                                    case 'uncollectable':
+                                        $statusClass = 'badge-soft-danger';
+                                        $statusIcon = 'isax-alert-circle';
+                                        $displayStatus = 'Uncollectable';
+                                        break;
+                                    default:
+                                        $statusClass = 'badge-soft-secondary';
+                                        $statusIcon = 'isax-more';
+                                        $displayStatus = ucfirst($status);
+                                        break;
+                                }
+                            }
+                            ?>
+                            <span class="badge <?= $statusClass ?> d-inline-flex align-items-center">
+                                <?= $displayStatus ?>
+                                <i class="isax <?= $statusIcon ?> ms-1"></i>
+                            </span>
+                        </td>
+                        <td>
+                            <?= date('d M Y', strtotime($row['due_date'])) ?>
+                            <?php if (strtotime($row['due_date']) < strtotime($today)): ?>
+                                <span class="text-danger ms-1" title="Overdue by <?= floor((strtotime($today) - strtotime($row['due_date'])) / (60 * 60 * 24)) ?> days">
+                                    <i class="fa-solid fa-exclamation-circle"></i>
+                                </span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="action-item">
+                            <a href="javascript:void(0);" data-bs-toggle="dropdown">
+                                <i class="isax isax-more"></i>
+                            </a>
+                            <ul class="dropdown-menu">
+                                <?php if (check_is_access_new("view_invoice") == 1) { ?>
+                                    <li>
+                                        <a href="invoice-details.php?id=<?= $invoiceId ?>"
+                                            class="dropdown-item d-flex align-items-center">
+                                            <i class="isax isax-eye"></i>&nbsp;&nbsp;View
+                                        </a>
+                                    </li>
+                                <?php } ?>
+                                <?php if (check_is_access_new("edit_invoice") == 1) { ?>
+                                    <li>
+                                        <a href="edit-invoice.php?id=<?= $invoiceId ?>"
+                                            class="dropdown-item d-flex align-items-center">
+                                            <i class="isax isax-edit me-2"></i>Edit
+                                        </a>
+                                    </li>
+                                <?php } ?>
+                                <?php if (check_is_access_new("delete_invoice") == 1) { ?>
+                                    <li>
+                                        <a href="javascript:void(0);"
+                                            class="dropdown-item d-flex align-items-center open-delete-modal"
+                                            data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                            data-invoice-id="<?= $invoiceId ?>">
+                                            <i class="isax isax-trash me-2"></i>Delete
+                                        </a>
+                                    </li>
+                                <?php } ?>
+                                <li>
+                                    <a href="process/action_download_listing_invoice_pdf.php?id=<?= $invoiceId ?>"
+                                        class="dropdown-item d-flex align-items-center" target="_blank">
+                                        <i class="isax isax-document-download me-2"></i>Download Invoice as PDF
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="process/action_duplicate_invoice.php?id=<?= $invoiceId ?>"
+                                        class="dropdown-item d-flex align-items-center">
+                                        <i class="isax isax-copy me-2"></i>Clone as Invoice
+                                    </a>
+                                </li>
+                            </ul>
+                        </td>
+                    </tr>
+                <?php } ?>
+            </tbody>
+        </table>
+    </div>
+</div>
                 </div>
                 <!-- /Table List End -->
 

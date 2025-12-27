@@ -95,27 +95,48 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
     // Get company currency
     $companyCurrency = getCompanyCurrency($conn, $org_id);
     $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
+    $currencyName = $companyCurrency['currency_name'] ?? 'US Dollar';
     
     // Check GST type
     $gstType = $invoice['gst_type'] ?? 'gst';
     $showGSTColumn = ($gstType !== 'non_gst' && $gstType !== null);
     
-    // Check if any item has quantity value
-    $showQuantityColumn = false;
+    // Check item type
+    $item_type = $invoice['item_type'];
+    
+    // Check various column data
+    $hasQuantityData = false;
+    $hasUnitData = false;
+    $hasHsnCodeData = false;
+    $hasTaxData = false;
+    
+    // Store items in array first to check for data
+    $items_array = [];
     mysqli_data_seek($items, 0);
     while ($item = mysqli_fetch_assoc($items)) {
+        $items_array[] = $item;
+        
         if (!is_null($item['quantity']) && $item['quantity'] > 0) {
-            $showQuantityColumn = true;
-            break;
+            $hasQuantityData = true;
+        }
+        
+        if (!empty($item['unit_name']) && trim($item['unit_name']) !== '') {
+            $hasUnitData = true;
+        }
+        
+        if (!empty($item['code']) && trim($item['code']) !== '' && strtoupper($item['code']) !== 'N/A') {
+            $hasHsnCodeData = true;
+        }
+        
+        if ($showGSTColumn && !empty($item['tax_name']) && trim($item['tax_name']) !== '') {
+            $hasTaxData = true;
         }
     }
-    mysqli_data_seek($items, 0);
     
     // Calculate totals and tax summary
     $taxSummary = [];
     $subtotal = 0;
-    mysqli_data_seek($items, 0);
-    while ($item = mysqli_fetch_assoc($items)) {
+    foreach ($items_array as $item) {
         $itemAmount = $item['amount'];
         $subtotal += $itemAmount;
         
@@ -136,7 +157,10 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
         }
     }
-    mysqli_data_seek($items, 0);
+    
+    // Check if we should show notes and terms
+    $showNotes = !empty($invoice['invoice_note']);
+    $showTerms = !empty($invoice['description']);
     
     // Get absolute path for logo
     function getAbsolutePath($relativePath) {
@@ -160,6 +184,25 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
     $client_name = '';
     if (!empty($client['first_name']) || !empty($client['last_name'])) {
         $client_name = trim(($client['first_name'] ?? '') . ' ' . ($client['last_name'] ?? ''));
+    }
+    
+    // Calculate column widths dynamically (similar to main invoice PDF)
+    function calculateProductColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
+        $baseWidth = 40;
+        if (!$hasHsnCode) $baseWidth += 10;
+        if (!$hasQuantity) $baseWidth += 8;
+        if (!$hasUnit || $item_type != 1) $baseWidth += 8;
+        if (!$hasTax) $baseWidth += 12;
+        return $baseWidth;
+    }
+    
+    function calculateAmountColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
+        $baseWidth = 15;
+        if (!$hasHsnCode) $baseWidth += 10;
+        if (!$hasQuantity) $baseWidth += 8;
+        if (!$hasUnit || $item_type != 1) $baseWidth += 8;
+        if (!$hasTax) $baseWidth += 12;
+        return $baseWidth;
     }
     
     // Start building HTML - USING YOUR EXISTING INVOICE PDF DESIGN
@@ -205,7 +248,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
 
             .invoice-title {
-            font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 color: #000;
                 font-weight: bold;
                 font-size: 24px;
@@ -220,14 +263,14 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
 
             .tittle-text {
-            font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 color: #000;
                 font-weight: bold;
                 font-size: 16px;
             }
 
             .to-title {
-            font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 color: #000;
                 font-weight: 600;
                 font-size: 14px;
@@ -239,7 +282,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
 
             .address-deatils-box {
-            font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 color: #5d6772;
                 font-weight: 500;
                 font-size: 14px;
@@ -252,7 +295,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
 
             .table th, .table td {
-            font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 padding: 6px;
                 font-size: 14px;
                 border: 1px solid #cfcfcf;
@@ -268,7 +311,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
 
             .subtotal-box .subtotal-title {
-             font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 color: #000;
                 font-weight: 500;
                 margin-bottom: 0;
@@ -276,7 +319,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
 
             .subtotal-box .subtotal-amount {
-             font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 color: #5d6772;
                 font-weight: 500;
                 margin-bottom: 0;
@@ -284,7 +327,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
 
             .terms-conditions-title {
-            font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 color: #000;
                 font-weight: 500;
                 font-size: 14px;
@@ -292,7 +335,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
 
             .terms-conditions {
-            font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 background-color: #ddeeff;
                 border-radius: 4px;
                 padding: 10px;
@@ -318,7 +361,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             }
 
             .billing-title {
-            font-family: "Instrument Sans", sans-serif;
+                font-family: "Instrument Sans", sans-serif;
                 color: #000;
                 font-weight: 700;
                 font-size: 18px;
@@ -341,6 +384,65 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             .mb-2 { margin-bottom: 10px; }
             .mb-3 { margin-bottom: 15px; }
             .mt-3 { margin-top: 15px; }
+            
+            .bank-detail-row {
+                font-family: "Instrument Sans", sans-serif;
+                display: flex;
+                margin-bottom: 4px;
+                font-size: 14px;
+            }
+            
+            .bank-detail-label {
+                font-weight: 600;
+                color: #000;
+                min-width: 100px;
+            }
+            
+            .bank-detail-value {
+                color: #5d6772;
+                font-weight: 500;
+            }
+            
+            .totals-section {
+                border-top: 1px solid #ddd;
+                padding-top: 10px;
+                margin-top: 10px;
+            }
+            
+            .total-row {
+                font-family: "Instrument Sans", sans-serif;
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 6px;
+                font-size: 14px;
+            }
+            
+            .total-label {
+                font-weight: 600;
+                color: #000;
+            }
+            
+            .total-value {
+                color: #5d6772;
+                font-weight: 500;
+            }
+            
+            .total-main {
+                font-family: "Instrument Sans", sans-serif;
+                border-top: 1px solid #ddd;
+                padding-top: 8px;
+                margin-top: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            
+            .words-section {
+                font-family: "Instrument Sans", sans-serif;
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px dashed #ddd;
+                font-size: 14px;
+            }
         </style>
     </head>
     <body>
@@ -434,32 +536,36 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             </div>
     
             <div class="mb-3">
-               <h4 class="billing-title">Product / Service Items</h4>
+                <h4 class="billing-title">Product / Service Items</h4>
                 <table class="table">
                     <thead>
-                        <tr class="bg-light">
+                        <tr style="background-color: #000; color: white;">
                             <th width="5%">#</th>
-                            <th width="35%">Product/Service</th>
-                            <th width="15%">HSN Code</th>';
-                            
-    if ($showQuantityColumn) {
-        $html .= '<th width="10%" class="text-center">QTY</th>';
+                            <th width="' . calculateProductColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) . '%">Product/Service</th>';
+    
+    if ($hasHsnCodeData) {
+        $html .= '<th width="10%">HSN Code</th>';
     }
     
-    // Only show GST column if GST type is not non_gst or null
-    if ($showGSTColumn) {
-        $html .= '<th width="15%">Tax</th>';
+    if ($hasQuantityData) {
+        $html .= '<th width="8%" class="text-center">' . ($item_type == 1 ? 'QTY' : 'Hours') . '</th>';
     }
     
-    $html .= '<th width="15%">Selling Price</th>
-                            <th width="10%">Amount</th>
+    if ($hasUnitData && $item_type == 1) {
+        $html .= '<th width="8%">Unit</th>';
+    }
+    
+    if ($hasTaxData && $showGSTColumn) {
+        $html .= '<th width="12%">Tax</th>';
+    }
+    
+    $html .= '<th width="' . calculateAmountColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) . '%">Amount</th>
                         </tr>
                     </thead>
                     <tbody>';
     
     $i = 1;
-    mysqli_data_seek($items, 0);
-    while ($item = mysqli_fetch_assoc($items)) {
+    foreach ($items_array as $item) {
         // Determine item name
         if (!empty($item['service_id'])) {
             $productName = !empty($item['service_product_name']) ? $item['service_product_name'] : '';
@@ -471,22 +577,27 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
         
         $html .= '<tr>
             <td>' . $i++ . '</td>
-            <td>' . htmlspecialchars($itemName) . '</td>
-            <td>' . htmlspecialchars($item['code'] ?? 'N/A') . '</td>';
+            <td>' . htmlspecialchars($itemName) . '</td>';
         
-        if ($showQuantityColumn) {
-            $html .= '<td class="text-center">' . $item['quantity'] . '</td>';
+        if ($hasHsnCodeData) {
+            $html .= '<td>' . htmlspecialchars($item['code'] ?? 'N/A') . '</td>';
         }
         
-        // Show tax column only if GST is enabled
-        if ($showGSTColumn) {
+        if ($hasQuantityData) {
+            $html .= '<td class="text-center">' . ($item['quantity'] ?? '0') . '</td>';
+        }
+        
+        if ($hasUnitData && $item_type == 1) {
+            $html .= '<td>' . htmlspecialchars($item['unit_name'] ?? '') . '</td>';
+        }
+        
+        if ($hasTaxData && $showGSTColumn) {
             $effectiveTaxRate = $item['tax_rate'] ?? 0;
             $taxName = $item['tax_name'] ?? 'Tax';
             $html .= '<td>' . $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '') . '</td>';
         }
         
-        $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['selling_price'], 2) . '</td>
-            <td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['amount'], 2) . '</td>
+        $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['amount'], 2) . '</td>
         </tr>';
     }
     
@@ -497,8 +608,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             <div style="border-bottom: 1px solid #ddd; padding-bottom: 15px; margin-bottom: 15px;">
                 <table width="100%">
                     <tr>
-                        <td width="50%" style="vertical-align: top;"></td>
-                        <td width="50%" style="vertical-align: top;" text-align: right;">
+                        <td width="50%" style="vertical-align: top; text-align: right;">
                             <table style="width:100%;">
                                 <tr class="subtotal-box">
                                     <td class="subtotal-title">Sub Amount:</td>
@@ -529,11 +639,31 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
                         <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['total_amount'], 2) . '</td>
                     </tr>
                 </table>
-            </td>';
+                
+                <div class="address-deatils-box text-right">
+                    <span class="bold-text">Total In Words:</span>
+                    ' . numberToWords($invoice['total_amount']) . ' ' . htmlspecialchars($currencyName) . '
+                </div>
+            </td>
+        </tr>
+    </table>
+</div>';
     
-    $html .= '</tr>
-                </table>
+    // Add Notes section if exists
+    if ($showNotes) {
+        $html .= '<div class="terms-conditions">
+                <p class="terms-conditions-title">Notes:</p>
+                <p>' . htmlspecialchars($invoice['invoice_note']) . '</p>
             </div>';
+    }
+    
+    // Add Terms & Conditions section if exists
+    if ($showTerms) {
+        $html .= '<div class="terms-conditions" style="margin-top: ' . ($showNotes ? '10' : '0') . 'px;">
+                <p class="terms-conditions-title">Terms & Conditions:</p>
+                <p>' . htmlspecialchars($invoice['description']) . '</p>
+            </div>';
+    }
     
     $html .= '</div>
     </body>

@@ -258,6 +258,16 @@ if ($project_id > 0) {
             font-size: 12px;
             font-weight: 500;
         }
+        /* ADDED: Validation error styling */
+        .product-service-error {
+            display: none;
+            color: #dc3545;
+            font-size: 0.875em;
+            margin-top: 0.25rem;
+        }
+        .is-invalid-dropdown {
+            border-color: #dc3545 !important;
+        }
     </style>
 </head>
 
@@ -624,6 +634,8 @@ if ($project_id > 0) {
                                                                             <input type="hidden" class="tax-name" name="tax_name[]" value="<?= htmlspecialchars($taxName) ?>">
                                                                             <input type="hidden" name="item_type_row[]" value="product">
                                                                             <input type="hidden" name="service_name[]" value="">
+                                                                            <!-- ADDED: Error message container -->
+                                                                            <div class="product-service-error"></div>
                                                                         </div>
                                                                     <?php else: ?>
                                                                         <!-- SERVICE FIELDS -->
@@ -647,6 +659,8 @@ if ($project_id > 0) {
                                                                             <input type="text" class="form-control service-name-input service-custom-input" name="service_name[]" placeholder="Or enter custom service name" value="<?= !empty($item['service_name']) ? htmlspecialchars($item['service_name']) : '' ?>">
                                                                             <input type="hidden" class="tax-name" name="tax_name[]" value="<?= htmlspecialchars($taxName) ?>">
                                                                             <input type="hidden" name="item_type_row[]" value="service">
+                                                                            <!-- ADDED: Error message container -->
+                                                                            <div class="product-service-error"></div>
                                                                         </div>
                                                                     <?php endif; ?>
                                                                 </td>
@@ -921,6 +935,72 @@ if ($project_id > 0) {
                 return isNaN(n) ? 0 : n;
             }
 
+            // =============================================
+            // NEW: Product/Service Dropdown Validation
+            // =============================================
+            function validateProductServiceDropdowns() {
+                let isValid = true;
+                let firstErrorRow = null;
+                
+                // Clear all previous error messages and styling
+                $('.product-service-error').hide();
+                $('.product-select, .service-select').removeClass('is-invalid-dropdown');
+                $('.service-name-input').removeClass('is-invalid');
+                
+                // Check each row
+                $('.add-tbody tr').each(function(index) {
+                    const $row = $(this);
+                    const isProductRow = $row.hasClass('product-row');
+                    const isServiceRow = $row.hasClass('service-row');
+                    
+                    let hasError = false;
+                    let errorMessage = '';
+                    
+                    if (isProductRow) {
+                        const $productSelect = $row.find('.product-select');
+                        const productValue = $productSelect.val();
+                        
+                        if (!productValue) {
+                            hasError = true;
+                            errorMessage = 'Please select a product';
+                            $productSelect.addClass('is-invalid-dropdown');
+                            
+                            if (firstErrorRow === null) {
+                                firstErrorRow = $row;
+                            }
+                        }
+                    } else if (isServiceRow) {
+                        const $serviceSelect = $row.find('.service-select');
+                        const $serviceNameInput = $row.find('.service-name-input');
+                        const serviceValue = $serviceSelect.val();
+                        const serviceNameValue = $serviceNameInput.val();
+                        
+                        // Check if both are empty
+                        if (!serviceValue && !serviceNameValue) {
+                            hasError = true;
+                            errorMessage = 'Please select a service or enter a custom service name';
+                            $serviceSelect.addClass('is-invalid-dropdown');
+                            $serviceNameInput.addClass('is-invalid');
+                            
+                            if (firstErrorRow === null) {
+                                firstErrorRow = $row;
+                            }
+                        }
+                    }
+                    
+                    // Show error message if there's an error
+                    if (hasError) {
+                        $row.find('.product-service-error').text(errorMessage).show();
+                        isValid = false;
+                    }
+                });
+                
+                return {
+                    isValid: isValid,
+                    firstErrorRow: firstErrorRow
+                };
+            }
+
             // Remove ALL existing click handlers from add button FIRST
             $(document).off('click', '.add-invoice-data');
             $('.add-invoice-data').off('click');
@@ -961,6 +1041,91 @@ if ($project_id > 0) {
                     $('#file-count-label').text(files[0].name);
                 } else {
                     $('#file-count-label').text(`${files.length} files selected`);
+                }
+            });
+
+            // Form validation
+            $('#form').on('submit', function(e) {
+                let isValid = true;
+                $('.error-text').text('');
+
+                if (!$('#client_id').val()) {
+                    $('#clientname_error').text('Client is required.');
+                    isValid = false;
+                }
+                if (!$('#invoice_date').val()) {
+                    $('#invoice_date_error').text('Invoice Date is required.');
+                    isValid = false;
+                }
+                if (!$('#due_date').val()) {
+                    $('#invoice_due_error').text('Due Date is required.');
+                    isValid = false;
+                }
+                if (!$('.add-tbody tr').length) {
+                    $('#product_error').text('Please add at least one product or service');
+                    isValid = false;
+                }
+
+                // ADDED: Product/Service dropdown validation
+                const dropdownValidation = validateProductServiceDropdowns();
+                if (!dropdownValidation.isValid) {
+                    isValid = false;
+                    // Scroll to the first row with error
+                    if (dropdownValidation.firstErrorRow) {
+                        $('html, body').animate({
+                            scrollTop: dropdownValidation.firstErrorRow.offset().top - 150
+                        }, 500);
+                    }
+                }
+
+                // ADDED: Bank account validation
+                if (!$('#bank_id').val()) {
+                    $('#invoice_account_error').text('Account is required.');
+                    
+                    // Auto-open the Bank Details tab
+                    $('#bank-tab-link').tab('show');
+                    
+                    // Add a red border to highlight the required field
+                    $('#bank_id').addClass('is-invalid');
+                    
+                    isValid = false;
+                } else {
+                    $('#invoice_account_error').text('');
+                    $('#bank_id').removeClass('is-invalid');
+                }
+
+                if (!isValid) {
+                    e.preventDefault();
+                    
+                    // Scroll to the first error
+                    let firstError = $('.error-text:visible').first();
+                    if (firstError.length) {
+                        $('html, body').animate({ 
+                            scrollTop: firstError.offset().top - 100 
+                        }, 500);
+                    }
+                    
+                    // If bank error exists, scroll to bank tab
+                    if ($('#invoice_account_error').text()) {
+                        $('html, body').animate({ 
+                            scrollTop: $('#bank-tab-link').offset().top - 150 
+                        }, 500);
+                    }
+                } else {
+                    // Before submitting, ensure all numeric fields have plain numbers (no formatting)
+                    $('.selling-price, .service-price-input, .amount').each(function() {
+                        const $input = $(this);
+                        const currentValue = $input.val();
+                        const plainNumber = unformat(currentValue);
+                        $input.val(plainNumber.toFixed(2));
+                    });
+                    
+                    // Also format shipping charge
+                    const shippingCharge = $('#shipping-charge');
+                    if (shippingCharge.length) {
+                        const plainShipping = unformat(shippingCharge.val());
+                        shippingCharge.val(plainShipping.toFixed(2));
+                    }
                 }
             });
 
@@ -1075,6 +1240,7 @@ if ($project_id > 0) {
                                                     <input type="hidden" name="item_id[]" value="${taskId}">
                                                     <input type="hidden" class="tax-name" name="tax_name[]" value="">
                                                     <input type="hidden" name="item_type_row[]" value="service">
+                                                    <div class="product-service-error"></div>
                                                 </div>
                                             </td>
                                             <td>
@@ -1484,6 +1650,8 @@ if ($project_id > 0) {
                                 <input type="hidden" class="tax-name" name="tax_name[]" value="${data.taxName || ''}">
                                 <input type="hidden" name="item_type_row[]" value="product">
                                 <input type="hidden" name="service_name[]" value="">
+                                <!-- ADDED: Error message container -->
+                                <div class="product-service-error"></div>
                             </div>
                         </td>
                         <td>
@@ -1557,6 +1725,8 @@ if ($project_id > 0) {
                                        name="service_name[]" placeholder="Or enter custom service name" value="${data.serviceName || ''}">
                                 <input type="hidden" class="tax-name" name="tax_name[]" value="${data.taxName || ''}">
                                 <input type="hidden" name="item_type_row[]" value="service">
+                                <!-- ADDED: Error message container -->
+                                <div class="product-service-error"></div>
                             </div>
                         </td>
                         <td>
@@ -1627,9 +1797,14 @@ if ($project_id > 0) {
 
             // ================ EVENT HANDLERS ================
             
-            // Product select change
+            // Product select change - UPDATED: Clear validation errors
             $(document).on('change', '.product-select', function() {
                 const $row = $(this).closest('tr');
+                
+                // Clear validation error
+                $row.find('.product-service-error').hide();
+                $(this).removeClass('is-invalid-dropdown');
+                
                 const option = $(this).find('option:selected');
 
                 if (option.val()) {
@@ -1668,9 +1843,15 @@ if ($project_id > 0) {
                 updateProductDropdowns();
             });
 
-            // Service select change
+            // Service select change - UPDATED: Clear validation errors
             $(document).on('change', '.service-select', function() {
                 const $row = $(this).closest('tr');
+                
+                // Clear validation errors
+                $row.find('.product-service-error').hide();
+                $(this).removeClass('is-invalid-dropdown');
+                $row.find('.service-name-input').removeClass('is-invalid');
+                
                 const option = $(this).find('option:selected');
 
                 if (option.val()) {
@@ -1741,9 +1922,21 @@ if ($project_id > 0) {
                 calculateRow($row);
             });
 
-            // Service name input
+            // Service name input - UPDATED: Clear validation errors
             $(document).on('input', '.service-name-input', function() {
                 const $row = $(this).closest('tr');
+                const $serviceSelect = $row.find('.service-select');
+                
+                // Clear validation error when user types
+                $row.find('.product-service-error').hide();
+                $(this).removeClass('is-invalid');
+                $serviceSelect.removeClass('is-invalid-dropdown');
+                
+                // Clear HSN code when using custom service
+                if ($serviceSelect.val() === '') {
+                    $row.find('.hsn-code').val('');
+                }
+                
                 calculateRow($row);
             });
 
@@ -1919,7 +2112,7 @@ if ($project_id > 0) {
             updateProductDropdowns();
             updateServiceDropdowns();
             
-            console.log('Invoice edit initialization complete with currency functionality');
+            console.log('Invoice edit initialization complete with validation');
         });
     </script>
 

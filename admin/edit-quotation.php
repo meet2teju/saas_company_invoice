@@ -241,6 +241,16 @@ $isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
         .currency-prefix {
             font-weight: 600;
         }
+        /* ADDED: Validation error styling */
+        .product-service-error {
+            display: none;
+            color: #dc3545;
+            font-size: 0.875em;
+            margin-top: 0.25rem;
+        }
+        .is-invalid-dropdown {
+            border-color: #dc3545 !important;
+        }
     </style>
 </head>
 
@@ -552,6 +562,8 @@ $isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
                         <input type="hidden" name="item_type_row[]" value="product">
                         <!-- EMPTY service_name for product rows -->
                         <input type="hidden" name="service_name[]" value="">
+                        <!-- ADDED: Error message container -->
+                        <div class="product-service-error"></div>
                     </div>
                 <?php else: ?>
                     <!-- SERVICE FIELDS -->
@@ -574,6 +586,8 @@ $isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
                         <input type="hidden" class="tax-name" name="tax_name[]" value="<?= htmlspecialchars($taxName) ?>">
                         <!-- FIXED: Always set item_type_row as service for service rows -->
                         <input type="hidden" name="item_type_row[]" value="service">
+                        <!-- ADDED: Error message container -->
+                        <div class="product-service-error"></div>
                     </div>
                 <?php endif; ?>
             </td>
@@ -810,6 +824,72 @@ $(document).ready(function() {
         }
     });
 
+    // =============================================
+    // NEW: Product/Service Dropdown Validation
+    // =============================================
+    function validateProductServiceDropdowns() {
+        let isValid = true;
+        let firstErrorRow = null;
+        
+        // Clear all previous error messages and styling
+        $('.product-service-error').hide();
+        $('.product-select, .service-select').removeClass('is-invalid-dropdown');
+        $('.service-name-input').removeClass('is-invalid');
+        
+        // Check each row
+        $('.add-tbody tr').each(function(index) {
+            const $row = $(this);
+            const isProductRow = $row.hasClass('product-row');
+            const isServiceRow = $row.hasClass('service-row');
+            
+            let hasError = false;
+            let errorMessage = '';
+            
+            if (isProductRow) {
+                const $productSelect = $row.find('.product-select');
+                const productValue = $productSelect.val();
+                
+                if (!productValue) {
+                    hasError = true;
+                    errorMessage = 'Please select a product';
+                    $productSelect.addClass('is-invalid-dropdown');
+                    
+                    if (firstErrorRow === null) {
+                        firstErrorRow = $row;
+                    }
+                }
+            } else if (isServiceRow) {
+                const $serviceSelect = $row.find('.service-select');
+                const $serviceNameInput = $row.find('.service-name-input');
+                const serviceValue = $serviceSelect.val();
+                const serviceNameValue = $serviceNameInput.val();
+                
+                // Check if both are empty
+                if (!serviceValue && !serviceNameValue) {
+                    hasError = true;
+                    errorMessage = 'Please select a service or enter a custom service name';
+                    $serviceSelect.addClass('is-invalid-dropdown');
+                    $serviceNameInput.addClass('is-invalid');
+                    
+                    if (firstErrorRow === null) {
+                        firstErrorRow = $row;
+                    }
+                }
+            }
+            
+            // Show error message if there's an error
+            if (hasError) {
+                $row.find('.product-service-error').text(errorMessage).show();
+                isValid = false;
+            }
+        });
+        
+        return {
+            isValid: isValid,
+            firstErrorRow: firstErrorRow
+        };
+    }
+
     // ================ CURRENCY FUNCTIONS ================
     // Get currency symbol from PHP
     function getCurrencySymbol() {
@@ -988,9 +1068,27 @@ $(document).ready(function() {
             isValid = false;
         }
 
+        // ADDED: Product/Service dropdown validation
+        const dropdownValidation = validateProductServiceDropdowns();
+        if (!dropdownValidation.isValid) {
+            isValid = false;
+            // Scroll to the first row with error
+            if (dropdownValidation.firstErrorRow) {
+                $('html, body').animate({
+                    scrollTop: dropdownValidation.firstErrorRow.offset().top - 150
+                }, 500);
+            }
+        }
+
         if (!isValid) {
             e.preventDefault();
-            $('html, body').animate({ scrollTop: $('.error-text:visible').first().offset().top - 100 }, 500);
+            // Scroll to the first error
+            let firstError = $('.error-text:visible').first();
+            if (firstError.length) {
+                $('html, body').animate({ 
+                    scrollTop: firstError.offset().top - 100 
+                }, 500);
+            }
         } else {
             // Before submitting, ensure all numeric fields have plain numbers (no formatting)
             $('.selling-price, .service-price-input, .amount').each(function() {
@@ -1196,6 +1294,8 @@ $(document).ready(function() {
                         <input type="hidden" class="tax-name" name="tax_name[]" value="${data.taxName || ''}">
                         <input type="hidden" name="item_type_row[]" value="product">
                         <input type="hidden" name="service_name[]" value="">
+                        <!-- ADDED: Error message container -->
+                        <div class="product-service-error"></div>
                     </div>
                 </td>
                 <td>
@@ -1271,6 +1371,8 @@ $(document).ready(function() {
                                name="service_name[]" placeholder="Or enter custom service name" value="${data.serviceName || ''}">
                         <input type="hidden" class="tax-name" name="tax_name[]" value="${data.taxName || ''}">
                         <input type="hidden" name="item_type_row[]" value="service">
+                        <!-- ADDED: Error message container -->
+                        <div class="product-service-error"></div>
                     </div>
                 </td>
                 <td>
@@ -1359,9 +1461,14 @@ $(document).ready(function() {
 
     // ================ EVENT HANDLERS ================
     
-    // Product select change
+    // Product select change - UPDATED: Added validation error clearing
     $(document).on('change', '.product-select', function() {
         const $row = $(this).closest('tr');
+        
+        // Clear validation error
+        $row.find('.product-service-error').hide();
+        $(this).removeClass('is-invalid-dropdown');
+        
         const option = $(this).find('option:selected');
 
         if (option.val()) {
@@ -1398,9 +1505,15 @@ $(document).ready(function() {
         updateProductDropdowns();
     });
 
-    // Service select change
+    // Service select change - UPDATED: Added validation error clearing
     $(document).on('change', '.service-select', function() {
         const $row = $(this).closest('tr');
+        
+        // Clear validation errors
+        $row.find('.product-service-error').hide();
+        $(this).removeClass('is-invalid-dropdown');
+        $row.find('.service-name-input').removeClass('is-invalid');
+        
         const option = $(this).find('option:selected');
 
         if (option.val()) {
@@ -1469,9 +1582,20 @@ $(document).ready(function() {
         calculateRow($row);
     });
 
-    // Service name input
+    // Service name input - UPDATED: Added validation error clearing
     $(document).on('input', '.service-name-input', function() {
         const $row = $(this).closest('tr');
+        const $serviceSelect = $row.find('.service-select');
+        
+        // Clear validation error when user types
+        $row.find('.product-service-error').hide();
+        $(this).removeClass('is-invalid');
+        $serviceSelect.removeClass('is-invalid-dropdown');
+        
+        if ($serviceSelect.val() === '') {
+            $row.find('.hsn-code').val('');
+        }
+        
         calculateRow($row);
     });
 
@@ -1652,12 +1776,9 @@ $(document).ready(function() {
     });
     calculateSummary();
 
-    console.log('Initialization complete - Currency functionality added and data storage fixed');
+    console.log('Initialization complete - Validation added for product/service dropdowns');
 });
 
 </script>
-
-
-
 </body>
 </html>
