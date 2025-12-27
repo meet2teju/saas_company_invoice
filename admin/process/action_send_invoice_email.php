@@ -104,6 +104,17 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
     // Check item type
     $item_type = $invoice['item_type'];
     
+    // Fetch bank details
+    $bank = null;
+    $showBankDetails = false;
+    if (!empty($invoice['bank_id'])) {
+        $bank_result = mysqli_query($conn, "SELECT * FROM bank WHERE id = {$invoice['bank_id']}");
+        $bank = mysqli_fetch_assoc($bank_result);
+        if ($bank && (!empty($bank['bank_name']) || !empty($bank['account_number']) || !empty($bank['ifsc_code']))) {
+            $showBankDetails = true;
+        }
+    }
+    
     // Check various column data
     $hasQuantityData = false;
     $hasUnitData = false;
@@ -288,6 +299,13 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
                 font-size: 14px;
             }
 
+            .bank-deatils-title {
+                font-family: "Instrument Sans", sans-serif;
+                color: #000;
+                font-weight: 500;
+                font-size: 16px;
+            }
+
             .table {
                 width: 100%;
                 border-collapse: collapse;
@@ -304,6 +322,17 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             .table .bg-light {
                 background-color: #000 !important;
                 color: white !important;
+            }
+
+            .bank-details-ul {
+                font-family: "Instrument Sans", sans-serif;
+                list-style: none;
+                padding-left: 0;
+                font-size: 14px;
+            }
+
+            .bank-details-ul li {
+                margin-bottom: 4px;
             }
 
             .subtotal-box{
@@ -341,6 +370,26 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
                 padding: 10px;
                 margin-top: 15px;
                 font-size: 14px;
+            }
+            
+            .gst-badge {
+                font-family: "Instrument Sans", sans-serif;
+                font-size: 10px;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-weight: 600;
+            }
+            
+            .gst-badge.gst {
+                background-color: #d1e7dd;
+                color: #0f5132;
+                border: 1px solid #badbcc;
+            }
+            
+            .gst-badge.non-gst {
+                background-color: #fff3cd;
+                color: #664d03;
+                border: 1px solid #ffecb5;
             }
 
             .billing-container {
@@ -511,11 +560,11 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
     }
     
     if (!empty($client_name)) {
-        $html .= '<div class="address-deatils-box text-right"><span class="bold-text">Client:</span> ' . htmlspecialchars($client_name) . '</div>';
+        $html .= '<div class="address-deatils-box text-right mb-0"><span class="bold-text">Client:</span> ' . htmlspecialchars($client_name) . '</div>';
     }
     
     if (!empty($client_address['billing_address1'])) {
-        $html .= '<div class="address-deatils-box mb-0 text-right">' . htmlspecialchars($client_address['billing_address1'] ?? '') . '</div>';
+        $html .= '<div class="address-deatils-box text-right mb-0">' . htmlspecialchars($client_address['billing_address1'] ?? '') . '</div>';
     }
     
     if (!empty($client_address['city_name']) || !empty($client_address['state_name']) || !empty($client_address['country_name']) || !empty($client_address['billing_pincode'])) {
@@ -604,50 +653,84 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
     $html .= '</tbody>
                 </table>
             </div>
-    
+
             <div style="border-bottom: 1px solid #ddd; padding-bottom: 15px; margin-bottom: 15px;">
                 <table width="100%">
-                    <tr>
-                        <td width="50%" style="vertical-align: top; text-align: right;">
-                            <table style="width:100%;">
-                                <tr class="subtotal-box">
-                                    <td class="subtotal-title">Sub Amount:</td>
-                                    <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['amount'], 2) . '</td>
-                                </tr>';
-                                
+                    <tr>';
+
+    if ($showBankDetails) {
+        $html .= '<td width="50%">
+            <div class="bank-details-section">
+                <h5 class="terms-conditions-title">Bank Details</h5>';
+        
+        if (!empty($bank['bank_name'])) {
+            $html .= '<div class="address-deatils-box">
+                    <span class="bold-text">Bank Name:</span>
+                     '. htmlspecialchars($bank['bank_name']) .'
+                </div>';
+        }
+        if (!empty($bank['account_number'])) {
+            $html .= '<div class="address-deatils-box">
+                    <span class="bold-text">A/C No:</span>
+                     '. htmlspecialchars($bank['account_number']) .'
+                </div>';
+        }
+        if (!empty($bank['ifsc_code'])) {
+            $html .= '<div class="address-deatils-box">
+                    <span class="bold-text">IFSC Code:</span>
+                     '. htmlspecialchars($bank['ifsc_code']) .'
+                </div>';
+        }
+        
+        $html .= '</div></td>';
+        $totalsWidth = '50%';
+    } else {
+        $totalsWidth = '100%';
+        $html .= '<td width="50%"></td>';
+    }
+
+    $html .= '<td width="' . $totalsWidth . '" style="vertical-align: top; text-align: right;">
+            <table style="width:100%;">
+                <tr class="subtotal-box">
+                    <td class="subtotal-title">Sub Amount:</td>
+                    <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['amount'], 2) . '</td>
+                </tr>';
+                
     // Show tax rows only if GST is enabled
     if ($showGSTColumn) {
         if (!empty($taxSummary)) {
             foreach ($taxSummary as $taxLabel => $taxAmount) {
                 $html .= '<tr class="subtotal-box">
-                                <td class="subtotal-title">' . $taxLabel . ':</td>
-                                <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($taxAmount, 2) . '</td>
-                            </tr>';
+                            <td class="subtotal-title">' . $taxLabel . ':</td>
+                            <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($taxAmount, 2) . '</td>
+                        </tr>';
             }
         }
     }
-    
+
     if (!empty($invoice['shipping_charge']) && $invoice['shipping_charge'] > 0) {
         $html .= '<tr class="subtotal-box">
-                        <td class="subtotal-title">Shipping Charge:</td>
-                        <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['shipping_charge'], 2) . '</td>
-                    </tr>';
+                    <td class="subtotal-title">Shipping Charge:</td>
+                    <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['shipping_charge'], 2) . '</td>
+                </tr>';
     }
-    
+
     $html .= '<tr class="subtotal-box">
-                        <td class="subtotal-title">Total:</td>
-                        <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['total_amount'], 2) . '</td>
-                    </tr>
-                </table>
-                
-                <div class="address-deatils-box text-right">
+                    <td class="subtotal-title">Total:</td>
+                    <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['total_amount'], 2) . '</td>
+                </tr>
+            </table>
+
+            <div class="address-deatils-box text-right">
                     <span class="bold-text">Total In Words:</span>
-                    ' . numberToWords($invoice['total_amount']) . ' ' . htmlspecialchars($currencyName) . '
+                     ' . numberToWords($invoice['total_amount']) . ' ' . htmlspecialchars($currencyName) . '
                 </div>
-            </td>
-        </tr>
-    </table>
-</div>';
+            
+        </td>';
+
+    $html .= '</tr>
+                </table>
+            </div>';
     
     // Add Notes section if exists
     if ($showNotes) {
