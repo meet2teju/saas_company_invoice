@@ -45,6 +45,77 @@ function uploadFile($file, $uploadDir) {
     return null;
 }
 
+// Function to get location info for GST calculation
+function getLocationInfoForGST($conn, $clientId, $orgId) {
+    $result = [
+        'client_country_id' => 0,
+        'client_state_id' => 0,
+        'company_country_id' => 0,
+        'company_state_id' => 0,
+        'tax_type' => 'non_gst'
+    ];
+    
+    try {
+        // Get company location
+        $companyQuery = "SELECT country_id, state_id FROM company_info 
+                        WHERE org_id = ? AND is_deleted = 0 LIMIT 1";
+        $stmt = $conn->prepare($companyQuery);
+        $stmt->bind_param("i", $orgId);
+        $stmt->execute();
+        $companyResult = $stmt->get_result();
+        
+        if ($companyData = $companyResult->fetch_assoc()) {
+            $result['company_country_id'] = $companyData['country_id'] ?? 0;
+            $result['company_state_id'] = $companyData['state_id'] ?? 0;
+        }
+        
+        // Get client location from billing address
+        $clientQuery = "SELECT billing_country, billing_state FROM client_address 
+                       WHERE client_id = ? AND is_deleted = 0 
+                       ORDER BY id DESC LIMIT 1";
+        $stmt = $conn->prepare($clientQuery);
+        $stmt->bind_param("i", $clientId);
+        $stmt->execute();
+        $clientResult = $stmt->get_result();
+        
+        if ($clientData = $clientResult->fetch_assoc()) {
+            $result['client_country_id'] = $clientData['billing_country'] ?? 0;
+            $result['client_state_id'] = $clientData['billing_state'] ?? 0;
+        }
+        
+        // Get India country ID
+        $indiaQuery = "SELECT id FROM countries WHERE name = 'India' LIMIT 1";
+        $indiaResult = $conn->query($indiaQuery);
+        $indiaData = $indiaResult->fetch_assoc();
+        $indiaCountryId = $indiaData['id'] ?? 0;
+        
+        // Determine tax type based on locations
+        if ($result['company_country_id'] == $indiaCountryId && 
+            $result['client_country_id'] == $indiaCountryId) {
+            // Both in India
+            if ($result['company_state_id'] > 0 && $result['client_state_id'] > 0) {
+                if ($result['company_state_id'] == $result['client_state_id']) {
+                    $result['tax_type'] = 'cgst_sgst';
+                } else {
+                    $result['tax_type'] = 'igst';
+                }
+            } else {
+                $result['tax_type'] = 'igst'; // Default for incomplete info
+            }
+        } elseif ($result['company_country_id'] == $indiaCountryId && 
+                  $result['client_country_id'] != $indiaCountryId && 
+                  $result['client_country_id'] > 0) {
+            // Company in India, client outside India
+            $result['tax_type'] = 'non_gst';
+        }
+        
+    } catch (Exception $e) {
+        error_log("Error getting location info: " . $e->getMessage());
+    }
+    
+    return $result;
+}
+
 // ---------------- Main Logic ----------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     $currentUserId = $_SESSION['crm_user_id'] ?? 1;
@@ -68,7 +139,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $tax_amount      = dbFloat($_POST['tax_amount'] ?? 0);
         $shipping_charge = unformat($_POST['shipping_charge'] ?? 0);
         $total_amount    = dbFloat($_POST['total_amount'] ?? 0);
-        $gst_type        = dbString($conn, $_POST['gst_type'] ?? 'gst');
+        $gst_type        = dbString($conn, $_POST['gst_type'] ?? 'non_gst');
+        $tax_type        = dbString($conn, $_POST['tax_type'] ?? 'non_gst');
+        
+        // === NEW: Get location information ===
+        $client_country_id = dbInt($_POST['client_country_id'] ?? 0);
+        $client_state_id = dbInt($_POST['client_state_id'] ?? 0);
+        $company_country_id = dbInt($_POST['company_country_id'] ?? 0);
+        $company_state_id = dbInt($_POST['company_state_id'] ?? 0);
+        
+        // If location info is not provided, calculate it
+        if ($client_country_id == 0 || $company_country_id == 0) {
+            $locationInfo = getLocationInfoForGST($conn, $client_id, $orgId);
+            $client_country_id = $locationInfo['client_country_id'];
+            $client_state_id = $locationInfo['client_state_id'];
+            $company_country_id = $locationInfo['company_country_id'];
+            $company_state_id = $locationInfo['company_state_id'];
+        }
+        
+        // === UPDATED: Handle GST mode selection (Auto radio button is removed) ===
+        $gst_mode_radio = $_POST['gst_type_radio'] ?? 'non_gst';
+        
+        if ($gst_mode_radio === 'gst') {
+            // Manual GST mode selected
+            if ($tax_type === 'non_gst') {
+                // If current tax_type is non_gst but user manually selected GST
+                // Check if GST is applicable based on location
+                $locationInfo = getLocationInfoForGST($conn, $client_id, $orgId);
+                if ($locationInfo['tax_type'] !== 'non_gst') {
+                    $tax_type = $locationInfo['tax_type']; // Use location-based tax type
+                } else {
+                    $tax_type = 'igst'; // Default to IGST for manual GST selection
+                }
+            }
+            // If GST is selected, gst_type should not be 'non_gst'
+            if ($gst_type === 'non_gst') {
+                $gst_type = 'gst';
+            }
+        } else if ($gst_mode_radio === 'non_gst') {
+            // Non-GST mode selected
+            $tax_type = 'non_gst';
+            $gst_type = 'non_gst';
+        }
 
         // === 1. Update quotation main record ===
         $update_quotation = "UPDATE quotation SET
@@ -86,6 +198,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             shipping_charge = '$shipping_charge',
             total_amount = '$total_amount',
             gst_type = '$gst_type',
+            tax_type = '$tax_type',
+            client_country_id = '$client_country_id',
+            client_state_id = '$client_state_id',
+            company_country_id = '$company_country_id',
+            company_state_id = '$company_state_id',
             updated_by = '$currentUserId'
             WHERE id = '$quotation_id' AND org_id = '$orgId'";
         
@@ -109,7 +226,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $tax_id_array = $_POST['tax_id'] ?? [];
         $rate_array = $_POST['rate'] ?? [];
         $amount_array = $_POST['amount'] ?? [];
-        // $code_array = $_POST['code'] ?? [];
         
         $item_count = 0;
         $max_rows = count($item_type_row_array);
@@ -126,7 +242,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             $raw_tax_id = $_POST['tax_id'][$index] ?? '';
             $raw_rate = $_POST['rate'][$index] ?? '';
             $raw_amount = $_POST['amount'][$index] ?? '';
-          //  $raw_code = $_POST['code'][$index] ?? '';
             
             // Process values
             $item_id = dbInt($raw_item_id);
@@ -136,7 +251,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             $tax_id = dbInt($raw_tax_id);
             $rate = unformat($raw_rate);
             $amount = unformat($raw_amount);
-           // $code = dbString($conn, $raw_code);
             
             // Check if this is an empty/blank row
             $is_empty_row = false;
@@ -198,12 +312,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 continue;
             }
 
-            // Set tax_id
+            // Set tax_id - only if not in non_gst mode
             $tax_id_sql = 'NULL';
-            if ($gst_type !== 'non_gst' && $tax_id > 0) {
+            if ($gst_type !== 'non_gst' && $tax_type !== 'non_gst' && $tax_id > 0) {
                 $tax_id_sql = $tax_id;
-            } else if ($gst_type === 'non_gst') {
+            } else if ($gst_type === 'non_gst' || $tax_type === 'non_gst') {
                 $rate = 0;
+                $tax_id_sql = 'NULL';
+            }
+
+            // Calculate CGST/SGST/IGST breakdown
+            $cgst_rate = 0;
+            $sgst_rate = 0;
+            $igst_rate = 0;
+            
+            if ($tax_type === 'cgst_sgst' && $rate > 0) {
+                // Split GST equally for CGST and SGST
+                $cgst_rate = $rate / 2;
+                $sgst_rate = $rate / 2;
+            } elseif ($tax_type === 'igst' && $rate > 0) {
+                $igst_rate = $rate;
             }
 
             // INSERT new item
@@ -215,7 +343,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 quantity, 
                 selling_price, 
                 tax_id, 
-                rate, 
+                rate,
+                cgst_rate,
+                sgst_rate,
+                igst_rate,
                 amount, 
                 org_id, 
                 created_by, 
@@ -228,7 +359,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                 '$quantity',
                 '$selling_price', 
                 $tax_id_sql, 
-                '$rate', 
+                '$rate',
+                '$cgst_rate',
+                '$sgst_rate',
+                '$igst_rate',
                 '$amount', 
                 '$orgId',
                 '$currentUserId', 

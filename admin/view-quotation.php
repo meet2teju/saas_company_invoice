@@ -25,7 +25,7 @@ $sql = "SELECT q.*, c.first_name, c.last_name, c.email, c.customer_image, c.comp
 $result = mysqli_query($conn, $sql);
 $quotation = mysqli_fetch_assoc($result);
 
-// Fetch items with updated structure for products and services
+// Fetch items with updated structure for products and services - UPDATED TO INCLUDE CGST/SGST/IGST RATES
 $items_result = mysqli_query($conn, "
     SELECT 
         qi.*, 
@@ -37,7 +37,10 @@ $items_result = mysqli_query($conn, "
         t.name AS tax_name, 
         t.rate AS tax_rate,
         qi.service_name,  -- This comes from quotation_item table
-        qi.rate AS item_tax_rate
+        qi.rate AS item_tax_rate,
+        qi.cgst_rate,
+        qi.sgst_rate,
+        qi.igst_rate
     FROM quotation_item qi
     LEFT JOIN product p ON p.id = qi.product_id
     LEFT JOIN product s ON s.id = qi.service_id
@@ -115,6 +118,9 @@ if (!empty($quotation['client_id'])) {
 
 // Get currency symbol
 $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
+
+// Get tax_type from quotation
+$taxType = $quotation['tax_type'] ?? 'non_gst';
 
 ?>
 
@@ -604,7 +610,6 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                         
                                                         while ($item = mysqli_fetch_assoc($items_result)) {
                                                             $itemAmount = $item['amount'];
-                                                            $subtotal += $itemAmount;
                                                             
                                                             // Combine product name (from product table) and service name (from quotation_item)
                                                             if (!empty($item['service_id'])) {
@@ -627,19 +632,65 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                             if (($quotation['gst_type'] ?? 'gst') === 'non_gst') {
                                                                 $effectiveTaxRate = 0;
                                                                 $lineTax = 0;
+                                                                $baseAmount = $itemAmount; // For non-GST, amount is already without tax
                                                             } else {
-                                                                $lineTax = ($itemAmount * $effectiveTaxRate) / 100;
+                                                                // Calculate base amount (without tax) from the total amount
+                                                                if ($effectiveTaxRate > 0) {
+                                                                    $baseAmount = $itemAmount / (1 + ($effectiveTaxRate / 100));
+                                                                    $lineTax = $itemAmount - $baseAmount;
+                                                                } else {
+                                                                    $baseAmount = $itemAmount;
+                                                                    $lineTax = 0;
+                                                                }
                                                             }
                                                             
-                                                            // Build tax label
+                                                            // Add base amount to subtotal (without tax)
+                                                            $subtotal += $baseAmount;
+                                                            
+                                                            // Build tax label based on tax_type
                                                             if ($effectiveTaxRate > 0) {
-                                                                $taxKey = $taxName . ' (' . $effectiveTaxRate . '%)';
-                                                                
-                                                                // Add to summary
-                                                                if (!isset($taxSummary[$taxKey])) {
-                                                                    $taxSummary[$taxKey] = 0;
+                                                                if ($taxType === 'cgst_sgst') {
+                                                                    // For CGST+SGST, show combined rate but store separately for summary
+                                                                    $cgstRate = $item['cgst_rate'] > 0 ? $item['cgst_rate'] : ($effectiveTaxRate / 2);
+                                                                    $sgstRate = $item['sgst_rate'] > 0 ? $item['sgst_rate'] : ($effectiveTaxRate / 2);
+                                                                    
+                                                                    $cgstKey = "CGST (" . number_format($cgstRate, 2) . "%)";
+                                                                    $sgstKey = "SGST (" . number_format($sgstRate, 2) . "%)";
+                                                                    $cgstAmount = $lineTax / 2;
+                                                                    $sgstAmount = $lineTax / 2;
+                                                                    
+                                                                    // Add to summary
+                                                                    if (!isset($taxSummary[$cgstKey])) {
+                                                                        $taxSummary[$cgstKey] = 0;
+                                                                    }
+                                                                    if (!isset($taxSummary[$sgstKey])) {
+                                                                        $taxSummary[$sgstKey] = 0;
+                                                                    }
+                                                                    $taxSummary[$cgstKey] += $cgstAmount;
+                                                                    $taxSummary[$sgstKey] += $sgstAmount;
+                                                                    
+                                                                    $taxDisplay = "CGST " . number_format($cgstRate, 2) . "% + SGST " . number_format($sgstRate, 2) . "%";
+                                                                } elseif ($taxType === 'igst') {
+                                                                    $igstRate = $item['igst_rate'] > 0 ? $item['igst_rate'] : $effectiveTaxRate;
+                                                                    $igstKey = "IGST (" . number_format($igstRate, 2) . "%)";
+                                                                    
+                                                                    // Add to summary
+                                                                    if (!isset($taxSummary[$igstKey])) {
+                                                                        $taxSummary[$igstKey] = 0;
+                                                                    }
+                                                                    $taxSummary[$igstKey] += $lineTax;
+                                                                    
+                                                                    $taxDisplay = "IGST " . number_format($igstRate, 2) . "%";
+                                                                } else {
+                                                                    // For other GST types or manual GST
+                                                                    $taxKey = $taxName . " (" . number_format($effectiveTaxRate, 2) . "%)";
+                                                                    if (!isset($taxSummary[$taxKey])) {
+                                                                        $taxSummary[$taxKey] = 0;
+                                                                    }
+                                                                    $taxSummary[$taxKey] += $lineTax;
+                                                                    
+                                                                    $taxDisplay = $taxName . " " . number_format($effectiveTaxRate, 2) . "%";
                                                                 }
-                                                                $taxSummary[$taxKey] += $lineTax;
                                                             }
                                                         ?>
                                                             <tr class="<?= $itemClass ?>">
@@ -649,7 +700,16 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                                 </td>
                                                                 <td><?= htmlspecialchars($item['code'] ?? 'N/A') ?></td>
                                                                 <?php if ($showQuantityColumn): ?>
-                                                                    <td><?= $item['quantity'] ?></td>
+                                                                    <td>
+                                                                        <?php 
+                                                                        $quantity = $item['quantity'];
+                                                                        if (is_null($quantity) || $quantity === 0 || $quantity === '') {
+                                                                            echo "1";
+                                                                        } else {
+                                                                            echo $quantity;
+                                                                        }
+                                                                        ?>
+                                                                    </td>
                                                                 <?php endif; ?>
                                                                 <td><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($item['selling_price'], 2) ?></td>
                                                                 <?php if ($showTaxColumn): ?>
@@ -657,11 +717,13 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                                         <?php if (($quotation['gst_type'] ?? 'gst') === 'non_gst'): ?>
                                                                             Non-GST
                                                                         <?php else: ?>
-                                                                            <?= $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '') ?>
+                                                                            <?= $effectiveTaxRate > 0 ? $taxDisplay : 'No Tax' ?>
                                                                         <?php endif; ?>
                                                                     </td>
                                                                 <?php endif; ?>
-                                                                <td><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($itemAmount, 2) ?></td>
+                                                                <td>
+                                                                    <?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($baseAmount, 2) ?>
+                                                                </td>
                                                             </tr>
                                                         <?php } ?>
                                                     </tbody>
@@ -684,8 +746,9 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                             </div><!-- end col -->
                                             <div class="col-lg-6">
                                                 <div class="mb-3 p-4">
+                                                    <!-- FIXED: Changed label from "Sub Amount" to "Subtotal" -->
                                                     <div class="d-flex align-items-center justify-content-between mb-3">
-                                                        <h6 class="fs-14 fw-semibold">Sub Amount</h6>
+                                                        <h6 class="fs-14 fw-semibold">Subtotal</h6>
                                                         <h6 class="fs-14 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($subtotal, 2) ?></h6>
                                                     </div>
 
@@ -694,12 +757,14 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                                                     if (($quotation['gst_type'] ?? 'gst') !== 'non_gst' && !empty($taxSummary)): 
                                                         foreach ($taxSummary as $taxLabel => $taxAmount): 
                                                             $totalTax += $taxAmount;
+                                                            if ($taxAmount > 0):
                                                     ?>
-                                                        <div class="d-flex align-items-center justify-content-between mb-3">
+                                                        <div class="d-flex align-items-center justify-content-between mb-2">
                                                             <h6 class="fs-14 fw-semibold"><?= $taxLabel ?></h6>
                                                             <h6 class="fs-14 fw-semibold"><?= htmlspecialchars($currencySymbol) ?>&nbsp;<?= number_format($taxAmount, 2) ?></h6>
                                                         </div>
                                                     <?php 
+                                                            endif;
                                                         endforeach; 
                                                     endif; 
                                                     ?>
@@ -807,25 +872,25 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
                             <li>
                                 <label class="dropdown-item px-2 d-flex align-items-center text-dark">
                                     <input class="form-check-input" type="radio" name="status" value="accepted" <?= $quotation['status'] === 'accepted' ? 'checked' : '' ?>>
-                                    <i class="fa-solid fa-circle fs-6 text-success me-1"></i>Accepted
+                                    <i class="fas fa-circle fs-6 text-success me-1"></i>Accepted
                                 </label>
                             </li>
                             <li>
                                 <label class="dropdown-item px-2 d-flex align-items-center text-dark">
                                     <input class="form-check-input" type="radio" name="status" value="rejected" <?= $quotation['status'] === 'rejected' ? 'checked' : '' ?>>
-                                    <i class="fa-solid fa-circle fs-6 text-danger me-1"></i>Rejected
+                                    <i class="fas fa-circle fs-6 text-danger me-1"></i>Rejected
                                 </label>
                             </li>
                             <li>
                                 <label class="dropdown-item px-2 d-flex align-items-center text-dark">
                                     <input class="form-check-input" type="radio" name="status" value="expired" <?= $quotation['status'] === 'expired' ? 'checked' : '' ?>>
-                                    <i class="fa-solid fa-circle fs-6 text-warning me-1"></i>Expired
+                                    <i class="fas fa-circle fs-6 text-warning me-1"></i>Expired
                                 </label>
                             </li>
                             <li>
                                 <label class="dropdown-item px-2 d-flex align-items-center text-dark">
                                     <input class="form-check-input" type="radio" name="status" value="cancel" <?= $quotation['status'] === 'cancel' ? 'checked' : '' ?>>
-                                    <i class="fa-solid fa-circle fs-6 text-warning me-1"></i>Cancelled
+                                    <i class="fas fa-circle fs-6 text-warning me-1"></i>Cancelled
                                 </label>
                             </li>
                         </ul>
@@ -858,7 +923,7 @@ $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
             <div class="modal-body">
                 <p>Are you sure you want to convert this quotation to an invoice?</p>
                 <p class="text-muted">This action will:</p>
-                <ul class="text-muted">
+                                <ul class="text-muted">
                     <li>Create a new invoice with the quotation details</li>
                     <li>Copy all items and documents</li>
                     <li>Remove the quotation from the quotations list</li>
