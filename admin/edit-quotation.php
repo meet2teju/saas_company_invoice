@@ -1061,99 +1061,267 @@ $(document).ready(function() {
         });
     }
 
-    function setGSTMode(gstType) {
-        console.log('Setting GST mode to:', gstType);
+    // function setGSTMode(gstType) {
+    //     console.log('Setting GST mode to:', gstType);
         
-        // Update both fields
-        $('#gst_type_field').val(gstType);
-        $('#tax_type_field').val(gstType);
+    //     // Update both fields
+    //     $('#gst_type_field').val(gstType);
+    //     $('#tax_type_field').val(gstType);
         
-        // Hide all tax columns first
+    //     // Hide all tax columns first
+    //     $('.tax-column').hide();
+    //     $('.tax-details').hide();
+        
+    //     // Reset all tax values to 0
+    //     $('.tax-rate').data('value', 0).val('0%');
+    //     $('.service-tax-select').val('');
+    //     $('.product-tax-select').val('');
+    //     $('.tax-amount-line').text(getCurrencySymbol() + ' 0.00');
+    //     $('.tax-rate-line').text('0%');
+        
+    //     if (gstType === 'non_gst') {
+    //         $('.add-table').addClass('non-gst-mode');
+    //         // Hide tax columns
+    //         $('.tax-column').hide();
+    //         $('.tax-details').hide();
+    //     } else {
+    //         $('.add-table').removeClass('non-gst-mode');
+            
+    //         // Show tax columns for GST modes
+    //         $('.tax-column').show();
+    //         $('.tax-details').show();
+            
+    //         // Recalculate with appropriate tax rates
+    //         $('.product-select').each(function() {
+    //             const $row = $(this).closest('tr');
+    //             const option = $(this).find('option:selected');
+    //             if (option.val()) {
+    //                 const baseTax = parseFloat(option.data('tax')) || 0;
+    //                 let effectiveTax = baseTax;
+                    
+    //                 // Split tax for CGST+SGST (each half of total GST)
+    //                 if (gstType === 'cgst_sgst' && baseTax > 0) {
+    //                     effectiveTax = baseTax; // Total GST (CGST+SGST combined)
+    //                 }
+                    
+    //                 $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+                    
+    //                 // Update tax display text
+    //                 if (gstType === 'cgst_sgst' && baseTax > 0) {
+    //                     const halfRate = (baseTax / 2).toFixed(2);
+    //                     $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
+    //                 } else if (gstType === 'igst' && baseTax > 0) {
+    //                     $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
+    //                 } else if (baseTax > 0) {
+    //                     const taxName = option.data('tax-name') || 'GST';
+    //                     $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
+    //                 }
+    //             }
+    //         });
+            
+    //         $('.service-select').each(function() {
+    //             const $row = $(this).closest('tr');
+    //             const option = $(this).find('option:selected');
+    //             if (option.val()) {
+    //                 const baseTax = parseFloat(option.data('tax')) || 0;
+    //                 let effectiveTax = baseTax;
+                    
+    //                 if (gstType === 'cgst_sgst' && baseTax > 0) {
+    //                     effectiveTax = baseTax; // Total GST (CGST+SGST combined)
+    //                 }
+                    
+    //                 $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+                    
+    //                 // Update tax display text
+    //                 if (gstType === 'cgst_sgst' && baseTax > 0) {
+    //                     const halfRate = (baseTax / 2).toFixed(2);
+    //                     $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
+    //                 } else if (gstType === 'igst' && baseTax > 0) {
+    //                     $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
+    //                 } else if (baseTax > 0) {
+    //                     const taxName = option.data('tax-name') || 'GST';
+    //                     $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
+    //                 }
+    //             }
+    //         });
+    //     }
+        
+    //     // Recalculate all rows
+    //     $('.add-tbody tr').each(function() {
+    //         calculateRow($(this));
+    //     });
+        
+    //     calculateSummary();
+    // }
+// Function to set GST mode - FIXED VERSION (Properly displays tax values)
+function setGSTMode(gstType) {
+    console.log('Setting GST mode to:', gstType);
+    
+    // Store current tax selections before making changes
+    const currentTaxSelections = {};
+    $('.add-tbody tr').each(function(index) {
+        const $row = $(this);
+        const isProduct = $row.hasClass('product-row');
+        const isService = $row.hasClass('service-row');
+        
+        if (isProduct) {
+            currentTaxSelections[index] = {
+                type: 'product',
+                taxId: $row.find('.product-tax-select').val(),
+                taxName: $row.find('.tax-name').val(),
+                taxRate: $row.find('.tax-rate').data('value') || 0
+            };
+        } else if (isService) {
+            currentTaxSelections[index] = {
+                type: 'service',
+                taxId: $row.find('.service-tax-select').val(),
+                taxName: $row.find('.tax-name').val(),
+                taxRate: $row.find('.tax-rate').data('value') || 0
+            };
+        }
+    });
+    
+    // Update both fields
+    $('#gst_type_field').val(gstType);
+    $('#tax_type_field').val(gstType);
+    
+    // FIX: Always enable tax dropdowns first
+    $('.product-tax-select, .service-tax-select').prop('disabled', false);
+    
+    // Hide all tax columns first
+    $('.tax-column').hide();
+    $('.tax-details').hide();
+    
+    if (gstType === 'non_gst') {
+        $('.add-table').addClass('non-gst-mode');
+        // Hide tax columns and disable dropdowns for non-GST
         $('.tax-column').hide();
         $('.tax-details').hide();
+        // FIX: Disable dropdowns only in non-GST mode
+        $('.product-tax-select, .service-tax-select').prop('disabled', true);
         
-        // Reset all tax values to 0
-        $('.tax-rate').data('value', 0).val('0%');
-        $('.service-tax-select').val('');
-        $('.product-tax-select').val('');
-        $('.tax-amount-line').text(getCurrencySymbol() + ' 0.00');
-        $('.tax-rate-line').text('0%');
-        
-        if (gstType === 'non_gst') {
-            $('.add-table').addClass('non-gst-mode');
-            // Hide tax columns
-            $('.tax-column').hide();
-            $('.tax-details').hide();
-        } else {
-            $('.add-table').removeClass('non-gst-mode');
-            
-            // Show tax columns for GST modes
-            $('.tax-column').show();
-            $('.tax-details').show();
-            
-            // Recalculate with appropriate tax rates
-            $('.product-select').each(function() {
-                const $row = $(this).closest('tr');
-                const option = $(this).find('option:selected');
-                if (option.val()) {
-                    const baseTax = parseFloat(option.data('tax')) || 0;
-                    let effectiveTax = baseTax;
-                    
-                    // Split tax for CGST+SGST (each half of total GST)
-                    if (gstType === 'cgst_sgst' && baseTax > 0) {
-                        effectiveTax = baseTax; // Total GST (CGST+SGST combined)
-                    }
-                    
-                    $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
-                    
-                    // Update tax display text
-                    if (gstType === 'cgst_sgst' && baseTax > 0) {
-                        const halfRate = (baseTax / 2).toFixed(2);
-                        $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
-                    } else if (gstType === 'igst' && baseTax > 0) {
-                        $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
-                    } else if (baseTax > 0) {
-                        const taxName = option.data('tax-name') || 'GST';
-                        $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
-                    }
-                }
-            });
-            
-            $('.service-select').each(function() {
-                const $row = $(this).closest('tr');
-                const option = $(this).find('option:selected');
-                if (option.val()) {
-                    const baseTax = parseFloat(option.data('tax')) || 0;
-                    let effectiveTax = baseTax;
-                    
-                    if (gstType === 'cgst_sgst' && baseTax > 0) {
-                        effectiveTax = baseTax; // Total GST (CGST+SGST combined)
-                    }
-                    
-                    $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
-                    
-                    // Update tax display text
-                    if (gstType === 'cgst_sgst' && baseTax > 0) {
-                        const halfRate = (baseTax / 2).toFixed(2);
-                        $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
-                    } else if (gstType === 'igst' && baseTax > 0) {
-                        $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
-                    } else if (baseTax > 0) {
-                        const taxName = option.data('tax-name') || 'GST';
-                        $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
-                    }
-                }
-            });
-        }
-        
-        // Recalculate all rows
-        $('.add-tbody tr').each(function() {
-            calculateRow($(this));
+        // Set all tax rates to 0 for non-GST
+        $('.add-tbody tr').each(function(index) {
+            const $row = $(this);
+            $row.find('.tax-rate').data('value', 0).val('0%');
+            $row.find('.tax-rate-line').text('0%');
         });
+    } else {
+        $('.add-table').removeClass('non-gst-mode');
         
-        calculateSummary();
+        // Show tax columns for GST modes
+        $('.tax-column').show();
+        $('.tax-details').show();
+        // FIX: Ensure dropdowns are enabled in GST mode
+        $('.product-tax-select, .service-tax-select').prop('disabled', false);
+        
+        // Restore tax selections for each row
+        $('.add-tbody tr').each(function(index) {
+            const $row = $(this);
+            const savedTax = currentTaxSelections[index];
+            const isProduct = $row.hasClass('product-row');
+            const isService = $row.hasClass('service-row');
+            
+            if (savedTax) {
+                let effectiveTaxRate = savedTax.taxRate || 0;
+                let taxDisplayText = '';
+                
+                // Determine tax display text based on GST type
+                if (gstType === 'cgst_sgst' && effectiveTaxRate > 0) {
+                    const halfRate = (effectiveTaxRate / 2).toFixed(2);
+                    taxDisplayText = `CGST ${halfRate}% + SGST ${halfRate}%`;
+                } else if (gstType === 'igst' && effectiveTaxRate > 0) {
+                    taxDisplayText = `IGST ${effectiveTaxRate.toFixed(2)}%`;
+                } else if (effectiveTaxRate > 0) {
+                    const taxName = savedTax.taxName || 'GST';
+                    taxDisplayText = `${taxName} ${effectiveTaxRate.toFixed(2)}%`;
+                } else {
+                    taxDisplayText = '0%';
+                }
+                
+                // Set tax rate
+                $row.find('.tax-rate').data('value', effectiveTaxRate).val(formatPercent(effectiveTaxRate));
+                $row.find('.tax-rate-line').text(taxDisplayText);
+                
+                // Restore tax dropdown selection if it exists
+                if (savedTax.taxId) {
+                    if (isProduct) {
+                        $row.find('.product-tax-select').val(savedTax.taxId);
+                    } else if (isService) {
+                        $row.find('.service-tax-select').val(savedTax.taxId);
+                    }
+                }
+            } else {
+                // No saved tax, try to get from product/service data
+                if (isProduct) {
+                    const option = $row.find('.product-select').find('option:selected');
+                    if (option.val()) {
+                        const baseTax = parseFloat(option.data('tax')) || 0;
+                        const taxId = option.data('tax-id') || '';
+                        const taxName = option.data('tax-name') || '';
+                        let effectiveTax = baseTax;
+                        
+                        if (gstType === 'cgst_sgst' && baseTax > 0) {
+                            effectiveTax = baseTax;
+                        }
+                        
+                        $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+                        
+                        // Update tax display text
+                        if (gstType === 'cgst_sgst' && baseTax > 0) {
+                            const halfRate = (baseTax / 2).toFixed(2);
+                            $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
+                        } else if (gstType === 'igst' && baseTax > 0) {
+                            $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
+                        } else if (baseTax > 0) {
+                            $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
+                        }
+                        
+                        if (taxId) {
+                            $row.find('.product-tax-select').val(taxId);
+                        }
+                    }
+                } else if (isService) {
+                    const option = $row.find('.service-select').find('option:selected');
+                    if (option.val()) {
+                        const baseTax = parseFloat(option.data('tax')) || 0;
+                        const taxId = option.data('tax-id') || '';
+                        const taxName = option.data('tax-name') || '';
+                        let effectiveTax = baseTax;
+                        
+                        if (gstType === 'cgst_sgst' && baseTax > 0) {
+                            effectiveTax = baseTax;
+                        }
+                        
+                        $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+                        
+                        // Update tax display text
+                        if (gstType === 'cgst_sgst' && baseTax > 0) {
+                            const halfRate = (baseTax / 2).toFixed(2);
+                            $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
+                        } else if (gstType === 'igst' && baseTax > 0) {
+                            $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
+                        } else if (baseTax > 0) {
+                            $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
+                        }
+                        
+                        if (taxId) {
+                            $row.find('.service-tax-select').val(taxId);
+                        }
+                    }
+                }
+            }
+        });
     }
-
+    
+    // IMPORTANT: Recalculate all rows AFTER updating tax rates
+    // This will update the tax amount display
+    $('.add-tbody tr').each(function() {
+        calculateRow($(this));
+    });
+    
+    calculateSummary();
+}
     // Fetch client billing & shipping info on page load
     function fetchClientInfo(clientId) {
         if (clientId) {
