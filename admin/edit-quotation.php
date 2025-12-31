@@ -158,8 +158,14 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
 $is_product = ($row['item_type'] == 1) ? 'checked' : '';
 $is_service = ($row['item_type'] == 0) ? 'checked' : '';
 
-// Check if we're in Non-GST mode for initial display
-$isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
+// FIXED: Check GST type properly - Use both gst_type and tax_type fields
+$gst_type_from_db = $row['gst_type'] ?? 'non_gst';
+$tax_type_from_db = $row['tax_type'] ?? 'non_gst';
+
+// Determine if we're in Non-GST mode
+// In your add file, when it's non_gst, both fields are set to 'non_gst'
+// When it's GST, gst_type='gst' and tax_type can be 'cgst_sgst' or 'igst'
+$isNonGST = ($gst_type_from_db === 'non_gst' && $tax_type_from_db === 'non_gst');
 ?>
 
 <!DOCTYPE html>
@@ -336,8 +342,9 @@ $isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
                                 <div class="card-body">
                                     <form action="process/action_edit_quotation.php" method="POST" enctype="multipart/form-data" id="form">
                                         <input type="hidden" name="id" value="<?= $quotation_id ?>">
-                                        <input type="hidden" name="gst_type" id="gst_type_field" value="<?= $row['gst_type'] ?? 'non_gst' ?>">
-                                        <input type="hidden" name="tax_type" id="tax_type_field" value="<?= $row['tax_type'] ?? 'non_gst' ?>">
+                                        <!-- FIXED: Set both fields from database values -->
+                                        <input type="hidden" name="gst_type" id="gst_type_field" value="<?= $gst_type_from_db ?>">
+                                        <input type="hidden" name="tax_type" id="tax_type_field" value="<?= $tax_type_from_db ?>">
                                         
                                         <!-- NEW: Hidden fields for location data -->
                                         <input type="hidden" name="client_country_id" id="client_country_id_field" value="<?= $row['client_country_id'] ?? 0 ?>">
@@ -490,11 +497,14 @@ $isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
                                                     <div class="d-flex align-items-center mb-3">
                                                         <!-- AUTO RADIO BUTTON REMOVED -->
                                                         <div class="form-check me-3">
-                                                            <input class="form-check-input" type="radio" name="gst_type_radio" id="gst-manual" value="gst" <?= ($row['gst_type'] == 'gst' || $row['gst_type'] == 'cgst_sgst' || $row['gst_type'] == 'igst') ? 'checked' : '' ?>>
+                                                            <!-- FIXED: Check radio button based on GST type -->
+                                                            <input class="form-check-input" type="radio" name="gst_type_radio" id="gst-manual" value="gst" 
+                                                                <?= ($gst_type_from_db !== 'non_gst') ? 'checked' : '' ?>>
                                                             <label class="form-check-label" for="gst-manual">GST</label>
                                                         </div>
                                                         <div class="form-check">
-                                                            <input class="form-check-input" type="radio" name="gst_type_radio" id="gst-none" value="non_gst" <?= ($row['gst_type'] == 'non_gst') ? 'checked' : '' ?>>
+                                                            <input class="form-check-input" type="radio" name="gst_type_radio" id="gst-none" value="non_gst" 
+                                                                <?= ($gst_type_from_db === 'non_gst') ? 'checked' : '' ?>>
                                                             <label class="form-check-label" for="gst-none">Non-GST</label>
                                                         </div>
                                                     </div>
@@ -572,7 +582,7 @@ $isNonGST = ($row['gst_type'] ?? 'gst') === 'non_gst';
         // Calculate amounts
         $lineSubtotal = $qty * $price;
         
-        // Determine which tax rate to use based on tax_type
+        // Determine which tax rate to use based on tax_type from quotation
         $taxType = $row['tax_type'] ?? 'non_gst';
         if ($taxType === 'cgst_sgst') {
             // For CGST+SGST, use combined rate
@@ -866,7 +876,7 @@ $('.add-invoice-data').off('click');
 
 $(document).ready(function() {
     console.log('Document ready - initializing...');
-
+    
     // Initialize datepicker
     $('.datepicker').flatpickr({
         dateFormat: "Y-m-d",
@@ -1033,8 +1043,8 @@ $(document).ready(function() {
                         // If any GST is applicable (cgst_sgst or igst)
                         $('#gst-manual').prop('checked', true);
                         setGSTMode(gstType);
-                        $('#gst_type_field').val(gstType);
-                        $('#tax_type_field').val(gstType);
+                        $('#gst_type_field').val('gst'); // Set gst_type to 'gst'
+                        $('#tax_type_field').val(gstType); // Set tax_type to specific type
                     }
                     
                     // Update location hidden fields
@@ -1061,267 +1071,111 @@ $(document).ready(function() {
         });
     }
 
-    // function setGSTMode(gstType) {
-    //     console.log('Setting GST mode to:', gstType);
+    // Function to set GST mode - FIXED to match add file logic
+    function setGSTMode(taxType) {
+        console.log('Setting GST mode to:', taxType);
         
-    //     // Update both fields
-    //     $('#gst_type_field').val(gstType);
-    //     $('#tax_type_field').val(gstType);
-        
-    //     // Hide all tax columns first
-    //     $('.tax-column').hide();
-    //     $('.tax-details').hide();
-        
-    //     // Reset all tax values to 0
-    //     $('.tax-rate').data('value', 0).val('0%');
-    //     $('.service-tax-select').val('');
-    //     $('.product-tax-select').val('');
-    //     $('.tax-amount-line').text(getCurrencySymbol() + ' 0.00');
-    //     $('.tax-rate-line').text('0%');
-        
-    //     if (gstType === 'non_gst') {
-    //         $('.add-table').addClass('non-gst-mode');
-    //         // Hide tax columns
-    //         $('.tax-column').hide();
-    //         $('.tax-details').hide();
-    //     } else {
-    //         $('.add-table').removeClass('non-gst-mode');
-            
-    //         // Show tax columns for GST modes
-    //         $('.tax-column').show();
-    //         $('.tax-details').show();
-            
-    //         // Recalculate with appropriate tax rates
-    //         $('.product-select').each(function() {
-    //             const $row = $(this).closest('tr');
-    //             const option = $(this).find('option:selected');
-    //             if (option.val()) {
-    //                 const baseTax = parseFloat(option.data('tax')) || 0;
-    //                 let effectiveTax = baseTax;
-                    
-    //                 // Split tax for CGST+SGST (each half of total GST)
-    //                 if (gstType === 'cgst_sgst' && baseTax > 0) {
-    //                     effectiveTax = baseTax; // Total GST (CGST+SGST combined)
-    //                 }
-                    
-    //                 $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
-                    
-    //                 // Update tax display text
-    //                 if (gstType === 'cgst_sgst' && baseTax > 0) {
-    //                     const halfRate = (baseTax / 2).toFixed(2);
-    //                     $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
-    //                 } else if (gstType === 'igst' && baseTax > 0) {
-    //                     $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
-    //                 } else if (baseTax > 0) {
-    //                     const taxName = option.data('tax-name') || 'GST';
-    //                     $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
-    //                 }
-    //             }
-    //         });
-            
-    //         $('.service-select').each(function() {
-    //             const $row = $(this).closest('tr');
-    //             const option = $(this).find('option:selected');
-    //             if (option.val()) {
-    //                 const baseTax = parseFloat(option.data('tax')) || 0;
-    //                 let effectiveTax = baseTax;
-                    
-    //                 if (gstType === 'cgst_sgst' && baseTax > 0) {
-    //                     effectiveTax = baseTax; // Total GST (CGST+SGST combined)
-    //                 }
-                    
-    //                 $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
-                    
-    //                 // Update tax display text
-    //                 if (gstType === 'cgst_sgst' && baseTax > 0) {
-    //                     const halfRate = (baseTax / 2).toFixed(2);
-    //                     $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
-    //                 } else if (gstType === 'igst' && baseTax > 0) {
-    //                     $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
-    //                 } else if (baseTax > 0) {
-    //                     const taxName = option.data('tax-name') || 'GST';
-    //                     $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
-    //                 }
-    //             }
-    //         });
-    //     }
-        
-    //     // Recalculate all rows
-    //     $('.add-tbody tr').each(function() {
-    //         calculateRow($(this));
-    //     });
-        
-    //     calculateSummary();
-    // }
-// Function to set GST mode - FIXED VERSION (Properly displays tax values)
-function setGSTMode(gstType) {
-    console.log('Setting GST mode to:', gstType);
-    
-    // Store current tax selections before making changes
-    const currentTaxSelections = {};
-    $('.add-tbody tr').each(function(index) {
-        const $row = $(this);
-        const isProduct = $row.hasClass('product-row');
-        const isService = $row.hasClass('service-row');
-        
-        if (isProduct) {
-            currentTaxSelections[index] = {
-                type: 'product',
-                taxId: $row.find('.product-tax-select').val(),
-                taxName: $row.find('.tax-name').val(),
-                taxRate: $row.find('.tax-rate').data('value') || 0
-            };
-        } else if (isService) {
-            currentTaxSelections[index] = {
-                type: 'service',
-                taxId: $row.find('.service-tax-select').val(),
-                taxName: $row.find('.tax-name').val(),
-                taxRate: $row.find('.tax-rate').data('value') || 0
-            };
+        // Update both fields - FIXED to match add file logic
+        if (taxType === 'non_gst') {
+            // For non-gst: both fields should be 'non_gst'
+            $('#gst_type_field').val('non_gst');
+            $('#tax_type_field').val('non_gst');
+        } else {
+            // For GST modes: gst_type='gst', tax_type=specific type
+            $('#gst_type_field').val('gst');
+            $('#tax_type_field').val(taxType); // 'cgst_sgst' or 'igst'
         }
-    });
-    
-    // Update both fields
-    $('#gst_type_field').val(gstType);
-    $('#tax_type_field').val(gstType);
-    
-    // FIX: Always enable tax dropdowns first
-    $('.product-tax-select, .service-tax-select').prop('disabled', false);
-    
-    // Hide all tax columns first
-    $('.tax-column').hide();
-    $('.tax-details').hide();
-    
-    if (gstType === 'non_gst') {
-        $('.add-table').addClass('non-gst-mode');
-        // Hide tax columns and disable dropdowns for non-GST
+        
+        // Hide all tax columns first
         $('.tax-column').hide();
         $('.tax-details').hide();
-        // FIX: Disable dropdowns only in non-GST mode
-        $('.product-tax-select, .service-tax-select').prop('disabled', true);
         
-        // Set all tax rates to 0 for non-GST
-        $('.add-tbody tr').each(function(index) {
-            const $row = $(this);
-            $row.find('.tax-rate').data('value', 0).val('0%');
-            $row.find('.tax-rate-line').text('0%');
-        });
-    } else {
-        $('.add-table').removeClass('non-gst-mode');
+        // Reset all tax values to 0
+        $('.tax-rate').data('value', 0).val('0%');
+        $('.service-tax-select').val('');
+        $('.product-tax-select').val('');
+        $('.tax-amount-line').text(getCurrencySymbol() + ' 0.00');
+        $('.tax-rate-line').text('0%');
         
-        // Show tax columns for GST modes
-        $('.tax-column').show();
-        $('.tax-details').show();
-        // FIX: Ensure dropdowns are enabled in GST mode
-        $('.product-tax-select, .service-tax-select').prop('disabled', false);
-        
-        // Restore tax selections for each row
-        $('.add-tbody tr').each(function(index) {
-            const $row = $(this);
-            const savedTax = currentTaxSelections[index];
-            const isProduct = $row.hasClass('product-row');
-            const isService = $row.hasClass('service-row');
+        if (taxType === 'non_gst') {
+            $('.add-table').addClass('non-gst-mode');
+            // Hide tax columns
+            $('.tax-column').hide();
+            $('.tax-details').hide();
+            // Disable tax dropdowns
+            $('.product-tax-select, .service-tax-select').prop('disabled', true);
+        } else {
+            $('.add-table').removeClass('non-gst-mode');
             
-            if (savedTax) {
-                let effectiveTaxRate = savedTax.taxRate || 0;
-                let taxDisplayText = '';
-                
-                // Determine tax display text based on GST type
-                if (gstType === 'cgst_sgst' && effectiveTaxRate > 0) {
-                    const halfRate = (effectiveTaxRate / 2).toFixed(2);
-                    taxDisplayText = `CGST ${halfRate}% + SGST ${halfRate}%`;
-                } else if (gstType === 'igst' && effectiveTaxRate > 0) {
-                    taxDisplayText = `IGST ${effectiveTaxRate.toFixed(2)}%`;
-                } else if (effectiveTaxRate > 0) {
-                    const taxName = savedTax.taxName || 'GST';
-                    taxDisplayText = `${taxName} ${effectiveTaxRate.toFixed(2)}%`;
-                } else {
-                    taxDisplayText = '0%';
-                }
-                
-                // Set tax rate
-                $row.find('.tax-rate').data('value', effectiveTaxRate).val(formatPercent(effectiveTaxRate));
-                $row.find('.tax-rate-line').text(taxDisplayText);
-                
-                // Restore tax dropdown selection if it exists
-                if (savedTax.taxId) {
-                    if (isProduct) {
-                        $row.find('.product-tax-select').val(savedTax.taxId);
-                    } else if (isService) {
-                        $row.find('.service-tax-select').val(savedTax.taxId);
+            // Show tax columns for GST modes
+            $('.tax-column').show();
+            $('.tax-details').show();
+            // Enable tax dropdowns
+            $('.product-tax-select, .service-tax-select').prop('disabled', false);
+            
+            // Recalculate with appropriate tax rates
+            $('.product-select').each(function() {
+                const $row = $(this).closest('tr');
+                const option = $(this).find('option:selected');
+                if (option.val()) {
+                    const baseTax = parseFloat(option.data('tax')) || 0;
+                    let effectiveTax = baseTax;
+                    
+                    // Split tax for CGST+SGST (each half of total GST)
+                    if (taxType === 'cgst_sgst' && baseTax > 0) {
+                        effectiveTax = baseTax; // Total GST (CGST+SGST combined)
+                    }
+                    
+                    $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+                    
+                    // Update tax display text
+                    if (taxType === 'cgst_sgst' && baseTax > 0) {
+                        const halfRate = (baseTax / 2).toFixed(2);
+                        $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
+                    } else if (taxType === 'igst' && baseTax > 0) {
+                        $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
+                    } else if (baseTax > 0) {
+                        const taxName = option.data('tax-name') || 'GST';
+                        $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
                     }
                 }
-            } else {
-                // No saved tax, try to get from product/service data
-                if (isProduct) {
-                    const option = $row.find('.product-select').find('option:selected');
-                    if (option.val()) {
-                        const baseTax = parseFloat(option.data('tax')) || 0;
-                        const taxId = option.data('tax-id') || '';
-                        const taxName = option.data('tax-name') || '';
-                        let effectiveTax = baseTax;
-                        
-                        if (gstType === 'cgst_sgst' && baseTax > 0) {
-                            effectiveTax = baseTax;
-                        }
-                        
-                        $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
-                        
-                        // Update tax display text
-                        if (gstType === 'cgst_sgst' && baseTax > 0) {
-                            const halfRate = (baseTax / 2).toFixed(2);
-                            $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
-                        } else if (gstType === 'igst' && baseTax > 0) {
-                            $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
-                        } else if (baseTax > 0) {
-                            $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
-                        }
-                        
-                        if (taxId) {
-                            $row.find('.product-tax-select').val(taxId);
-                        }
+            });
+            
+            $('.service-select').each(function() {
+                const $row = $(this).closest('tr');
+                const option = $(this).find('option:selected');
+                if (option.val()) {
+                    const baseTax = parseFloat(option.data('tax')) || 0;
+                    let effectiveTax = baseTax;
+                    
+                    if (taxType === 'cgst_sgst' && baseTax > 0) {
+                        effectiveTax = baseTax; // Total GST (CGST+SGST combined)
                     }
-                } else if (isService) {
-                    const option = $row.find('.service-select').find('option:selected');
-                    if (option.val()) {
-                        const baseTax = parseFloat(option.data('tax')) || 0;
-                        const taxId = option.data('tax-id') || '';
-                        const taxName = option.data('tax-name') || '';
-                        let effectiveTax = baseTax;
-                        
-                        if (gstType === 'cgst_sgst' && baseTax > 0) {
-                            effectiveTax = baseTax;
-                        }
-                        
-                        $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
-                        
-                        // Update tax display text
-                        if (gstType === 'cgst_sgst' && baseTax > 0) {
-                            const halfRate = (baseTax / 2).toFixed(2);
-                            $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
-                        } else if (gstType === 'igst' && baseTax > 0) {
-                            $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
-                        } else if (baseTax > 0) {
-                            $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
-                        }
-                        
-                        if (taxId) {
-                            $row.find('.service-tax-select').val(taxId);
-                        }
+                    
+                    $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
+                    
+                    // Update tax display text
+                    if (taxType === 'cgst_sgst' && baseTax > 0) {
+                        const halfRate = (baseTax / 2).toFixed(2);
+                        $row.find('.tax-rate-line').text(`CGST ${halfRate}% + SGST ${halfRate}%`);
+                    } else if (taxType === 'igst' && baseTax > 0) {
+                        $row.find('.tax-rate-line').text(`IGST ${baseTax.toFixed(2)}%`);
+                    } else if (baseTax > 0) {
+                        const taxName = option.data('tax-name') || 'GST';
+                        $row.find('.tax-rate-line').text(`${taxName} ${baseTax.toFixed(2)}%`);
                     }
                 }
-            }
+            });
+        }
+        
+        // Recalculate all rows
+        $('.add-tbody tr').each(function() {
+            calculateRow($(this));
         });
+        
+        calculateSummary();
     }
-    
-    // IMPORTANT: Recalculate all rows AFTER updating tax rates
-    // This will update the tax amount display
-    $('.add-tbody tr').each(function() {
-        calculateRow($(this));
-    });
-    
-    calculateSummary();
-}
+
     // Fetch client billing & shipping info on page load
     function fetchClientInfo(clientId) {
         if (clientId) {
@@ -1366,7 +1220,7 @@ function setGSTMode(gstType) {
         determineGSTType(clientId);
     });
 
-    // Manual GST toggle handling
+    // Manual GST toggle handling - FIXED to match add file logic
     $('input[name="gst_type_radio"]').on('change', function() {
         const radioValue = $(this).val();
         const clientId = $('#client_id').val();
@@ -1386,27 +1240,29 @@ function setGSTMode(gstType) {
                     success: function(response) {
                         if (response.success && response.gst_type !== 'non_gst') {
                             // GST is applicable, use the determined type
-                            setGSTMode(response.gst_type);
-                            $('#gst_type_field').val(response.gst_type);
-                            $('#tax_type_field').val(response.gst_type);
+                            const taxType = response.gst_type;
+                            setGSTMode(taxType);
+                            $('#gst_type_field').val('gst');
+                            $('#tax_type_field').val(taxType);
                         } else {
-                            // GST not applicable, default to igst for manual GST mode
+                            // GST not applicable, but user manually selected GST
+                            // Default to igst for manual GST mode (matches add file logic)
                             setGSTMode('igst');
-                            $('#gst_type_field').val('igst');
+                            $('#gst_type_field').val('gst');
                             $('#tax_type_field').val('igst');
                         }
                     },
                     error: function() {
-                        // Default to igst on error
+                        // Default to igst on error for manual GST mode
                         setGSTMode('igst');
-                        $('#gst_type_field').val('igst');
+                        $('#gst_type_field').val('gst');
                         $('#tax_type_field').val('igst');
                     }
                 });
             } else {
-                // No client selected, default to igst
+                // No client selected, default to igst for manual GST
                 setGSTMode('igst');
-                $('#gst_type_field').val('igst');
+                $('#gst_type_field').val('gst');
                 $('#tax_type_field').val('igst');
             }
         } else if (radioValue === 'non_gst') {

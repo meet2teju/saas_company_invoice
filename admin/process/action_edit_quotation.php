@@ -157,27 +157,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             $company_state_id = $locationInfo['company_state_id'];
         }
         
-        // === UPDATED: Handle GST mode selection (Auto radio button is removed) ===
+        // === FIXED: Handle GST mode selection to match add file logic ===
         $gst_mode_radio = $_POST['gst_type_radio'] ?? 'non_gst';
         
         if ($gst_mode_radio === 'gst') {
-            // Manual GST mode selected
+            // Manual GST mode selected - FOLLOW ADD FILE LOGIC
             if ($tax_type === 'non_gst') {
                 // If current tax_type is non_gst but user manually selected GST
                 // Check if GST is applicable based on location
                 $locationInfo = getLocationInfoForGST($conn, $client_id, $orgId);
                 if ($locationInfo['tax_type'] !== 'non_gst') {
+                    // GST is applicable based on location
                     $tax_type = $locationInfo['tax_type']; // Use location-based tax type
+                    $gst_type = 'gst'; // Set gst_type to 'gst' when GST is applicable
                 } else {
-                    $tax_type = 'igst'; // Default to IGST for manual GST selection
+                    // GST not applicable by location, but user manually selected GST
+                    // Default to 'igst' for manual GST selection (matches add file)
+                    $tax_type = 'igst';
+                    $gst_type = 'gst'; // Set gst_type to 'gst'
+                }
+            } else {
+                // tax_type is already a GST type (cgst_sgst or igst)
+                // Ensure gst_type is 'gst' not 'non_gst'
+                if ($gst_type === 'non_gst') {
+                    $gst_type = 'gst';
                 }
             }
-            // If GST is selected, gst_type should not be 'non_gst'
-            if ($gst_type === 'non_gst') {
-                $gst_type = 'gst';
-            }
         } else if ($gst_mode_radio === 'non_gst') {
-            // Non-GST mode selected
+            // Non-GST mode selected - Set both fields to 'non_gst'
             $tax_type = 'non_gst';
             $gst_type = 'non_gst';
         }
