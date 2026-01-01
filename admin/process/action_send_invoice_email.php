@@ -87,7 +87,7 @@ function getCompanyCurrency($conn, $org_id) {
     ];
 }
 
-// Function to generate PDF - USING YOUR EXISTING INVOICE PDF DESIGN
+// Function to generate PDF - WITH GST LOGIC INTEGRATED AND SELLING PRICE COLUMN
 function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_address, $items, $client) {
     // Get organization ID from invoice
     $org_id = $invoice['org_id'] ?? 1;
@@ -96,6 +96,9 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
     $companyCurrency = getCompanyCurrency($conn, $org_id);
     $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
     $currencyName = $companyCurrency['currency_name'] ?? 'US Dollar';
+    
+    // Get tax_type from invoice (similar to quotation)
+    $taxType = $invoice['tax_type'] ?? 'non_gst';
     
     // Check GST type
     $gstType = $invoice['gst_type'] ?? 'gst';
@@ -121,8 +124,12 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
     $hasHsnCodeData = false;
     $hasTaxData = false;
     
-    // Store items in array first to check for data
+    // Store items in array first to check for data and calculate taxes with GST logic
     $items_array = [];
+    $taxSummary = [];
+    $subtotal = 0;
+    $totalTax = 0;
+    
     mysqli_data_seek($items, 0);
     while ($item = mysqli_fetch_assoc($items)) {
         $items_array[] = $item;
@@ -142,32 +149,89 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
         if ($showGSTColumn && !empty($item['tax_name']) && trim($item['tax_name']) !== '') {
             $hasTaxData = true;
         }
-    }
-    
-    // Calculate totals and tax summary
-    $taxSummary = [];
-    $subtotal = 0;
-    foreach ($items_array as $item) {
-        $itemAmount = $item['amount'];
-        $subtotal += $itemAmount;
         
-        // Calculate tax for this item only if GST type is not non_gst
+        // GST LOGIC: Calculate tax for this item based on GST type
+        $itemAmount = $item['amount']; // This is the total amount including tax
+        
         if ($showGSTColumn) {
             $effectiveTaxRate = $item['tax_rate'] ?? 0;
             $taxName = $item['tax_name'] ?? 'Tax';
             
-            if ($effectiveTaxRate > 0) {
-                $lineTax = ($itemAmount * $effectiveTaxRate) / 100;
-                $taxKey = $taxName . ' (' . $effectiveTaxRate . '%)';
+            // For Non-GST invoices, tax should be 0
+            if ($gstType === 'non_gst') {
+                $effectiveTaxRate = 0;
+                $lineTax = 0;
+                $baseAmount = $itemAmount; // For non-GST, amount is already without tax
+            } else {
+                // Calculate base amount (without tax) from the total amount
+                if ($effectiveTaxRate > 0) {
+                    $baseAmount = $itemAmount / (1 + ($effectiveTaxRate / 100));
+                    $lineTax = $itemAmount - $baseAmount;
+                } else {
+                    $baseAmount = $itemAmount;
+                    $lineTax = 0;
+                }
+            }
+        } else {
+            $baseAmount = $itemAmount;
+            $lineTax = 0;
+        }
+        
+        // Store base amount (without tax) for display in amount column
+        $items_array[count($items_array) - 1]['base_amount'] = $baseAmount;
+        $items_array[count($items_array) - 1]['line_tax'] = $lineTax;
+        
+        // Add base amount to subtotal (without tax)
+        $subtotal += $baseAmount;
+        
+        // Build tax label based on tax_type (GST LOGIC)
+        if ($showGSTColumn && $effectiveTaxRate > 0) {
+            if ($taxType === 'cgst_sgst') {
+                // For CGST+SGST, show combined rate but store separately for summary
+                $cgstRate = $item['cgst_rate'] > 0 ? $item['cgst_rate'] : ($effectiveTaxRate / 2);
+                $sgstRate = $item['sgst_rate'] > 0 ? $item['sgst_rate'] : ($effectiveTaxRate / 2);
+                
+                $cgstKey = "CGST (" . number_format($cgstRate, 2) . "%)";
+                $sgstKey = "SGST (" . number_format($sgstRate, 2) . "%)";
+                $cgstAmount = $lineTax / 2;
+                $sgstAmount = $lineTax / 2;
                 
                 // Add to summary
+                if (!isset($taxSummary[$cgstKey])) {
+                    $taxSummary[$cgstKey] = 0;
+                }
+                if (!isset($taxSummary[$sgstKey])) {
+                    $taxSummary[$sgstKey] = 0;
+                }
+                $taxSummary[$cgstKey] += $cgstAmount;
+                $taxSummary[$sgstKey] += $sgstAmount;
+                
+                $totalTax += $lineTax;
+                
+            } elseif ($taxType === 'igst') {
+                $igstRate = $item['igst_rate'] > 0 ? $item['igst_rate'] : $effectiveTaxRate;
+                $igstKey = "IGST (" . number_format($igstRate, 2) . "%)";
+                
+                // Add to summary
+                if (!isset($taxSummary[$igstKey])) {
+                    $taxSummary[$igstKey] = 0;
+                }
+                $taxSummary[$igstKey] += $lineTax;
+                
+                $totalTax += $lineTax;
+            } else {
+                // For other GST types or manual GST
+                $taxKey = $taxName . " (" . number_format($effectiveTaxRate, 2) . "%)";
                 if (!isset($taxSummary[$taxKey])) {
                     $taxSummary[$taxKey] = 0;
                 }
                 $taxSummary[$taxKey] += $lineTax;
+                
+                $totalTax += $lineTax;
             }
         }
     }
+    mysqli_data_seek($items, 0);
     
     // Check if we should show notes and terms
     $showNotes = !empty($invoice['invoice_note']);
@@ -197,26 +261,26 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
         $client_name = trim(($client['first_name'] ?? '') . ' ' . ($client['last_name'] ?? ''));
     }
     
-    // Calculate column widths dynamically (similar to main invoice PDF)
-    function calculateProductColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
-        $baseWidth = 40;
+    // Calculate column widths dynamically
+    function calculateProductColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type, $showGSTColumn) {
+        $baseWidth = 35;
         if (!$hasHsnCode) $baseWidth += 10;
         if (!$hasQuantity) $baseWidth += 8;
         if (!$hasUnit || $item_type != 1) $baseWidth += 8;
-        if (!$hasTax) $baseWidth += 12;
+        if (!$hasTax && $showGSTColumn) $baseWidth += 12;
         return $baseWidth;
     }
     
-    function calculateAmountColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
+    function calculateAmountColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type, $showGSTColumn) {
         $baseWidth = 15;
         if (!$hasHsnCode) $baseWidth += 10;
         if (!$hasQuantity) $baseWidth += 8;
         if (!$hasUnit || $item_type != 1) $baseWidth += 8;
-        if (!$hasTax) $baseWidth += 12;
+        if (!$hasTax && $showGSTColumn) $baseWidth += 12;
         return $baseWidth;
     }
     
-    // Start building HTML - USING YOUR EXISTING INVOICE PDF DESIGN
+    // Start building HTML - WITH SELLING PRICE COLUMN
     $html = '<!DOCTYPE html>
     <html lang="en">
     <head>
@@ -590,7 +654,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
                     <thead>
                         <tr style="background-color: #000; color: white;">
                             <th width="5%">#</th>
-                            <th width="' . calculateProductColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) . '%">Product/Service</th>';
+                            <th width="' . calculateProductColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type, $showGSTColumn) . '%">Product/Service</th>';
     
     if ($hasHsnCodeData) {
         $html .= '<th width="10%">HSN Code</th>';
@@ -604,11 +668,13 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
         $html .= '<th width="8%">Unit</th>';
     }
     
+    $html .= '<th width="15%">Selling Price</th>';
+    
     if ($hasTaxData && $showGSTColumn) {
         $html .= '<th width="12%">Tax</th>';
     }
     
-    $html .= '<th width="' . calculateAmountColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) . '%">Amount</th>
+    $html .= '<th width="' . calculateAmountColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type, $showGSTColumn) . '%">Amount</th>
                         </tr>
                     </thead>
                     <tbody>';
@@ -622,6 +688,39 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             $itemName = $productName . ($serviceName ? ' - ' . $serviceName : '');
         } else {
             $itemName = !empty($item['product_name']) ? $item['product_name'] : 'Product';
+        }
+        
+        // Calculate unit rate (selling price per unit)
+        $baseAmount = $item['base_amount'] ?? $item['amount'];
+        
+        if ($hasQuantityData && !empty($item['quantity']) && $item['quantity'] > 0) {
+            $unitRate = $baseAmount / $item['quantity'];
+        } else {
+            $unitRate = $baseAmount;
+        }
+        
+        // GST LOGIC: Build tax display based on tax_type
+        $taxDisplay = '';
+        if ($hasTaxData && $showGSTColumn) {
+            $effectiveTaxRate = $item['tax_rate'] ?? 0;
+            $taxName = $item['tax_name'] ?? 'Tax';
+            
+            if ($gstType === 'non_gst') {
+                $taxDisplay = 'Non-GST';
+            } elseif ($effectiveTaxRate > 0) {
+                if ($taxType === 'cgst_sgst') {
+                    $cgstRate = $item['cgst_rate'] > 0 ? $item['cgst_rate'] : ($effectiveTaxRate / 2);
+                    $sgstRate = $item['sgst_rate'] > 0 ? $item['sgst_rate'] : ($effectiveTaxRate / 2);
+                    $taxDisplay = "CGST " . number_format($cgstRate, 2) . "% + SGST " . number_format($sgstRate, 2) . "%";
+                } elseif ($taxType === 'igst') {
+                    $igstRate = $item['igst_rate'] > 0 ? $item['igst_rate'] : $effectiveTaxRate;
+                    $taxDisplay = "IGST " . number_format($igstRate, 2) . "%";
+                } else {
+                    $taxDisplay = $taxName . " " . number_format($effectiveTaxRate, 2) . "%";
+                }
+            } else {
+                $taxDisplay = 'No Tax';
+            }
         }
         
         $html .= '<tr>
@@ -640,13 +739,15 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
             $html .= '<td>' . htmlspecialchars($item['unit_name'] ?? '') . '</td>';
         }
         
+        // Rate column (price per unit BEFORE tax)
+        $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($unitRate, 2) . '</td>';
+        
         if ($hasTaxData && $showGSTColumn) {
-            $effectiveTaxRate = $item['tax_rate'] ?? 0;
-            $taxName = $item['tax_name'] ?? 'Tax';
-            $html .= '<td>' . $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '') . '</td>';
+            $html .= '<td>' . $taxDisplay . '</td>';
         }
         
-        $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['amount'], 2) . '</td>
+        // Amount column (total BEFORE tax)
+        $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($baseAmount, 2) . '</td>
         </tr>';
     }
     
@@ -692,14 +793,14 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
     $html .= '<td width="' . $totalsWidth . '" style="vertical-align: top; text-align: right;">
             <table style="width:100%;">
                 <tr class="subtotal-box">
-                    <td class="subtotal-title">Sub Amount:</td>
-                    <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['amount'], 2) . '</td>
+                    <td class="subtotal-title">Subtotal:</td>
+                    <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($subtotal, 2) . '</td>
                 </tr>';
                 
-    // Show tax rows only if GST is enabled
-    if ($showGSTColumn) {
-        if (!empty($taxSummary)) {
-            foreach ($taxSummary as $taxLabel => $taxAmount) {
+    // GST LOGIC: Show tax rows only if GST is enabled and there are taxes
+    if ($showGSTColumn && !empty($taxSummary)) {
+        foreach ($taxSummary as $taxLabel => $taxAmount) {
+            if ($taxAmount > 0) {
                 $html .= '<tr class="subtotal-box">
                             <td class="subtotal-title">' . $taxLabel . ':</td>
                             <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($taxAmount, 2) . '</td>
@@ -773,7 +874,7 @@ function generateInvoicePDF($conn, $invoice_id, $invoice, $company, $client_addr
     return $dompdf->output();
 }
 
-// Function to generate invoice email template - FIXED TO INCLUDE BEST REGARDS
+// Function to generate invoice email template
 function generateInvoiceEmailTemplate($clientName, $company, $invoice, $invoiceDate) {
     // Get company contact details
     $companyPhone = !empty($company['mobile_number']) ? $company['mobile_number'] : '';
@@ -795,7 +896,7 @@ function generateInvoiceEmailTemplate($clientName, $company, $invoice, $invoiceD
         $logoHtml = '<h2 style="margin:0; font-size:24px; color:#000000;">' . htmlspecialchars($company['name']) . '</h2>';
     }
     
-    // CORRECTED EMAIL TEMPLATE - INCLUDES BEST REGARDS SECTION
+    // EMAIL TEMPLATE
     $html = '
     <!DOCTYPE html>
     <html>
@@ -935,7 +1036,7 @@ function sendInvoiceMail($conn, $clientEmail, $clientName, $invoice, $items, $co
         $mail->addAddress($clientEmail, $clientName);
         $mail->addReplyTo('maniyamansioe@gmail.com', $company['name'] . ' Support');
 
-        // Generate PDF - USING YOUR EXISTING INVOICE PDF
+        // Generate PDF - WITH GST LOGIC INTEGRATED AND SELLING PRICE COLUMN
         $pdfContent = generateInvoicePDF($conn, $invoice['id'], $invoice, $company, $client_address, $items, $client);
         
         // Add PDF attachment
@@ -945,7 +1046,7 @@ function sendInvoiceMail($conn, $clientEmail, $clientName, $invoice, $items, $co
         $mail->isHTML(true);
         $mail->Subject = 'Invoice #' . $invoice['invoice_id'] . ' from ' . $company['name'];
         
-        // Generate email body - WITH FIXED TEMPLATE
+        // Generate email body
         $mail->Body = generateInvoiceEmailTemplate($clientName, $company, $invoice, $invoiceDate);
         
         // Plain text version
@@ -979,8 +1080,8 @@ if ((isset($_GET['invoice_id']) || isset($_POST['invoice_id']))) {
         exit;
     }
 
-    // Fetch invoice with prepared statement
-    $query = "SELECT i.* FROM invoice i WHERE i.id = ? AND i.is_deleted = 0";
+    // Fetch invoice with prepared statement - INCLUDING GST FIELDS
+    $query = "SELECT i.*, i.tax_type, i.gst_type FROM invoice i WHERE i.id = ? AND i.is_deleted = 0";
     $stmt = mysqli_prepare($conn, $query);
     
     if ($stmt) {
@@ -1063,7 +1164,7 @@ if ((isset($_GET['invoice_id']) || isset($_POST['invoice_id']))) {
             $clientEmail = $client['email'];
             $clientName = $client['first_name'] . ' ' . $client['last_name'];
 
-            // Get invoice items with prepared statement
+            // Get invoice items with prepared statement - INCLUDING CGST/SGST/IGST FIELDS
             $items_query = "SELECT ii.*, 
                                    p.name AS product_name,
                                    p.code AS product_code,
@@ -1072,6 +1173,9 @@ if ((isset($_GET['invoice_id']) || isset($_POST['invoice_id']))) {
                                    COALESCE(p.code, s.code) AS code,
                                    t.name AS tax_name, 
                                    t.rate AS tax_rate,
+                                   ii.cgst_rate,
+                                   ii.sgst_rate,
+                                   ii.igst_rate,
                                    u.name AS unit_name
                             FROM invoice_item ii
                             LEFT JOIN product p ON p.id = ii.product_id

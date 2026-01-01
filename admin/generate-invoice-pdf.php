@@ -81,6 +81,9 @@ $companyCurrency = getCompanyCurrency($conn, $org_id);
 $currencySymbol = $companyCurrency['currency_symbol'] ?? '$';
 $currencyName = $companyCurrency['currency_name'] ?? 'US Dollar';
 
+// Get tax_type from invoice
+$taxType = $invoice['tax_type'] ?? 'non_gst';
+
 // Check GST type
 $gstType = $invoice['gst_type'] ?? 'gst';
 $showGSTColumn = ($gstType !== 'non_gst' && $gstType !== null);
@@ -97,7 +100,7 @@ if (!empty($bank_id)) {
     $bank = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM bank WHERE id = $bank_id"));
 }
 
-// Fetch items - UPDATED QUERY TO GET TAX RATE
+// Fetch items - UPDATED QUERY TO GET CGST/SGST/IGST RATES
 $items_result = mysqli_query($conn, "
     SELECT ii.*, 
            p.name AS product_name,
@@ -106,7 +109,10 @@ $items_result = mysqli_query($conn, "
            s.code AS service_code,
            COALESCE(p.code, s.code) AS code,
            t.name AS tax_name, 
-           t.rate AS tax_rate,  -- ADDED: Get tax rate
+           t.rate AS tax_rate,
+           ii.cgst_rate,
+           ii.sgst_rate,
+           ii.igst_rate,
            u.name AS unit_name
     FROM invoice_item ii
     LEFT JOIN product p ON p.id = ii.product_id
@@ -126,6 +132,12 @@ $hasUnitData = false;
 $hasQuantityData = false;
 $hasTaxData = false;
 $hasHsnCodeData = false;
+$hasSellingPriceData = false;
+
+// Calculate totals and tax summary with CGST/SGST/IGST logic
+$taxSummary = [];
+$subtotal = 0;
+$totalTax = 0;
 
 while ($item = mysqli_fetch_assoc($items_result)) {
     $items[] = $item;
@@ -150,58 +162,120 @@ while ($item = mysqli_fetch_assoc($items_result)) {
     if (!empty($item['code']) && trim($item['code']) !== '' && strtoupper($item['code']) !== 'N/A') {
         $hasHsnCodeData = true;
     }
-}
-
-$hasItems = ($itemCount > 0);
-
-// Calculate totals and tax summary
-$taxSummary = [];
-$subtotal = 0;
-foreach ($items as $item) {
+    
+    // Check selling price column
+    if (!is_null($item['selling_price']) && $item['selling_price'] > 0) {
+        $hasSellingPriceData = true;
+    }
+    
+    // Calculate tax summary for this item
     $itemAmount = $item['amount'];
-    $subtotal += $itemAmount;
     
     // Calculate tax for this item only if GST type is not non_gst
     if ($showGSTColumn) {
         $effectiveTaxRate = $item['tax_rate'] ?? 0;
         $taxName = $item['tax_name'] ?? 'Tax';
         
-        if ($effectiveTaxRate > 0) {
-            $lineTax = ($itemAmount * $effectiveTaxRate) / 100;
-            $taxKey = $taxName . ' (' . $effectiveTaxRate . '%)';
+        // For Non-GST invoices, tax should be 0
+        if ($gstType === 'non_gst') {
+            $effectiveTaxRate = 0;
+            $lineTax = 0;
+            $baseAmount = $itemAmount; // For non-GST, amount is already without tax
+        } else {
+            // Calculate base amount (without tax) from the total amount
+            if ($effectiveTaxRate > 0) {
+                $baseAmount = $itemAmount / (1 + ($effectiveTaxRate / 100));
+                $lineTax = $itemAmount - $baseAmount;
+            } else {
+                $baseAmount = $itemAmount;
+                $lineTax = 0;
+            }
+        }
+    } else {
+        $baseAmount = $itemAmount;
+        $lineTax = 0;
+    }
+    
+    // Add base amount to subtotal (without tax)
+    $subtotal += $baseAmount;
+    
+    // Build tax label based on tax_type
+    if ($showGSTColumn && $effectiveTaxRate > 0) {
+        if ($taxType === 'cgst_sgst') {
+            // For CGST+SGST, show combined rate but store separately for summary
+            $cgstRate = $item['cgst_rate'] > 0 ? $item['cgst_rate'] : ($effectiveTaxRate / 2);
+            $sgstRate = $item['sgst_rate'] > 0 ? $item['sgst_rate'] : ($effectiveTaxRate / 2);
+            
+            $cgstKey = "CGST (" . number_format($cgstRate, 2) . "%)";
+            $sgstKey = "SGST (" . number_format($sgstRate, 2) . "%)";
+            $cgstAmount = $lineTax / 2;
+            $sgstAmount = $lineTax / 2;
             
             // Add to summary
+            if (!isset($taxSummary[$cgstKey])) {
+                $taxSummary[$cgstKey] = 0;
+            }
+            if (!isset($taxSummary[$sgstKey])) {
+                $taxSummary[$sgstKey] = 0;
+            }
+            $taxSummary[$cgstKey] += $cgstAmount;
+            $taxSummary[$sgstKey] += $sgstAmount;
+            
+            $totalTax += $lineTax;
+            
+        } elseif ($taxType === 'igst') {
+            $igstRate = $item['igst_rate'] > 0 ? $item['igst_rate'] : $effectiveTaxRate;
+            $igstKey = "IGST (" . number_format($igstRate, 2) . "%)";
+            
+            // Add to summary
+            if (!isset($taxSummary[$igstKey])) {
+                $taxSummary[$igstKey] = 0;
+            }
+            $taxSummary[$igstKey] += $lineTax;
+            
+            $totalTax += $lineTax;
+        } else {
+            // For other GST types or manual GST
+            $taxKey = $taxName . " (" . number_format($effectiveTaxRate, 2) . "%)";
             if (!isset($taxSummary[$taxKey])) {
                 $taxSummary[$taxKey] = 0;
             }
             $taxSummary[$taxKey] += $lineTax;
+            
+            $totalTax += $lineTax;
         }
     }
 }
 
-$totalTax = array_sum($taxSummary);
+$hasItems = ($itemCount > 0);
 
 // Helper functions for column width calculation
-function calculateProductColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
-    $baseWidth = 40; // Base width for product column
+function calculateProductColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $hasSellingPrice, $item_type) {
+    $baseWidth = 35; // Reduced base width for product column
     
-    if (!$hasHsnCode) $baseWidth += 10;
-    if (!$hasQuantity) $baseWidth += 8;
-    if (!$hasUnit || $item_type != 1) $baseWidth += 8;
-    if (!$hasTax) $baseWidth += 12;
+    if (!$hasHsnCode) $baseWidth += 8;
+    if (!$hasQuantity) $baseWidth += 6;
+    if (!$hasUnit || $item_type != 1) $baseWidth += 6;
+    if (!$hasTax) $baseWidth += 8;
+    if (!$hasSellingPrice) $baseWidth += 8;
     
     return $baseWidth;
 }
 
-function calculateAmountColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
-    $baseWidth = 15; // Base width for amount column
+function calculateAmountColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $hasSellingPrice, $item_type) {
+    $baseWidth = 12; // Base width for amount column
     
-    if (!$hasHsnCode) $baseWidth += 10;
-    if (!$hasQuantity) $baseWidth += 8;
-    if (!$hasUnit || $item_type != 1) $baseWidth += 8;
-    if (!$hasTax) $baseWidth += 12;
+    if (!$hasHsnCode) $baseWidth += 8;
+    if (!$hasQuantity) $baseWidth += 6;
+    if (!$hasUnit || $item_type != 1) $baseWidth += 6;
+    if (!$hasTax) $baseWidth += 8;
+    if (!$hasSellingPrice) $baseWidth += 8;
     
     return $baseWidth;
+}
+
+function calculateSellingPriceColumnWidth() {
+    return 12; // Fixed width for selling price column
 }
 
 // Calculate column count dynamically
@@ -217,6 +291,10 @@ if ($hasQuantityData) {
 
 if ($hasUnitData && $item_type == 1) {
     $colCount++; // Unit column only for products
+}
+
+if ($hasSellingPriceData) {
+    $colCount++; // Selling Price column
 }
 
 if ($hasTaxData && $showGSTColumn) {
@@ -243,7 +321,7 @@ if (!empty($client_id)) {
     $client_address = mysqli_fetch_assoc(mysqli_query($conn, $client_address_query));
 }
 
-// Fetch company info - FIXED: Use ci.city_id instead of ci.city_name
+// Fetch company info
 $company = mysqli_fetch_assoc(mysqli_query($conn, "
     SELECT ci.*, 
            co.name AS country_name,
@@ -252,7 +330,7 @@ $company = mysqli_fetch_assoc(mysqli_query($conn, "
     FROM company_info ci
     LEFT JOIN countries co ON co.id = ci.country_id
     LEFT JOIN states s ON s.id = ci.state_id
-    LEFT JOIN cities c ON c.id = ci.city_id  -- FIXED: Changed from ci.city_name to ci.city_id
+    LEFT JOIN cities c ON c.id = ci.city_id
     WHERE ci.org_id = '$org_id'
     LIMIT 1
 "));
@@ -700,29 +778,34 @@ $html .= '</div>
                 <thead>
                     <tr style="background-color: #000; color: white;">
                         <th width="5%">#</th>
-                        <th width="' . calculateProductColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) . '%">Product/Service</th>';
+                        <th width="' . calculateProductColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $hasSellingPriceData, $item_type) . '%">Product/Service</th>';
 
 // Only show HSN Code column if there\'s data
 if ($hasHsnCodeData) {
-    $html .= '<th width="10%">HSN Code</th>';
+    $html .= '<th width="8%">HSN Code</th>';
 }
 
 // Only show quantity column if there\'s data
 if ($hasQuantityData) {
-    $html .= '<th width="8%" class="text-center">' . ($item_type == 1 ? 'QTY' : 'Hours') . '</th>';
+    $html .= '<th width="6%" class="text-center">' . ($item_type == 1 ? 'QTY' : 'Hours') . '</th>';
 }
 
 // Only show unit column if there\'s data AND item_type is product (1)
 if ($hasUnitData && $item_type == 1) {
-    $html .= '<th width="8%">Unit</th>';
+    $html .= '<th width="6%">Unit</th>';
 }
 
-// Only show tax column if GST is enabled AND there\'s tax data
-if ($hasTaxData && $showGSTColumn) {
-    $html .= '<th width="12%">Tax</th>';
+// Only show selling price column if there\'s data
+if ($hasSellingPriceData) {
+    $html .= '<th width="' . calculateSellingPriceColumnWidth() . '%">Selling Price</th>';
 }
 
-$html .= '<th width="' . calculateAmountColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) . '%">Amount</th>
+// Only show tax column if GST is enabled
+if ($showGSTColumn) {
+    $html .= '<th width="8%">Tax</th>';
+}
+
+$html .= '<th width="' . calculateAmountColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $hasSellingPriceData, $item_type) . '%">Amount</th>
                     </tr>
                 </thead>
                 <tbody>';
@@ -737,6 +820,46 @@ foreach ($items as $item) {
         $itemName = $productName . ($serviceName ? ' - ' . $serviceName : '');
     } else {
         $itemName = !empty($item['product_name']) ? $item['product_name'] : 'Product';
+    }
+    
+    // Calculate amounts for display
+    $itemAmount = $item['amount'];
+    $effectiveTaxRate = $item['tax_rate'] ?? 0;
+    
+    if ($showGSTColumn) {
+        if ($gstType === 'non_gst') {
+            $effectiveTaxRate = 0;
+            $baseAmount = $itemAmount; // For non-GST, amount is already without tax
+        } else {
+            if ($effectiveTaxRate > 0) {
+                $baseAmount = $itemAmount / (1 + ($effectiveTaxRate / 100));
+            } else {
+                $baseAmount = $itemAmount;
+            }
+        }
+    } else {
+        $baseAmount = $itemAmount;
+    }
+    
+    // Build tax display based on tax_type
+    $taxDisplay = '';
+    if ($showGSTColumn) {
+        if ($gstType === 'non_gst') {
+            $taxDisplay = 'Non-GST';
+        } elseif ($effectiveTaxRate > 0) {
+            if ($taxType === 'cgst_sgst') {
+                $cgstRate = $item['cgst_rate'] > 0 ? $item['cgst_rate'] : ($effectiveTaxRate / 2);
+                $sgstRate = $item['sgst_rate'] > 0 ? $item['sgst_rate'] : ($effectiveTaxRate / 2);
+                $taxDisplay = "CGST " . number_format($cgstRate, 2) . "% + SGST " . number_format($sgstRate, 2) . "%";
+            } elseif ($taxType === 'igst') {
+                $igstRate = $item['igst_rate'] > 0 ? $item['igst_rate'] : $effectiveTaxRate;
+                $taxDisplay = "IGST " . number_format($igstRate, 2) . "%";
+            } else {
+                $taxDisplay = ($item['tax_name'] ?? 'Tax') . " " . number_format($effectiveTaxRate, 2) . "%";
+            }
+        } else {
+            $taxDisplay = 'No Tax';
+        }
     }
     
     $html .= '<tr>
@@ -758,16 +881,17 @@ foreach ($items as $item) {
         $html .= '<td>' . htmlspecialchars($item['unit_name'] ?? '') . '</td>';
     }
     
-    // Only show tax column if GST is enabled AND there\'s tax data
-    if ($hasTaxData && $showGSTColumn) {
-        $html .= '<td>';
-        $effectiveTaxRate = $item['tax_rate'] ?? 0;
-        $taxName = $item['tax_name'] ?? 'Tax';
-        $html .= $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '');
-        $html .= '</td>';
+    // Only show selling price column if there\'s data
+    if ($hasSellingPriceData) {
+        $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['selling_price'], 2) . '</td>';
     }
     
-    $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($item['amount'], 2) . '</td>
+    // Only show tax column if GST is enabled
+    if ($showGSTColumn) {
+        $html .= '<td>' . $taxDisplay . '</td>';
+    }
+    
+    $html .= '<td>' . htmlspecialchars($currencySymbol) . ' ' . number_format($baseAmount, 2) . '</td>
     </tr>';
 }
 
@@ -817,25 +941,23 @@ if ($showBankDetails) {
 $html .= '<td width="' . $totalsWidth . '" style="vertical-align: top; text-align: right;">
         <table style="width:100%;">
             <tr class="subtotal-box">
-                <td class="subtotal-title">Sub Amount:</td>
-                <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($invoice['amount'], 2) . '</td>
+                <td class="subtotal-title">Subtotal:</td>
+                <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($subtotal, 2) . '</td>
             </tr>';
             
-// Show tax rows only if GST is enabled
-if ($showGSTColumn) {
-    if (!empty($taxSummary)) {
-        foreach ($taxSummary as $taxLabel => $taxAmount) {
+// Show tax rows only if GST is enabled and there are taxes
+if ($showGSTColumn && !empty($taxSummary)) {
+    foreach ($taxSummary as $taxLabel => $taxAmount) {
+        if ($taxAmount > 0) {
             $html .= '<tr class="subtotal-box">
                         <td class="subtotal-title">' . $taxLabel . ':</td>
                         <td class="subtotal-amount">' . htmlspecialchars($currencySymbol) . ' ' . number_format($taxAmount, 2) . '</td>
                     </tr>';
         }
     }
-    // REMOVED: Don\'t show "Tax: $0.00" when GST is enabled but no taxes
 }
 
-// REMOVED: Don\'t show "Tax (Non-GST): $0.00" row for non-gst or null
-
+// Show shipping charge if exists
 if (!empty($invoice['shipping_charge']) && $invoice['shipping_charge'] > 0) {
     $html .= '<tr class="subtotal-box">
                 <td class="subtitle-title">Shipping Charge:</td>

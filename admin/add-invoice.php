@@ -78,6 +78,15 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
         $services[] = $item;
     }
 }
+
+// Get India country ID from database
+$indiaCountryId = 0;
+$countryQuery = "SELECT id FROM countries WHERE name = 'India' LIMIT 1";
+$countryResult = mysqli_query($conn, $countryQuery);
+if ($countryResult && mysqli_num_rows($countryResult) > 0) {
+    $countryRow = mysqli_fetch_assoc($countryResult);
+    $indiaCountryId = $countryRow['id'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -171,6 +180,26 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
         .is-invalid-dropdown {
             border-color: #dc3545 !important;
         }
+        /* GST info badge */
+        #gst-info-badge {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+        .tax-breakdown {
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .cgst-sgst-split {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+        .cgst-sgst-split .tax-half {
+            width: 48%;
+            text-align: center;
+        }
     </style>
 </head>
 
@@ -201,28 +230,20 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                     <!-- <div class="currency-badge">
                                         Company Currency: <?php echo $companyCurrency['currency_symbol'] . ' (' . $companyCurrency['currency_name'] . ')'; ?>
                                     </div> -->
-                                    <!-- <div class="gst-toggle-group">
-                                        <span class="gst-toggle-label">GST Type:</span>
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="radio" name="gst_type" id="gst-enabled" value="gst" checked>
-                                            <label class="form-check-label" for="gst-enabled">GST</label>
-                                        </div>
-                                        <div class="form-check form-check-inline">
-                                            <input class="form-check-input" type="radio" name="gst_type" id="gst-disabled" value="non_gst">
-                                            <label class="form-check-label" for="gst-disabled">Non-GST</label>
-                                        </div>
-                                    </div> -->
                                 </div>
                             </div>
                             <div class="card">
                                 <div class="card-body">
                                     <form action="process/action_add_invoice.php" method="POST" enctype="multipart/form-data" id="form">
-                                      <input type="hidden" name="gst_type" id="gst_type_field" value="gst">
-                                      
-                                      <!-- Add currency hidden fields -->
-                                      <input type="hidden" name="currency_id" value="<?php echo $companyCurrency['id']; ?>">
-                                      <input type="hidden" name="currency_symbol" value="<?php echo $companyCurrency['currency_symbol']; ?>">
-                                      <input type="hidden" name="currency_name" value="<?php echo $companyCurrency['currency_name']; ?>">
+                                        <input type="hidden" name="user_id" value="<?php echo $_SESSION['crm_user_id'] ?? ''; ?>">
+                                        <input type="hidden" name="gst_type" id="gst_type_field" value="non_gst">
+                                        <input type="hidden" name="tax_type" id="tax_type_field" value="non_gst">
+                                        <input type="hidden" name="india_country_id" value="<?php echo $indiaCountryId; ?>">
+                                        
+                                        <!-- Add currency hidden fields -->
+                                        <input type="hidden" name="currency_id" value="<?php echo $companyCurrency['id']; ?>">
+                                        <input type="hidden" name="currency_symbol" value="<?php echo $companyCurrency['currency_symbol']; ?>">
+                                        <input type="hidden" name="currency_name" value="<?php echo $companyCurrency['currency_name']; ?>">
 
                                         <div class="border-bottom mb-3 pb-1">
                                           <div class="row gx-3">
@@ -392,19 +413,19 @@ while ($item = mysqli_fetch_assoc($itemResult)) {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <!-- GST Type section remains as before -->
+                                                <!-- GST Type section updated -->
                                                 <div class="col-auto">
                                                     <div>
-                                                        <label class="form-label">Invoice Type<span class="text-danger">*</span></label>
+                                                        <label class="form-label">Tax Mode:</label>
                                                         <div class="d-flex align-items-center mb-3">
                                                             <div class="form-check me-3">
-                                            <input class="form-check-input" type="radio" name="gst_type" id="gst-enabled" value="gst" checked>
-                                            <label class="form-check-label" for="gst-enabled">GST</label>
-                                        </div>
-                                        <div class="form-check ">
-                                            <input class="form-check-input" type="radio" name="gst_type" id="gst-disabled" value="non_gst">
-                                            <label class="form-check-label" for="gst-disabled">Non-GST</label>
-                                        </div>
+                                                                <input class="form-check-input" type="radio" name="gst_type_radio" id="gst-manual" value="gst" checked>
+                                                                <label class="form-check-label" for="gst-manual">GST</label>
+                                                            </div>
+                                                            <div class="form-check">
+                                                                <input class="form-check-input" type="radio" name="gst_type_radio" id="gst-none" value="non_gst">
+                                                                <label class="form-check-label" for="gst-none">Non-GST</label>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -598,74 +619,211 @@ $(document).ready(function() {
         }
     });
 
-    // GST/Non-GST toggle functionality
-    $('input[name="gst_type"]').on('change', function() {
-        const gstType = $(this).val();
-        $('#gst_type_field').val(gstType);
+    // =============================================
+    // GST Type Determination based on Location
+    // =============================================
+    function determineGSTType(clientId) {
+        if (!clientId) {
+            // Reset to default (non_gst)
+            setGSTMode('non_gst');
+            return;
+        }
         
-        if (gstType === 'non_gst') {
+        $.ajax({
+            url: 'process/check_gst_type.php',
+            type: 'POST',
+            data: { 
+                client_id: clientId,
+                org_id: <?= $currentOrgId ?>
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    const taxType = response.gst_type || 'non_gst';
+                    
+                    // Update GST radio button based on tax applicability
+                    if (taxType === 'non_gst') {
+                        $('#gst-none').prop('checked', true);
+                        setGSTMode('non_gst');
+                    } else {
+                        // If any GST is applicable (cgst_sgst or igst)
+                        $('#gst-manual').prop('checked', true);
+                        setGSTMode(taxType);
+                    }
+                } else {
+                    // Default to non-gst on error
+                    $('#gst-none').prop('checked', true);
+                    setGSTMode('non_gst');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('GST determination error:', error);
+                // Default to non-gst on error
+                $('#gst-none').prop('checked', true);
+                setGSTMode('non_gst');
+            }
+        });
+    }
+
+    function setGSTMode(taxType) {
+        console.log('Setting GST mode to:', taxType);
+        
+        // Update both fields correctly
+        if (taxType === 'non_gst') {
+            // For non-gst: both fields should be 'non_gst'
+            $('#gst_type_field').val('non_gst');
+            $('#tax_type_field').val('non_gst');
+        } else {
+            // For GST modes: gst_type='gst', tax_type=specific type
+            $('#gst_type_field').val('gst');
+            $('#tax_type_field').val(taxType); // 'cgst_sgst' or 'igst'
+        }
+        
+        // Hide all tax columns first
+        $('.tax-column').hide();
+        $('.tax-details').hide();
+        
+        // Reset all tax values to 0
+        $('.tax-rate').data('value', 0).val('0%');
+        $('.service-tax-select').val('');
+        $('.product-tax-select').val('');
+        $('.tax-amount-line').text(getCurrencySymbol() + ' 0.00');
+        $('.tax-rate-line').text('0%');
+        
+        if (taxType === 'non_gst') {
             $('.add-table').addClass('non-gst-mode');
+            // Hide tax columns
+            $('.tax-column').hide();
             $('.tax-details').hide();
-            $('.tax-rate').data('value', 0).val('0%');
-            $('.service-tax-select').val('');
-            $('.product-tax-select').val('');
-            $('.tax-amount-line').text('<?php echo $companyCurrency['currency_symbol']; ?> 0.00');
-            $('.tax-rate-line').text('0%');
         } else {
             $('.add-table').removeClass('non-gst-mode');
+            
+            // Show tax columns for GST modes
+            $('.tax-column').show();
             $('.tax-details').show();
+            
+            // Recalculate with appropriate tax rates
             $('.product-select').each(function() {
                 const $row = $(this).closest('tr');
                 const option = $(this).find('option:selected');
                 if (option.val()) {
-                    const tax = parseFloat(option.data('tax')) || 0;
-                    $row.find('.tax-rate').data('value', tax).val(formatPercent(tax));
+                    const baseTax = parseFloat(option.data('tax')) || 0;
+                    let effectiveTax = baseTax;
+                    
+                    // Split tax for CGST+SGST (each half of total GST)
+                    if (taxType === 'cgst_sgst' && baseTax > 0) {
+                        effectiveTax = baseTax; // Total GST (CGST+SGST combined)
+                    }
+                    
+                    $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
                 }
             });
+            
             $('.service-select').each(function() {
                 const $row = $(this).closest('tr');
                 const option = $(this).find('option:selected');
                 if (option.val()) {
-                    const tax = parseFloat(option.data('tax')) || 0;
-                    $row.find('.tax-rate').data('value', tax).val(formatPercent(tax));
+                    const baseTax = parseFloat(option.data('tax')) || 0;
+                    let effectiveTax = baseTax;
+                    
+                    if (taxType === 'cgst_sgst' && baseTax > 0) {
+                        effectiveTax = baseTax; // Total GST (CGST+SGST combined)
+                    }
+                    
+                    $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
                 }
             });
         }
         
+        // Recalculate all rows
         $('.add-tbody tr').each(function() {
             calculateRow($(this));
         });
         
         calculateSummary();
+    }
+
+    // Update the client change handler to include GST determination
+    $('#client_id').on('change', function() {
+        const clientId = $(this).val();
+        
+        // Existing code for fetching client info
+        if (clientId) {
+            $.ajax({
+                url: 'process/fetch_client_full_info.php',
+                type: 'POST',
+                data: { 
+                    client_id: clientId,
+                    current_user_id: <?= $currentUserId ?>,
+                    current_org_id: <?= $currentOrgId ?>,
+                    user_role_id: <?= $userRoleId ?>
+                },
+                dataType: 'json',
+                success: response => {
+                    $('#client_info_block').html(response.billing_html);
+                    $('#shipping_info_block').html(response.shipping_html);
+                    
+                    // Determine GST type based on location
+                    determineGSTType(clientId);
+                },
+                error: function() {
+                    $('#client_info_block, #shipping_info_block').empty();
+                    determineGSTType(null);
+                }
+            });
+        } else {
+            $('#client_info_block, #shipping_info_block').empty();
+            // Reset to non_gst when no client selected
+            setGSTMode('non_gst');
+            $('#gst-none').prop('checked', true);
+        }
     });
 
-    // Get currency symbol from PHP
-    function getCurrencySymbol() {
-        return '<?php echo $companyCurrency['currency_symbol']; ?>';
-    }
-
-    // Format currency for display
-    function formatCurrency(value) {
-        const n = parseFloat(value);
-        if (isNaN(n)) return '';
-        const symbol = getCurrencySymbol();
-        return `${symbol} ${n.toFixed(2)}`;
-    }
-
-    function formatPercent(value) {
-        const n = parseFloat(value);
-        if (isNaN(n)) return '';
-        return `${n.toFixed(2)}%`;
-    }
-
-    function unformat(value) {
-        if (value === undefined || value === null) return 0;
-        const n = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
-        return isNaN(n) ? 0 : n;
-    }
+    // Manual GST toggle handling
+    $('input[name="gst_type_radio"]').on('change', function() {
+        const radioValue = $(this).val();
+        const clientId = $('#client_id').val();
+        
+        if (radioValue === 'gst') {
+            // Manual GST mode selected
+            if (clientId) {
+                // Check if GST is applicable for this client
+                $.ajax({
+                    url: 'process/check_gst_type.php',
+                    type: 'POST',
+                    data: { 
+                        client_id: clientId,
+                        org_id: <?= $currentOrgId ?>
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success && response.gst_type !== 'non_gst') {
+                            // GST is applicable, use the determined type
+                            const taxType = response.gst_type;
+                            setGSTMode(taxType);
+                        } else {
+                            // GST not applicable, but user manually selected GST
+                            // Default to igst for manual GST mode
+                            setGSTMode('igst');
+                        }
+                    },
+                    error: function() {
+                        // Default to igst on error for manual GST mode
+                        setGSTMode('igst');
+                    }
+                });
+            } else {
+                // No client selected, default to igst for manual GST
+                setGSTMode('igst');
+            }
+        } else if (radioValue === 'non_gst') {
+            // Manual override to non-GST
+            setGSTMode('non_gst');
+        }
+    });
 
     // =============================================
-    // NEW: Product/Service Dropdown Validation
+    // Product/Service Dropdown Validation
     // =============================================
     function validateProductServiceDropdowns() {
         let isValid = true;
@@ -730,8 +888,33 @@ $(document).ready(function() {
         };
     }
 
+    // Get currency symbol from PHP
+    function getCurrencySymbol() {
+        return '<?php echo $companyCurrency['currency_symbol']; ?>';
+    }
+
+    // Format currency for display
+    function formatCurrency(value) {
+        const n = parseFloat(value);
+        if (isNaN(n)) return '';
+        const symbol = getCurrencySymbol();
+        return `${symbol} ${n.toFixed(2)}`;
+    }
+
+    function formatPercent(value) {
+        const n = parseFloat(value);
+        if (isNaN(n)) return '';
+        return `${n.toFixed(2)}%`;
+    }
+
+    function unformat(value) {
+        if (value === undefined || value === null) return 0;
+        const n = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+        return isNaN(n) ? 0 : n;
+    }
+
     // =============================================
-    // Project and Task Selection (EXISTING LOGIC)
+    // Project and Task Selection (EXISTING LOGIC - PRESERVED)
     // =============================================
     // When client changes
     $('#client_id').on('change', function() {
@@ -827,6 +1010,8 @@ $(document).ready(function() {
                             if (response.success) {
                                 // Add task as an invoice item using your existing row structure
                                 const rowId = 'row_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                                const currentTaxType = $('#tax_type_field').val();
+                                const isNonGST = currentTaxType === 'non_gst';
                                 const currencySymbol = getCurrencySymbol();
                                 const newRow = `
                                 <tr id="${rowId}" class="service-row">
@@ -853,9 +1038,9 @@ $(document).ready(function() {
                                             <input type="text" class="form-control service-price-input" name="selling_price[]" value="${response.rate_per_hour}" data-value="${response.rate_per_hour}" readonly>
                                         </div>
                                     </td>
-                                    <td class="tax-column">
+                                    <td class="tax-column" style="${isNonGST ? 'display: none;' : ''}">
                                         <div class="service-fields">
-                                            <input type="text" class="form-control tax-rate" name="rate[]" value="0" data-value="0" readonly style="display: none;">
+                                            <input type="hidden" class="tax-rate" name="rate[]" value="0" data-value="0" readonly>
                                             <div class="tax-display-container">
                                                 <div class="tax-amount-line">${currencySymbol} 0.00</div>
                                                 <div class="tax-rate-line">0%</div>
@@ -887,30 +1072,6 @@ $(document).ready(function() {
             // If no tasks selected, clear the items table
             $('.add-tbody').empty();
             calculateSummary();
-        }
-    });
-
-    // Fetch client billing & shipping info
-    $('#client_id').on('change', function() {
-        const clientId = $(this).val();
-        if (clientId) {
-            $.ajax({
-                url: 'process/fetch_client_full_info.php',
-                type: 'POST',
-                data: { 
-                    client_id: clientId,
-                    current_user_id: <?= $currentUserId ?>,
-                    current_org_id: <?= $currentOrgId ?>,
-                    user_role_id: <?= $userRoleId ?>
-                },
-                dataType: 'json',
-                success: response => {
-                    $('#client_info_block').html(response.billing_html);
-                    $('#shipping_info_block').html(response.shipping_html);
-                }
-            });
-        } else {
-            $('#client_info_block, #shipping_info_block').empty();
         }
     });
 
@@ -1097,7 +1258,8 @@ $(document).ready(function() {
     // Helper function to add a new row with the specified item type
     function addNewRow(itemType) {
         const rowClass = itemType == 1 ? 'product-row' : 'service-row';
-        const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
+        const currentTaxType = $('#tax_type_field').val();
+        const isNonGST = currentTaxType === 'non_gst';
         const currencySymbol = getCurrencySymbol();
         
         let taxOptions = '<option value="">Select Tax</option>';
@@ -1119,7 +1281,7 @@ $(document).ready(function() {
                         <input type="hidden" class="tax-name" name="tax_name[]">
                         <!-- Hidden field to track item type for this row -->
                         <input type="hidden" name="item_type_row[]" value="product">
-                        <!-- Error message container -->
+                        <!-- ADDED: Error message container -->
                         <div class="product-service-error"></div>
                     </td>
                     <td>
@@ -1132,7 +1294,7 @@ $(document).ready(function() {
                         <!-- Store plain number for form submission -->
                         <input type="text" class="form-control selling-price" name="selling_price[]" value="0.00" data-value="0">
                     </td>
-                    <td class="tax-column">
+                    <td class="tax-column" style="${isNonGST ? 'display: none;' : ''}">
                         <!-- Tax dropdown for products -->
                         <select class="form-select product-tax-select" name="tax_id[]">
                             ${taxOptions}
@@ -1166,7 +1328,7 @@ $(document).ready(function() {
                         <input type="hidden" class="tax-name" name="tax_name[]">
                         <!-- Hidden field to track item type for this row -->
                         <input type="hidden" name="item_type_row[]" value="service">
-                        <!-- Error message container -->
+                        <!-- ADDED: Error message container -->
                         <div class="product-service-error"></div>
                     </td>
                     <td>
@@ -1179,7 +1341,7 @@ $(document).ready(function() {
                         <!-- Store plain number for form submission -->
                         <input type="text" class="form-control service-price-input" name="selling_price[]" value="0.00" data-value="0" placeholder="0.00">
                     </td>
-                    <td class="tax-column">
+                    <td class="tax-column" style="${isNonGST ? 'display: none;' : ''}">
                         <select class="form-select service-tax-select" name="tax_id[]">
                             ${taxOptions}
                         </select>
@@ -1276,13 +1438,30 @@ $(document).ready(function() {
         calculateSummary();
     });
 
-    // NEW: Clear validation errors when user interacts with dropdowns or inputs
+    // Initialize shipping field
+    (function initShipping(){
+        const $ship = $('#shipping-charge');
+        if ($ship.length) {
+            const initVal = unformat($ship.val());
+            $ship.data('value', initVal);
+            if ($ship.attr('type') !== 'number') {
+                $ship.val(initVal.toFixed(2));
+            } else {
+                $ship.val(initVal.toFixed(2));
+            }
+        }
+    })();
+
+    // Item events - UPDATED: Added validation error clearing
     $(document).on('change', '.product-select', function() {
         const $row = $(this).closest('tr');
+        
+        // Clear validation error
         $row.find('.product-service-error').hide();
         $(this).removeClass('is-invalid-dropdown');
         
         const option = $(this).find('option:selected');
+
         if (option.val()) {
             const price = parseFloat(option.data('price')) || 0;
             const hsnCode = option.data('hsn') || '';
@@ -1294,9 +1473,11 @@ $(document).ready(function() {
             $row.find('.tax-id').val(taxId);
             $row.find('.tax-name').val(taxName);
             
-            const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
+            const currentTaxType = $('#tax_type_field').val();
+            const isNonGST = currentTaxType === 'non_gst';
             const effectiveTax = isNonGST ? 0 : tax;
             
+            // Store plain number in input
             $row.find('.selling-price').data('value', price).val(price.toFixed(2));
             $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
 
@@ -1318,14 +1499,17 @@ $(document).ready(function() {
         updateProductDropdowns();
     });
 
-    // NEW: Clear validation errors for service select
+    // Service select change handler - UPDATED: Added validation error clearing
     $(document).on('change', '.service-select', function() {
         const $row = $(this).closest('tr');
+        
+        // Clear validation errors
         $row.find('.product-service-error').hide();
         $(this).removeClass('is-invalid-dropdown');
         $row.find('.service-name-input').removeClass('is-invalid');
         
         const option = $(this).find('option:selected');
+
         if (option.val()) {
             const price = parseFloat(option.data('price')) || 0;
             const hsnCode = option.data('hsn') || '';
@@ -1337,7 +1521,8 @@ $(document).ready(function() {
             $row.find('.tax-id').val(taxId);
             $row.find('.tax-name').val(taxName);
             
-            const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
+            const currentTaxType = $('#tax_type_field').val();
+            const isNonGST = currentTaxType === 'non_gst';
             const effectiveTax = isNonGST ? 0 : tax;
             
             // Store plain number
@@ -1370,38 +1555,7 @@ $(document).ready(function() {
         updateServiceDropdowns();
     });
 
-    // NEW: Clear validation errors when user types in service name input
-    $(document).on('input', '.service-name-input', function() {
-        const $row = $(this).closest('tr');
-        const $serviceSelect = $row.find('.service-select');
-        
-        // Clear error when user starts typing
-        $row.find('.product-service-error').hide();
-        $(this).removeClass('is-invalid');
-        $serviceSelect.removeClass('is-invalid-dropdown');
-        
-        if ($serviceSelect.val() === '') {
-            $row.find('.hsn-code').val('');
-        }
-        
-        calculateRow($row);
-    });
-
-    // Initialize shipping field
-    (function initShipping(){
-        const $ship = $('#shipping-charge');
-        if ($ship.length) {
-            const initVal = unformat($ship.val());
-            $ship.data('value', initVal);
-            if ($ship.attr('type') !== 'number') {
-                $ship.val(initVal.toFixed(2));
-            } else {
-                $ship.val(initVal.toFixed(2));
-            }
-        }
-    })();
-
-    // Item events
+    // FIXED: Added product tax select change handler
     $(document).on('change', '.product-tax-select', function() {
         const $row = $(this).closest('tr');
         const selectedOption = $(this).find('option:selected');
@@ -1409,7 +1563,8 @@ $(document).ready(function() {
         const taxId = selectedOption.val();
         const taxName = selectedOption.text().split(' (')[0];
 
-        const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
+        const currentTaxType = $('#tax_type_field').val();
+        const isNonGST = currentTaxType === 'non_gst';
         const effectiveTax = isNonGST ? 0 : taxRate;
         
         $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
@@ -1425,7 +1580,8 @@ $(document).ready(function() {
         const taxId = selectedOption.val();
         const taxName = selectedOption.text().split(' (')[0];
 
-        const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
+        const currentTaxType = $('#tax_type_field').val();
+        const isNonGST = currentTaxType === 'non_gst';
         const effectiveTax = isNonGST ? 0 : taxRate;
         
         $row.find('.tax-rate').data('value', effectiveTax).val(formatPercent(effectiveTax));
@@ -1433,9 +1589,16 @@ $(document).ready(function() {
         $row.find('.tax-name').val(taxName);
         calculateRow($row);
     });
+
+    // Service name input - UPDATED: Added validation error clearing
     $(document).on('input', '.service-name-input', function() {
         const $row = $(this).closest('tr');
         const $serviceSelect = $row.find('.service-select');
+        
+        // Clear validation error when user types
+        $row.find('.product-service-error').hide();
+        $(this).removeClass('is-invalid');
+        $serviceSelect.removeClass('is-invalid-dropdown');
         
         if ($serviceSelect.val() === '') {
             $row.find('.hsn-code').val('');
@@ -1523,6 +1686,7 @@ $(document).ready(function() {
     function calculateSummary() {
         let sub = 0, taxGroups = {}, grandTotal = 0;
         const currencySymbol = getCurrencySymbol();
+        const currentTaxType = $('#tax_type_field').val();
 
         $('.add-tbody tr').each(function() {
             let p = 0;
@@ -1545,11 +1709,11 @@ $(document).ready(function() {
             
             // FIXED: Service quantity remains optional - if empty or 0, use 1 for calculation
             if (isService && (q === 0 || qtyInput.val() === '')) {
-                q = 1; // Use 1 for calculation but keep display empty
+                q = 1;
             }
             
             const t = $(this).find('.tax-rate').data('value') || 0;
-            const taxName = $(this).find('.tax-name').val() || 'Tax';
+            const taxName = $(this).find('.tax-name').val() || (currentTaxType === 'igst' ? 'IGST' : 'GST');
 
             const lineSubtotal = p * q;
             const lineTaxAmount = (lineSubtotal * t / 100);
@@ -1559,57 +1723,131 @@ $(document).ready(function() {
             grandTotal += lineTotal;
 
             if (t > 0) {
-                const taxKey = `${taxName} (${t}%)`;
-                if (!taxGroups[taxKey]) taxGroups[taxKey] = 0;
-                taxGroups[taxKey] += lineTaxAmount;
+                // Handle CGST+SGST split display
+                if (currentTaxType === 'cgst_sgst') {
+                    const cgstAmount = lineTaxAmount / 2;
+                    const sgstAmount = lineTaxAmount / 2;
+                    
+                    const cgstKey = `CGST (${(t/2).toFixed(2)}%)`;
+                    const sgstKey = `SGST (${(t/2).toFixed(2)}%)`;
+                    
+                    if (!taxGroups[cgstKey]) taxGroups[cgstKey] = 0;
+                    if (!taxGroups[sgstKey]) taxGroups[sgstKey] = 0;
+                    
+                    taxGroups[cgstKey] += cgstAmount;
+                    taxGroups[sgstKey] += sgstAmount;
+                } else {
+                    const taxKey = `${taxName} (${t}%)`;
+                    if (!taxGroups[taxKey]) taxGroups[taxKey] = 0;
+                    taxGroups[taxKey] += lineTaxAmount;
+                }
             }
         });
 
         const shippingCharge = getShippingCharge();
         let taxHtml = "";
 
-        const isNonGST = $('input[name="gst_type"]:checked').val() === 'non_gst';
+        const isNonGST = currentTaxType === 'non_gst';
         if (!isNonGST) {
-            $('.add-tbody tr').each(function(index) {
-                let p = 0;
-                const isService = $(this).hasClass('service-row');
-                
-                if (isService) {
-                    p = $(this).find('.service-price-input').data('value') || 0;
-                    if (p === 0) {
-                        p = unformat($(this).find('.service-price-input').val()) || 0;
-                    }
-                } else {
-                    p = $(this).find('.selling-price').data('value') || 0;
-                    if (p === 0) {
-                        p = unformat($(this).find('.selling-price').val()) || 0;
-                    }
-                }
-                
-                const qtyInput = $(this).find('.quantity');
-                let q = unformat(qtyInput.val());
-                
-                // FIXED: Service quantity remains optional - if empty or 0, use 1 for calculation
-                const isServiceRow = $(this).hasClass('service-row');
-                if (isServiceRow && (q === 0 || qtyInput.val() === '')) {
-                    q = 1; // Use 1 for calculation but keep display empty
-                }
-                
-                const t = $(this).find('.tax-rate').data('value') || 0;
-                const taxName = $(this).find('.tax-name').val() || 'Tax';
-
-                const lineSubtotal = p * q;
-                const lineTaxAmount = (lineSubtotal * t / 100);
-
-                if (t > 0 && lineTaxAmount > 0) {
-                    const taxLabel = `${taxName} (${t}%)`;
+            // Display tax breakdown based on GST type
+            if (currentTaxType === 'cgst_sgst') {
+                // Show CGST and SGST separately
+                Object.keys(taxGroups).forEach(taxName => {
+                    const taxAmount = taxGroups[taxName];
                     taxHtml += `
                         <div class="d-flex align-items-center justify-content-between mb-2">
-                            <h6 class="fs-14 fw-semibold">${taxLabel}</h6>
-                            <h6 class="fs-14 fw-semibold">${currencySymbol} ${lineTaxAmount.toFixed(2)}</h6>
+                            <h6 class="fs-14 fw-semibold">${taxName}</h6>
+                            <h6 class="fs-14 fw-semibold">${currencySymbol} ${taxAmount.toFixed(2)}</h6>
                         </div>`;
-                }
-            });
+                });
+            } else if (currentTaxType === 'igst') {
+                // Show IGST for inter-state transactions
+                // Group all IGST taxes together
+                let totalIGST = 0;
+                const igstRates = {};
+                
+                $('.add-tbody tr').each(function() {
+                    const t = $(this).find('.tax-rate').data('value') || 0;
+                    if (t > 0) {
+                        let p = 0;
+                        const isService = $(this).hasClass('service-row');
+                        
+                        if (isService) {
+                            p = $(this).find('.service-price-input').data('value') || 0;
+                            if (p === 0) p = unformat($(this).find('.service-price-input').val()) || 0;
+                        } else {
+                            p = $(this).find('.selling-price').data('value') || 0;
+                            if (p === 0) p = unformat($(this).find('.selling-price').val()) || 0;
+                        }
+                        
+                        const qtyInput = $(this).find('.quantity');
+                        let q = unformat(qtyInput.val());
+                        
+                        if ($(this).hasClass('service-row') && (q === 0 || qtyInput.val() === '')) {
+                            q = 1;
+                        }
+                        
+                        const lineSubtotal = p * q;
+                        const lineTaxAmount = (lineSubtotal * t / 100);
+                        
+                        if (!igstRates[t]) igstRates[t] = 0;
+                        igstRates[t] += lineTaxAmount;
+                        totalIGST += lineTaxAmount;
+                    }
+                });
+                
+                // Display each IGST rate separately
+                Object.keys(igstRates).forEach(rate => {
+                    if (igstRates[rate] > 0) {
+                        taxHtml += `
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <h6 class="fs-14 fw-semibold">IGST (${parseFloat(rate)}%)</h6>
+                                <h6 class="fs-14 fw-semibold">${currencySymbol} ${igstRates[rate].toFixed(2)}</h6>
+                            </div>`;
+                    }
+                });
+            } else {
+                // For other GST types or manual GST
+                $('.add-tbody tr').each(function(index) {
+                    let p = 0;
+                    const isService = $(this).hasClass('service-row');
+                    
+                    if (isService) {
+                        p = $(this).find('.service-price-input').data('value') || 0;
+                        if (p === 0) {
+                            p = unformat($(this).find('.service-price-input').val()) || 0;
+                        }
+                    } else {
+                        p = $(this).find('.selling-price').data('value') || 0;
+                        if (p === 0) {
+                            p = unformat($(this).find('.selling-price').val()) || 0;
+                        }
+                    }
+                    
+                    const qtyInput = $(this).find('.quantity');
+                    let q = unformat(qtyInput.val());
+                    
+                    const isServiceRow = $(this).hasClass('service-row');
+                    if (isServiceRow && (q === 0 || qtyInput.val() === '')) {
+                        q = 1;
+                    }
+                    
+                    const t = $(this).find('.tax-rate').data('value') || 0;
+                    const taxName = $(this).find('.tax-name').val() || 'GST';
+
+                    const lineSubtotal = p * q;
+                    const lineTaxAmount = (lineSubtotal * t / 100);
+
+                    if (t > 0 && lineTaxAmount > 0) {
+                        const taxLabel = `${taxName} (${t}%)`;
+                        taxHtml += `
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <h6 class="fs-14 fw-semibold">${taxLabel}</h6>
+                                <h6 class="fs-14 fw-semibold">${currencySymbol} ${lineTaxAmount.toFixed(2)}</h6>
+                            </div>`;
+                    }
+                });
+            }
         }
 
         $('.tax-details').html(taxHtml);
@@ -1677,7 +1915,7 @@ $(document).ready(function() {
     updateServiceDropdowns();
     calculateSummary();
     
-    console.log('Initialization complete - currency functionality added without dropdown and without affecting data storage');
+    console.log('Initialization complete - GST functionality added to invoice');
 });
 </script>
 </body>

@@ -22,8 +22,79 @@ function uploadFile($file, $uploadDir) {
     return null;
 }
 
+// Function to get location info for GST calculation
+function getLocationInfoForGST($conn, $clientId, $orgId) {
+    $result = [
+        'client_country_id' => 0,
+        'client_state_id' => 0,
+        'company_country_id' => 0,
+        'company_state_id' => 0,
+        'tax_type' => 'non_gst'
+    ];
+    
+    try {
+        // Get company location
+        $companyQuery = "SELECT country_id, state_id FROM company_info 
+                        WHERE org_id = ? AND is_deleted = 0 LIMIT 1";
+        $stmt = $conn->prepare($companyQuery);
+        $stmt->bind_param("i", $orgId);
+        $stmt->execute();
+        $companyResult = $stmt->get_result();
+        
+        if ($companyData = $companyResult->fetch_assoc()) {
+            $result['company_country_id'] = $companyData['country_id'] ?? 0;
+            $result['company_state_id'] = $companyData['state_id'] ?? 0;
+        }
+        
+        // Get client location from billing address
+        $clientQuery = "SELECT billing_country, billing_state FROM client_address 
+                       WHERE client_id = ? AND is_deleted = 0 
+                       ORDER BY id DESC LIMIT 1";
+        $stmt = $conn->prepare($clientQuery);
+        $stmt->bind_param("i", $clientId);
+        $stmt->execute();
+        $clientResult = $stmt->get_result();
+        
+        if ($clientData = $clientResult->fetch_assoc()) {
+            $result['client_country_id'] = $clientData['billing_country'] ?? 0;
+            $result['client_state_id'] = $clientData['billing_state'] ?? 0;
+        }
+        
+        // Get India country ID
+        $indiaQuery = "SELECT id FROM countries WHERE name = 'India' LIMIT 1";
+        $indiaResult = $conn->query($indiaQuery);
+        $indiaData = $indiaResult->fetch_assoc();
+        $indiaCountryId = $indiaData['id'] ?? 0;
+        
+        // Determine tax type based on locations
+        if ($result['company_country_id'] == $indiaCountryId && 
+            $result['client_country_id'] == $indiaCountryId) {
+            // Both in India
+            if ($result['company_state_id'] > 0 && $result['client_state_id'] > 0) {
+                if ($result['company_state_id'] == $result['client_state_id']) {
+                    $result['tax_type'] = 'cgst_sgst';
+                } else {
+                    $result['tax_type'] = 'igst';
+                }
+            } else {
+                $result['tax_type'] = 'igst'; // Default for incomplete info
+            }
+        } elseif ($result['company_country_id'] == $indiaCountryId && 
+                  $result['client_country_id'] != $indiaCountryId && 
+                  $result['client_country_id'] > 0) {
+            // Company in India, client outside India
+            $result['tax_type'] = 'non_gst';
+        }
+        
+    } catch (Exception $e) {
+        error_log("Error getting location info: " . $e->getMessage());
+    }
+    
+    return $result;
+}
+
 if (isset($_POST['submit'])) {
-    $currentUserId = $_SESSION['user_id'] ?? 1;
+    $currentUserId = $_SESSION['crm_user_id'] ?? 1;
     $orgId = $_SESSION['org_id'] ?? 1;
 
     mysqli_begin_transaction($conn);
@@ -45,7 +116,24 @@ if (isset($_POST['submit'])) {
         
         $item_type     = (int)($_POST['item_type'] ?? 0);
         $user_id       = (int)($_POST['user_id'] ?? 0);
-        $gst_type      = mysqli_real_escape_string($conn, $_POST['gst_type'] ?? 'gst');
+        $gst_type      = mysqli_real_escape_string($conn, $_POST['gst_type'] ?? 'non_gst');
+        $tax_type      = mysqli_real_escape_string($conn, $_POST['tax_type'] ?? 'non_gst');
+
+        // Get location information for GST
+        $locationInfo = getLocationInfoForGST($conn, $client_id, $orgId);
+        
+        // Handle GST mode selection
+        $gst_mode_radio = $_POST['gst_type_radio'] ?? 'non_gst';
+        if ($gst_mode_radio === 'gst') {
+            // Manual GST mode selected - check if GST is applicable
+            if ($locationInfo['tax_type'] === 'non_gst') {
+                // If automatic determination says non-gst but user manually selected GST
+                $locationInfo['tax_type'] = 'igst'; // Default to IGST for manual GST selection
+            }
+        } else {
+            // Non-GST mode selected
+            $locationInfo['tax_type'] = 'non_gst';
+        }
 
         $bank_id_raw   = $_POST['bank_id'] ?? '';
         $bank_id_sql   = ($bank_id_raw !== '' && is_numeric($bank_id_raw)) ? (int)$bank_id_raw : 'NULL';
@@ -57,15 +145,18 @@ if (isset($_POST['submit'])) {
         $shipping_charge= unformat($_POST['shipping_charge'] ?? 0);
         $total_amount  = unformat($_POST['total_amount'] ?? 0);
 
-        // Insert invoice (with gst_type) - FIXED: Use $order_number_sql instead of '$order_number'
+        // Insert invoice with GST location info
         $query = "INSERT INTO invoice (
             client_id, project_id, invoice_id, reference_name, invoice_date, due_date,
-            order_number, item_type, user_id, bank_id, gst_type,
+            order_number, item_type, user_id, bank_id, gst_type, tax_type,
+            client_country_id, client_state_id, company_country_id, company_state_id,
             invoice_note, description, amount, tax_amount, shipping_charge, total_amount,
             org_id, is_deleted, created_by, updated_by
         ) VALUES (
             '$client_id', '$project_id', '$invoice_id', '$reference_name', '$invoice_date', '$expiry_date',
-            $order_number_sql, '$item_type', '$user_id', $bank_id_sql, '$gst_type',
+            $order_number_sql, '$item_type', '$user_id', $bank_id_sql, '$gst_type', '{$locationInfo['tax_type']}',
+            '{$locationInfo['client_country_id']}', '{$locationInfo['client_state_id']}', 
+            '{$locationInfo['company_country_id']}', '{$locationInfo['company_state_id']}',
             '$invoice_note', '$description', '$amount', '$tax_amount', '$shipping_charge', '$total_amount',
             '$orgId', 0, '$currentUserId', '$currentUserId'
         )";
@@ -114,7 +205,7 @@ if (isset($_POST['submit'])) {
             }
         }
 
-        // === Insert invoice items - UPDATED: Store product_id and service_id separately ===
+        // === Insert invoice items - Store CGST/SGST split if applicable ===
         if (isset($_POST['item_id']) && is_array($_POST['item_id'])) {
             foreach ($_POST['item_id'] as $index => $item_id) {
                 // Skip completely empty items
@@ -131,6 +222,19 @@ if (isset($_POST['submit'])) {
                 $item_amount   = unformat($_POST['amount'][$index] ?? 0);
                 $code          = mysqli_real_escape_string($conn, $_POST['code'][$index] ?? '');
                 $item_type_row = $_POST['item_type_row'][$index] ?? 'product'; // Get the row type
+
+                // Store tax breakdown for CGST/SGST
+                $cgst_rate = 0;
+                $sgst_rate = 0;
+                $igst_rate = 0;
+                
+                if ($locationInfo['tax_type'] === 'cgst_sgst' && $rate > 0) {
+                    // Split GST equally for CGST and SGST
+                    $cgst_rate = $rate / 2;
+                    $sgst_rate = $rate / 2;
+                } elseif ($locationInfo['tax_type'] === 'igst' && $rate > 0) {
+                    $igst_rate = $rate;
+                }
 
                 // Initialize product_id and service_id
                 $product_id_sql = 'NULL';
@@ -157,10 +261,12 @@ if (isset($_POST['submit'])) {
 
                 $itemInsertQuery = "INSERT INTO invoice_item (
                     invoice_id, quantity, product_id, service_id, service_name, selling_price,
-                    tax_id, rate, amount, org_id, is_deleted, created_by, updated_by
+                    tax_id, rate, cgst_rate, sgst_rate, igst_rate, amount, 
+                    org_id, is_deleted, created_by, updated_by
                 ) VALUES (
                     '$invoiceId', '$quantity', $product_id_sql, $service_id_sql, $service_name_sql, '$selling_price',
-                    $tax_id_sql, '$rate', '$item_amount', '$orgId', 0, '$currentUserId', '$currentUserId'
+                    $tax_id_sql, '$rate', '$cgst_rate', '$sgst_rate', '$igst_rate', '$item_amount',
+                    '$orgId', 0, '$currentUserId', '$currentUserId'
                 )";
 
                 if (!mysqli_query($conn, $itemInsertQuery)) {
@@ -178,7 +284,10 @@ if (isset($_POST['submit'])) {
 
     } catch (Exception $e) {
         mysqli_rollback($conn);
-        echo "Error: " . $e->getMessage();
+        $_SESSION['message'] = "Error: " . $e->getMessage();
+        $_SESSION['message_type'] = "error";
+        header("Location: ../add-invoice.php");
+        exit();
     }
 }
 ?>

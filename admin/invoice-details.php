@@ -18,7 +18,7 @@ $companyCurrency = getCompanyCurrency($conn, $org_id);
 $currency_query = "SELECT * FROM currency ORDER BY currency_name";
 $currency_result = mysqli_query($conn, $currency_query);
 
-// Fetch invoice with organization condition
+// Fetch invoice with organization condition - UPDATED TO INCLUDE GST_TYPE AND TAX_TYPE
 $invoice_result = mysqli_query($conn, "
     SELECT i.*, l.name AS salesperson_name
     FROM invoice i
@@ -45,6 +45,9 @@ $client_id = $invoice['client_id'];
 $bank_id = $invoice['bank_id'];
 $item_type = $invoice['item_type']; // Get item type from invoice
 
+// Get tax_type from invoice
+$taxType = $invoice['tax_type'] ?? 'non_gst';
+
 // ALWAYS use company currency for display - removed client currency override
 $displayCurrency = $companyCurrency;
 
@@ -60,7 +63,7 @@ if (!empty($bank_id)) {
     $bank = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM bank WHERE id = $bank_id AND org_id = '$org_id'"));
 }
 
-// Fetch items with updated structure for products and services
+// Fetch items with updated structure for products and services - UPDATED TO INCLUDE CGST/SGST/IGST RATES
 $items_result = mysqli_query($conn, "
     SELECT ii.*, 
            p.name AS product_name,
@@ -69,7 +72,11 @@ $items_result = mysqli_query($conn, "
            s.code AS service_code,
            COALESCE(p.code, s.code) AS code,
            t.name AS tax_name, 
-           u.name AS unit_name
+           t.rate AS tax_rate,
+           u.name AS unit_name,
+           ii.cgst_rate,
+           ii.sgst_rate,
+           ii.igst_rate
     FROM invoice_item ii
     LEFT JOIN product p ON p.id = ii.product_id
     LEFT JOIN product s ON s.id = ii.service_id
@@ -88,6 +95,10 @@ $allUnitNames = [];
 $allQuantities = [];
 $allTaxNames = [];
 $allHsnCodes = [];
+
+// Tax summary for GST calculations
+$taxSummary = [];
+$subtotal = 0;
 
 while ($item = mysqli_fetch_assoc($items_result)) {
     $items[] = $item;
@@ -113,6 +124,69 @@ while ($item = mysqli_fetch_assoc($items_result)) {
     // Collect all HSN codes
     if (!empty($item['code']) && trim($item['code']) !== '' && strtoupper($item['code']) !== 'N/A') {
         $allHsnCodes[] = trim($item['code']);
+    }
+    
+    // Calculate GST for summary - SIMILAR TO QUOTATION LOGIC
+    $itemAmount = $item['amount'];
+    $effectiveTaxRate = $item['tax_rate'] ?? 0;
+    
+    // For Non-GST invoices, tax should be 0
+    if (($invoice['gst_type'] ?? 'gst') === 'non_gst') {
+        $effectiveTaxRate = 0;
+        $lineTax = 0;
+        $baseAmount = $itemAmount; // For non-GST, amount is already without tax
+    } else {
+        // Calculate base amount (without tax) from the total amount
+        if ($effectiveTaxRate > 0) {
+            $baseAmount = $itemAmount / (1 + ($effectiveTaxRate / 100));
+            $lineTax = $itemAmount - $baseAmount;
+        } else {
+            $baseAmount = $itemAmount;
+            $lineTax = 0;
+        }
+    }
+    
+    // Add base amount to subtotal (without tax)
+    $subtotal += $baseAmount;
+    
+    // Build tax label based on tax_type - SIMILAR TO QUOTATION LOGIC
+    if ($effectiveTaxRate > 0) {
+        if ($taxType === 'cgst_sgst') {
+            // For CGST+SGST, show combined rate but store separately for summary
+            $cgstRate = $item['cgst_rate'] > 0 ? $item['cgst_rate'] : ($effectiveTaxRate / 2);
+            $sgstRate = $item['sgst_rate'] > 0 ? $item['sgst_rate'] : ($effectiveTaxRate / 2);
+            
+            $cgstKey = "CGST (" . number_format($cgstRate, 2) . "%)";
+            $sgstKey = "SGST (" . number_format($sgstRate, 2) . "%)";
+            $cgstAmount = $lineTax / 2;
+            $sgstAmount = $lineTax / 2;
+            
+            // Add to summary
+            if (!isset($taxSummary[$cgstKey])) {
+                $taxSummary[$cgstKey] = 0;
+            }
+            if (!isset($taxSummary[$sgstKey])) {
+                $taxSummary[$sgstKey] = 0;
+            }
+            $taxSummary[$cgstKey] += $cgstAmount;
+            $taxSummary[$sgstKey] += $sgstAmount;
+        } elseif ($taxType === 'igst') {
+            $igstRate = $item['igst_rate'] > 0 ? $item['igst_rate'] : $effectiveTaxRate;
+            $igstKey = "IGST (" . number_format($igstRate, 2) . "%)";
+            
+            // Add to summary
+            if (!isset($taxSummary[$igstKey])) {
+                $taxSummary[$igstKey] = 0;
+            }
+            $taxSummary[$igstKey] += $lineTax;
+        } else {
+            // For other GST types or manual GST
+            $taxKey = $item['tax_name'] . " (" . number_format($effectiveTaxRate, 2) . "%)";
+            if (!isset($taxSummary[$taxKey])) {
+                $taxSummary[$taxKey] = 0;
+            }
+            $taxSummary[$taxKey] += $lineTax;
+        }
     }
 }
 
@@ -722,7 +796,7 @@ function formatAmount($amount, $currencySymbol = null) {
 															<th><?= $item_type == 1 ? 'Selling Price' : 'Hourly Price' ?></th>
 															
 															<!-- Tax Column - Only show if GST is enabled AND there's tax data -->
-															<?php if ($hasTaxData && $showGSTColumn): ?>
+															<?php if ($showGSTColumn): ?>
 																<th>Tax</th>
 															<?php endif; ?>
 															
@@ -743,6 +817,43 @@ function formatAmount($amount, $currencySymbol = null) {
 															} else {
 																// If it's a product, use only product name
 																$itemName = !empty($item['product_name']) ? $item['product_name'] : 'Product';
+															}
+															
+															// Calculate base amount and tax for display - SIMILAR TO QUOTATION LOGIC
+															$itemAmount = $item['amount'];
+															$effectiveTaxRate = $item['tax_rate'] ?? 0;
+															$taxName = $item['tax_name'] ?? 'Tax';
+															
+															// For Non-GST invoices, tax should be 0
+															if (($invoice['gst_type'] ?? 'gst') === 'non_gst') {
+																$effectiveTaxRate = 0;
+																$lineTax = 0;
+																$baseAmount = $itemAmount; // For non-GST, amount is already without tax
+															} else {
+																// Calculate base amount (without tax) from the total amount
+																if ($effectiveTaxRate > 0) {
+																	$baseAmount = $itemAmount / (1 + ($effectiveTaxRate / 100));
+																	$lineTax = $itemAmount - $baseAmount;
+																} else {
+																	$baseAmount = $itemAmount;
+																	$lineTax = 0;
+																}
+															}
+															
+															// Build tax label based on tax_type - SIMILAR TO QUOTATION LOGIC
+															if ($effectiveTaxRate > 0) {
+																if ($taxType === 'cgst_sgst') {
+																	// For CGST+SGST, show combined rate
+																	$cgstRate = $item['cgst_rate'] > 0 ? $item['cgst_rate'] : ($effectiveTaxRate / 2);
+																	$sgstRate = $item['sgst_rate'] > 0 ? $item['sgst_rate'] : ($effectiveTaxRate / 2);
+																	$taxDisplay = "CGST " . number_format($cgstRate, 2) . "% + SGST " . number_format($sgstRate, 2) . "%";
+																} elseif ($taxType === 'igst') {
+																	$igstRate = $item['igst_rate'] > 0 ? $item['igst_rate'] : $effectiveTaxRate;
+																	$taxDisplay = "IGST " . number_format($igstRate, 2) . "%";
+																} else {
+																	// For other GST types or manual GST
+																	$taxDisplay = $taxName . " " . number_format($effectiveTaxRate, 2) . "%";
+																}
 															}
 														?>
 														<tr>
@@ -767,17 +878,19 @@ function formatAmount($amount, $currencySymbol = null) {
 															<td><?= formatAmount($item['selling_price']) ?></td>
 															
 															<!-- Tax Column - Only show if GST is enabled AND there's tax data -->
-															<?php if ($hasTaxData && $showGSTColumn): ?>
+															<?php if ($showGSTColumn): ?>
 																<td>
 																	<?php if (($invoice['gst_type'] ?? 'gst') === 'non_gst'): ?>
 																		Non-GST
 																	<?php else: ?>
-																		<?= $item['tax_name'] ?>
+																		<?= $effectiveTaxRate > 0 ? $taxDisplay : 'No Tax' ?>
 																	<?php endif; ?>
 																</td>
 															<?php endif; ?>
 															
-															<td><?= formatAmount($item['amount']) ?></td>
+															<td>
+																<?= formatAmount($baseAmount) ?>
+															</td>
 														</tr>
 														<?php } ?>
 														
@@ -836,18 +949,28 @@ function formatAmount($amount, $currencySymbol = null) {
 												</div><!-- end col -->
 												<div class="col-lg-4">
 													<div class="mb-3 p-4">
+														<!-- FIXED: Changed label from "Sub Amount" to "Subtotal" - SIMILAR TO QUOTATION -->
 														<div class="d-flex align-items-center justify-content-between mb-3">
-															<h6 class="fs-14 fw-semibold">Sub Amount</h6>
-															<h6 class="fs-14 fw-semibold"><?= formatAmount($invoice['amount']) ?></h6>
+															<h6 class="fs-14 fw-semibold">Subtotal</h6>
+															<h6 class="fs-14 fw-semibold"><?= formatAmount($subtotal) ?></h6>
 														</div>
 														
-														<!-- Tax Amount Row - Only show if GST is enabled -->
-														<?php if ($showGSTColumn): ?>
-															<div class="d-flex align-items-center justify-content-between mb-3">
-																<h6 class="fs-14 fw-semibold">Tax Amount</h6>
-																<h6 class="fs-14 fw-semibold"><?= formatAmount($invoice['tax_amount']) ?></h6>
+														<?php 
+														$totalTax = 0;
+														if (($invoice['gst_type'] ?? 'gst') !== 'non_gst' && !empty($taxSummary)): 
+															foreach ($taxSummary as $taxLabel => $taxAmount): 
+																$totalTax += $taxAmount;
+																if ($taxAmount > 0):
+														?>
+															<div class="d-flex align-items-center justify-content-between mb-2">
+																<h6 class="fs-14 fw-semibold"><?= $taxLabel ?></h6>
+																<h6 class="fs-14 fw-semibold"><?= formatAmount($taxAmount) ?></h6>
 															</div>
-														<?php endif; ?>
+														<?php 
+																endif;
+															endforeach; 
+														endif; 
+														?>
 														
 														<?php if (!empty($invoice['shipping_charge']) && $invoice['shipping_charge'] > 0): ?>
 															<div class="d-flex align-items-center justify-content-between mb-3">

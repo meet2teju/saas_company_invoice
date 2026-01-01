@@ -56,7 +56,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $invoiceId = intval($_GET['id']);
 
-// Fetch invoice data
+// Fetch invoice data - UPDATED QUERY TO GET tax_type
 $invoice_result = mysqli_query($conn, "
     SELECT i.*, l.name AS salesperson_name
     FROM invoice i
@@ -73,6 +73,9 @@ if (!$invoice) {
 $client_id = $invoice['client_id'];
 $bank_id = $invoice['bank_id'];
 $item_type = $invoice['item_type'];
+
+// Get tax_type from invoice
+$taxType = $invoice['tax_type'] ?? 'non_gst';
 
 // Check GST type
 $gstType = $invoice['gst_type'] ?? 'gst';
@@ -94,7 +97,7 @@ if (!empty($bank_id)) {
     $bank = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM bank WHERE id = $bank_id"));
 }
 
-// Fetch items with tax rate
+// Fetch items with CGST/SGST/IGST rates - UPDATED QUERY LIKE QUOTATION
 $items_result = mysqli_query($conn, "
     SELECT ii.*, 
            p.name AS product_name,
@@ -103,8 +106,12 @@ $items_result = mysqli_query($conn, "
            s.code AS service_code,
            COALESCE(p.code, s.code) AS code,
            t.name AS tax_name, 
-           t.rate AS tax_rate,
-           u.name AS unit_name
+           t.rate AS rate,
+           u.name AS unit_name,
+           ii.rate AS item_tax_rate,
+           ii.cgst_rate,
+           ii.sgst_rate,
+           ii.igst_rate
     FROM invoice_item ii
     LEFT JOIN product p ON p.id = ii.product_id
     LEFT JOIN product s ON s.id = ii.service_id
@@ -139,7 +146,11 @@ while ($item = mysqli_fetch_assoc($items_result)) {
     }
     
     // Check tax column (for GST-enabled invoices)
-    if ($showGSTColumn && !empty($item['tax_name']) && trim($item['tax_name']) !== '') {
+    if ($showGSTColumn && (!empty($item['tax_name']) && trim($item['tax_name']) !== '') || 
+        ($item['item_tax_rate'] > 0) || 
+        ($item['cgst_rate'] > 0) || 
+        ($item['sgst_rate'] > 0) || 
+        ($item['igst_rate'] > 0)) {
         $hasTaxData = true;
     }
     
@@ -151,55 +162,92 @@ while ($item = mysqli_fetch_assoc($items_result)) {
 
 $hasItems = ($itemCount > 0);
 
-// Calculate totals and tax summary
-$taxSummary = [];
+// Calculate subtotal and tax summary with CGST/SGST/IGST logic - UPDATED LIKE QUOTATION
 $subtotal = 0;
+$taxSummary = [];
+$totalTax = 0;
+
 foreach ($items as $item) {
     $itemAmount = $item['amount'];
-    $subtotal += $itemAmount;
     
     // Calculate tax for this item only if GST type is not non_gst
     if ($showGSTColumn) {
-        $effectiveTaxRate = $item['tax_rate'] ?? 0;
+        $effectiveTaxRate = $item['item_tax_rate'] ?? $item['rate'] ?? 0;
         $taxName = $item['tax_name'] ?? 'Tax';
         
-        if ($effectiveTaxRate > 0) {
-            $lineTax = ($itemAmount * $effectiveTaxRate) / 100;
-            $taxKey = $taxName . ' (' . $effectiveTaxRate . '%)';
+        // For Non-GST invoices, tax should be 0
+        if ($gstType === 'non_gst') {
+            $effectiveTaxRate = 0;
+            $lineTax = 0;
+            $baseAmount = $itemAmount; // For non-GST, amount is already without tax
+        } else {
+            // Calculate base amount (without tax) from the total amount
+            if ($effectiveTaxRate > 0) {
+                $baseAmount = $itemAmount / (1 + ($effectiveTaxRate / 100));
+                $lineTax = $itemAmount - $baseAmount;
+            } else {
+                $baseAmount = $itemAmount;
+                $lineTax = 0;
+            }
+        }
+    } else {
+        $baseAmount = $itemAmount;
+        $lineTax = 0;
+    }
+    
+    // Add base amount to subtotal (without tax)
+    $subtotal += $baseAmount;
+    
+    // Build tax label based on tax_type
+    if ($showGSTColumn && $effectiveTaxRate > 0) {
+        if ($taxType === 'cgst_sgst') {
+            // For CGST+SGST, show combined rate but store separately for summary
+            $cgstRate = $item['cgst_rate'] > 0 ? $item['cgst_rate'] : ($effectiveTaxRate / 2);
+            $sgstRate = $item['sgst_rate'] > 0 ? $item['sgst_rate'] : ($effectiveTaxRate / 2);
+            
+            $cgstKey = "CGST (" . number_format($cgstRate, 2) . "%)";
+            $sgstKey = "SGST (" . number_format($sgstRate, 2) . "%)";
+            $cgstAmount = $lineTax / 2;
+            $sgstAmount = $lineTax / 2;
             
             // Add to summary
+            if (!isset($taxSummary[$cgstKey])) {
+                $taxSummary[$cgstKey] = 0;
+            }
+            if (!isset($taxSummary[$sgstKey])) {
+                $taxSummary[$sgstKey] = 0;
+            }
+            $taxSummary[$cgstKey] += $cgstAmount;
+            $taxSummary[$sgstKey] += $sgstAmount;
+            
+            $totalTax += $lineTax;
+            
+        } elseif ($taxType === 'igst') {
+            $igstRate = $item['igst_rate'] > 0 ? $item['igst_rate'] : $effectiveTaxRate;
+            $igstKey = "IGST (" . number_format($igstRate, 2) . "%)";
+            
+            // Add to summary
+            if (!isset($taxSummary[$igstKey])) {
+                $taxSummary[$igstKey] = 0;
+            }
+            $taxSummary[$igstKey] += $lineTax;
+            
+            $totalTax += $lineTax;
+        } else {
+            // For other GST types or manual GST
+            $taxKey = $taxName . " (" . number_format($effectiveTaxRate, 2) . "%)";
             if (!isset($taxSummary[$taxKey])) {
                 $taxSummary[$taxKey] = 0;
             }
             $taxSummary[$taxKey] += $lineTax;
+            
+            $totalTax += $lineTax;
         }
     }
 }
 
-$totalTax = array_sum($taxSummary);
-
-// Helper functions for column width calculation (same as your PDF)
-function calculateProductColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
-    $baseWidth = 40; // Base width for product column
-    
-    if (!$hasHsnCode) $baseWidth += 10;
-    if (!$hasQuantity) $baseWidth += 8;
-    if (!$hasUnit || $item_type != 1) $baseWidth += 8;
-    if (!$hasTax) $baseWidth += 12;
-    
-    return $baseWidth;
-}
-
-function calculateAmountColumnWidth($hasHsnCode, $hasQuantity, $hasUnit, $hasTax, $item_type) {
-    $baseWidth = 15; // Base width for amount column
-    
-    if (!$hasHsnCode) $baseWidth += 10;
-    if (!$hasQuantity) $baseWidth += 8;
-    if (!$hasUnit || $item_type != 1) $baseWidth += 8;
-    if (!$hasTax) $baseWidth += 12;
-    
-    return $baseWidth;
-}
+// Reset items pointer for display
+reset($items);
 
 // Calculate column count dynamically
 $colCount = 2; // Minimum columns: # and Product/Service
@@ -216,10 +264,11 @@ if ($hasUnitData && $item_type == 1) {
     $colCount++; // Unit column only for products
 }
 
-if ($hasTaxData && $showGSTColumn) {
+if ($showGSTColumn) {
     $colCount++; // Tax column
 }
 
+$colCount++; // Selling Price column
 $colCount++; // Amount column (always shown)
 
 // Fetch client address
@@ -237,7 +286,8 @@ if (!empty($client_id)) {
         WHERE ca.client_id = $client_id
         LIMIT 1
     ";
-    $client_address = mysqli_fetch_assoc(mysqli_query($conn, $client_address_query));
+    $client_address_result = mysqli_query($conn, $client_address_query);
+    $client_address = mysqli_fetch_assoc($client_address_result);
 }
 
 // Fetch company info
@@ -644,6 +694,16 @@ if (!empty($company['invoice_logo']) && file_exists('../uploads/' . $company['in
         .table th, .table td {
             padding: 4px;
         }
+        
+        /* Adjust column widths for new Selling Price column */
+        .table th:nth-child(1) { width: 5%; } /* # */
+        .table th:nth-child(2) { width: 25%; } /* Product/Service */
+        .table th:nth-child(3) { width: 10%; } /* HSN Code */
+        .table th:nth-child(4) { width: 8%; } /* QTY/Hours */
+        .table th:nth-child(5) { width: 8%; } /* Unit */
+        .table th:nth-child(6) { width: 15%; } /* Tax */
+        .table th:nth-child(7) { width: 15%; } /* Selling Price */
+        .table th:nth-child(8) { width: 14%; } /* Amount */
     </style>
     <script>
         // Auto-print when page loads
@@ -681,6 +741,7 @@ if (!empty($company['invoice_logo']) && file_exists('../uploads/' . $company['in
                 </td>
                 <td width="40%" class="text-right" style="vertical-align: middle;">
                     <h1 class="invoice-title">INVOICE</h1>
+                    
                 </td>
             </tr>
         </table>
@@ -772,26 +833,24 @@ if (!empty($company['invoice_logo']) && file_exists('../uploads/' . $company['in
             <table class="table">
                 <thead>
                     <tr style="background-color: #000; color: white;">
-                        <th width="5%">#</th>
-                        <th width="<?= calculateProductColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) ?>%">Product/Service</th>
-                        
-                        <?php if ($hasHsnCodeData): ?>
-                            <th width="10%">HSN Code</th>
-                        <?php endif; ?>
+                        <th>#</th>
+                        <th>Product/Service</th>
+                        <th>HSN Code</th>
                         
                         <?php if ($hasQuantityData): ?>
-                            <th width="8%" class="text-center"><?= ($item_type == 1) ? 'QTY' : 'Hours' ?></th>
+                            <th class="text-center"><?= ($item_type == 1) ? 'QTY' : 'Hours' ?></th>
                         <?php endif; ?>
                         
                         <?php if ($hasUnitData && $item_type == 1): ?>
-                            <th width="8%">Unit</th>
+                            <th>Unit</th>
+                        <?php endif; ?>
+                        <th>Selling Price</th>
+                        <?php if ($showGSTColumn): ?>
+                            <th>Tax</th>
                         <?php endif; ?>
                         
-                        <?php if ($hasTaxData && $showGSTColumn): ?>
-                            <th width="12%">Tax</th>
-                        <?php endif; ?>
                         
-                        <th width="<?= calculateAmountColumnWidth($hasHsnCodeData, $hasQuantityData, $hasUnitData, $hasTaxData, $item_type) ?>%">Amount</th>
+                        <th>Amount</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -807,14 +866,57 @@ if (!empty($company['invoice_logo']) && file_exists('../uploads/' . $company['in
                             } else {
                                 $itemName = !empty($item['product_name']) ? $item['product_name'] : 'Product';
                             }
+                            
+                            $effectiveTaxRate = $item['item_tax_rate'] ?? $item['rate'] ?? 0;
+                            $taxName = $item['tax_name'] ?? 'Tax';
+                            
+                            // Get selling price from database
+                            $sellingPrice = $item['selling_price'] ?? 0;
+                            
+                            // Calculate base amount (without tax) from the total amount
+                            $itemAmount = $item['amount'];
+                            
+                            if ($showGSTColumn) {
+                                if ($gstType === 'non_gst') {
+                                    $effectiveTaxRate = 0;
+                                    $baseAmount = $itemAmount; // For non-GST, amount is already without tax
+                                } else {
+                                    // Calculate base amount (without tax) from the total amount
+                                    if ($effectiveTaxRate > 0) {
+                                        $baseAmount = $itemAmount / (1 + ($effectiveTaxRate / 100));
+                                    } else {
+                                        $baseAmount = $itemAmount;
+                                    }
+                                }
+                            } else {
+                                $baseAmount = $itemAmount;
+                            }
+                            
+                            // Build tax display based on tax_type
+                            $taxDisplay = '';
+                            if ($showGSTColumn) {
+                                if ($gstType === 'non_gst') {
+                                    $taxDisplay = 'Non-GST';
+                                } elseif ($effectiveTaxRate > 0) {
+                                    if ($taxType === 'cgst_sgst') {
+                                        $cgstRate = $item['cgst_rate'] > 0 ? $item['cgst_rate'] : ($effectiveTaxRate / 2);
+                                        $sgstRate = $item['sgst_rate'] > 0 ? $item['sgst_rate'] : ($effectiveTaxRate / 2);
+                                        $taxDisplay = "CGST " . number_format($cgstRate, 2) . "% + SGST " . number_format($sgstRate, 2) . "%";
+                                    } elseif ($taxType === 'igst') {
+                                        $igstRate = $item['igst_rate'] > 0 ? $item['igst_rate'] : $effectiveTaxRate;
+                                        $taxDisplay = "IGST " . number_format($igstRate, 2) . "%";
+                                    } else {
+                                        $taxDisplay = $taxName . " " . number_format($effectiveTaxRate, 2) . "%";
+                                    }
+                                } else {
+                                    $taxDisplay = 'No Tax';
+                                }
+                            }
                         ?>
                         <tr>
                             <td><?= $i++ ?></td>
                             <td><?= htmlspecialchars($itemName) ?></td>
-                            
-                            <?php if ($hasHsnCodeData): ?>
-                                <td><?= htmlspecialchars($item['code'] ?? 'N/A') ?></td>
-                            <?php endif; ?>
+                            <td><?= htmlspecialchars($item['code'] ?? 'N/A') ?></td>
                             
                             <?php if ($hasQuantityData): ?>
                                 <td class="text-center"><?= $item['quantity'] ?? '0' ?></td>
@@ -823,18 +925,13 @@ if (!empty($company['invoice_logo']) && file_exists('../uploads/' . $company['in
                             <?php if ($hasUnitData && $item_type == 1): ?>
                                 <td><?= htmlspecialchars($item['unit_name'] ?? '') ?></td>
                             <?php endif; ?>
+                            <td><?= htmlspecialchars($currencySymbol) ?> <?= number_format($sellingPrice, 2) ?></td>
                             
-                            <?php if ($hasTaxData && $showGSTColumn): ?>
-                                <td>
-                                    <?php
-                                    $effectiveTaxRate = $item['tax_rate'] ?? 0;
-                                    $taxName = $item['tax_name'] ?? 'Tax';
-                                    echo $taxName . ($effectiveTaxRate > 0 ? ' (' . $effectiveTaxRate . '%)' : '');
-                                    ?>
-                                </td>
+                            <?php if ($showGSTColumn): ?>
+                                <td><?= $taxDisplay ?></td>
                             <?php endif; ?>
                             
-                            <td><?= htmlspecialchars($currencySymbol) ?> <?= number_format($item['amount'], 2) ?></td>
+                            <td><?= htmlspecialchars($currencySymbol) ?> <?= number_format($baseAmount, 2) ?></td>
                         </tr>
                         <?php endforeach; ?>
                     <?php else: ?>
@@ -884,16 +981,18 @@ if (!empty($company['invoice_logo']) && file_exists('../uploads/' . $company['in
                     <td width="<?= $totalsWidth ?>" style="vertical-align: top; text-align: right;">
                         <table style="width:100%;">
                             <tr class="subtotal-box">
-                                <td class="subtotal-title">Sub Amount:</td>
-                                <td class="subtotal-amount"><?= htmlspecialchars($currencySymbol) ?> <?= number_format($invoice['amount'], 2) ?></td>
+                                <td class="subtotal-title">Subtotal:</td>
+                                <td class="subtotal-amount"><?= htmlspecialchars($currencySymbol) ?> <?= number_format($subtotal, 2) ?></td>
                             </tr>
                             
                             <?php if ($showGSTColumn && !empty($taxSummary)): ?>
                                 <?php foreach ($taxSummary as $taxLabel => $taxAmount): ?>
-                                    <tr class="subtotal-box">
-                                        <td class="subtotal-title"><?= $taxLabel ?>:</td>
-                                        <td class="subtotal-amount"><?= htmlspecialchars($currencySymbol) ?> <?= number_format($taxAmount, 2) ?></td>
-                                    </tr>
+                                    <?php if ($taxAmount > 0): ?>
+                                        <tr class="subtotal-box">
+                                            <td class="subtotal-title"><?= $taxLabel ?>:</td>
+                                            <td class="subtotal-amount"><?= htmlspecialchars($currencySymbol) ?> <?= number_format($taxAmount, 2) ?></td>
+                                        </tr>
+                                    <?php endif; ?>
                                 <?php endforeach; ?>
                             <?php endif; ?>
 
